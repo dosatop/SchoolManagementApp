@@ -44,7 +44,7 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _api.register(request);
+      await _api.signUp(request);
 
       _isLoading = false;
       notifyListeners();

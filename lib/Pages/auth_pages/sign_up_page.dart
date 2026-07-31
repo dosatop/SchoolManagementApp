@@ -22,7 +22,7 @@ class _SignUpPageState extends State<SignUpPage> {
 
   final TextEditingController _emailController = TextEditingController();
 
-  final TextEditingController _mobileNumberController = TextEditingController();
+  final TextEditingController _phoneNumberController = TextEditingController();
 
   final TextEditingController _passwordController = TextEditingController();
 
@@ -138,15 +138,15 @@ class _SignUpPageState extends State<SignUpPage> {
                         ),
                         SizedBox(height: 8),
                         CustomTextfield(
-                          controller: _mobileNumberController,
-                          hintText: "Mobile Number",
+                          controller: _phoneNumberController,
+                          hintText: "Phone Number",
                           iconType: Icons.call_outlined,
-                          textFieldName: "Mobile number",
+                          textFieldName: "Phone number",
                           textInputType: TextInputType.number,
                           obscureText: false,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
-                              return "Mobile number is required";
+                              return "Phone number is required";
                             }
 
                             if (value.length < 11) {
@@ -285,8 +285,8 @@ class _SignUpPageState extends State<SignUpPage> {
                                                   .trim(),
                                               password:
                                                   _passwordController.text,
-                                              mobileNumber:
-                                                  _mobileNumberController.text,
+                                              phoneNumber:
+                                                  _phoneNumberController.text,
                                             ),
                                           );
 

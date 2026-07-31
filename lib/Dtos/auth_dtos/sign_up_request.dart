@@ -2,11 +2,11 @@ class SignUpRequest {
   final String email;
   final String password;
   final String fullName;
-  final String mobileNumber;
+  final String phoneNumber;
 
   SignUpRequest({
     required this.email,
-    required this.password, required this.fullName, required this.mobileNumber,
+    required this.password, required this.fullName, required this.phoneNumber,
    
   });
 
@@ -15,7 +15,7 @@ class SignUpRequest {
       'email': email,
       'password': password,
       'fullName': fullName,
-      'mobileNumber': mobileNumber,
+      'phoneNumber': phoneNumber,
     };
   }
 }
