@@ -1,5 +1,5 @@
 import 'package:app/Dtos/auth_dtos/login_request.dart';
-import 'package:app/Dtos/auth_dtos/register_request.dart';
+import 'package:app/Dtos/auth_dtos/sign_up_request.dart';
 import 'package:app/Services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:app/Services/api_service.dart';
@@ -13,7 +13,6 @@ class AuthProvider extends ChangeNotifier {
 
   String? _error;
   String? get error => _error;
-
 
   Future<bool> login(LoginRequest request) async {
     _isLoading = true;
@@ -29,7 +28,6 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       return true;
-
     } catch (e) {
       _error = e.toString();
 
@@ -40,8 +38,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-
-  Future<bool> register(RegisterRequest request) async {
+  Future<bool> signUp(SignUpRequest request) async {
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -53,7 +50,6 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
 
       return true;
-
     } catch (e) {
       _error = e.toString();
 

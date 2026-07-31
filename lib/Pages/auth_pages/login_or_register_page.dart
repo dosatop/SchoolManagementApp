@@ -1,3 +1,4 @@
+import 'package:app/Pages/auth_pages/sign_up_page.dart';
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'register_page.dart';
@@ -11,7 +12,7 @@ class LoginOrRegisterPage extends StatelessWidget {
     if (isLogin) {
       return const LoginPage();
     } else {
-      return const RegisterPage();
+      return const SignUpPage();
     }
   }
 }

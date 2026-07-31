@@ -1,6 +1,7 @@
 import 'package:app/Components/Buttons/back_button.dart';
 import 'package:app/Components/TextFields/custom_textfield.dart';
 import 'package:app/Dtos/auth_dtos/login_request.dart';
+import 'package:app/Dtos/auth_dtos/sign_up_request.dart';
 import 'package:app/Providers/auth_provider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -276,12 +277,16 @@ class _SignUpPageState extends State<SignUpPage> {
                                               .validate()) {
                                             return;
                                           }
-                                          final success = await auth.login(
-                                            LoginRequest(
+                                          final success = await auth.signUp(
+                                            SignUpRequest(
+                                              fullName: _fullNameController.text
+                                                  .trim(),
                                               email: _emailController.text
                                                   .trim(),
                                               password:
                                                   _passwordController.text,
+                                              mobileNumber:
+                                                  _mobileNumberController.text,
                                             ),
                                           );
 
@@ -300,7 +305,7 @@ class _SignUpPageState extends State<SignUpPage> {
                                             ).showSnackBar(
                                               const SnackBar(
                                                 content: Text(
-                                                  'Invalid email or password',
+                                                  'Error in signing up user',
                                                 ),
                                               ),
                                             );

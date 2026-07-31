@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:app/Dtos/auth_dtos/login_request.dart';
 import 'package:app/Dtos/auth_dtos/login_response.dart';
-import 'package:app/Dtos/auth_dtos/register_request.dart';
+import 'package:app/Dtos/auth_dtos/sign_up_request.dart';
 import 'package:app/Services/storage_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -37,7 +37,7 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> register(RegisterRequest request) async {
+  Future<Map<String, dynamic>> register(SignUpRequest request) async {
     final response = await http.post(
       Uri.parse('$baseUrl/auth/register'),
       headers: {'Content-Type': 'application/json'},
