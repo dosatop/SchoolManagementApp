@@ -1,7 +1,9 @@
 import 'package:app/Pages/auth_pages/login_or_register_page.dart';
 import 'package:app/Pages/auth_pages/login_page.dart';
 import 'package:app/Pages/auth_pages/register_page.dart';
+import 'package:app/Pages/auth_pages/sign_up_page.dart';
 import 'package:app/Pages/dashboard_page.dart';
+import 'package:app/Pages/onboarding/first_screen.dart';
 import 'package:app/Providers/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -42,12 +44,14 @@ class MyApp extends StatelessWidget {
         // tested with just a hot reload.
         colorScheme: .fromSeed(seedColor: Colors.deepPurple),
       ),
-      home: const LoginOrRegisterPage(),
+      home: const FirstScreen(),
       routes: {
+        'firstScreen': (context) => const FirstScreen(),
         '/login': (context) => const LoginPage(),
         '/register': (context) => const RegisterPage(),
         '/dashboard': (context) => const DashboardPage(),
         '/loginOrRegister': (context) => const LoginOrRegisterPage(),
+        '/signUp': (context) => SignUpPage(),
       },
     );
   }
