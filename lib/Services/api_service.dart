@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:app/Dtos/auth_dtos/login_request.dart';
 import 'package:app/Dtos/auth_dtos/login_response.dart';
 import 'package:app/Dtos/auth_dtos/sign_up_request.dart';
+import 'package:app/Dtos/user_dtos/user.dart';
 import 'package:app/Services/storage_service.dart';
 import 'package:http/http.dart' as http;
 
@@ -51,7 +52,7 @@ class ApiService {
     throw Exception(response.body);
   }
 
-  Future<Map<String, dynamic>> getUserDetails() async {
+  Future<User> getUserDetails() async {
     final token = await StorageService().getToken();
 
     final response = await http.get(
@@ -63,7 +64,8 @@ class ApiService {
     );
 
     if (response.statusCode == 200) {
-      return jsonDecode(response.body);
+      var jsonResponse = jsonDecode(response.body);
+      return User.fromJson(jsonResponse);
     } else {
       throw Exception('Failed to get user details: ${response.body}');
     }

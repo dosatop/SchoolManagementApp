@@ -6,11 +6,14 @@ class FirstScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final keyboardOpen = MediaQuery.of(context).viewInsets.bottom > 0;
+
     return Scaffold(
       body: Column(
         children: [
           SizedBox(
-            height: MediaQuery.of(context).size.height / 4,
+            height: size.height / 4,
             width: double.infinity,
             child: Stack(
               children: [
@@ -30,7 +33,11 @@ class FirstScreen extends StatelessWidget {
               ],
             ),
           ),
-          Image.asset("lib/assets/svgs/student_with_book.png", height: 300),
+          Image.asset(
+            "lib/assets/svgs/student_with_book.png",
+            height: size.height / 3,
+            width: size.width / 1.5,
+          ),
           Text(
             "Simple",
             style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
@@ -44,19 +51,25 @@ class FirstScreen extends StatelessWidget {
             padding: EdgeInsets.all(30),
             margin: EdgeInsets.all(30),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: Color.fromARGB(255, 9, 25, 147)),
             ),
             child: Column(
               children: [
                 Text(
-                  "Enjoy your Education at your fingertips!",
+                  "Enjoy your Education at your fingertips !",
                   style: TextStyle(fontSize: 18),
                 ),
+                SizedBox(height: 10),
                 SizedBox(
+                  height: 50,
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () => Navigator.pushNamed(context, "/login"),
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      "/loginOrSignUp",
+                      arguments: true,
+                    ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Color.fromARGB(255, 9, 25, 147),
                       foregroundColor: Colors.white,
@@ -67,11 +80,16 @@ class FirstScreen extends StatelessWidget {
                     child: Text("Get Started"),
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
                 SizedBox(
+                  height: 50,
                   width: double.infinity,
                   child: OutlinedButton(
-                    onPressed: () {},
+                    onPressed: () => Navigator.pushNamed(
+                      context,
+                      "/loginOrSignUp",
+                      arguments: false,
+                    ),
                     style: OutlinedButton.styleFrom(
                       backgroundColor: Colors.transparent,
                       foregroundColor: Colors.black,
@@ -83,12 +101,15 @@ class FirstScreen extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
-                          "Don't have an account?",
+                          "Don't have an account ?",
                           style: TextStyle(fontSize: 16),
                         ),
                         TextButton(
-                          onPressed: () =>
-                              Navigator.pushNamed(context, "/signUp"),
+                          onPressed: () => Navigator.pushNamed(
+                            context,
+                            "/loginOrSignUp",
+                            arguments: false,
+                          ),
                           style: TextButton.styleFrom(
                             padding: EdgeInsets.zero,
                             minimumSize: Size.zero,

@@ -1,4 +1,4 @@
-import 'package:app/Pages/auth_pages/login_or_register_page.dart';
+import 'package:app/Pages/auth_pages/login_or_sign_up.dart';
 import 'package:app/Pages/auth_pages/login_page.dart';
 import 'package:app/Pages/auth_pages/register_page.dart';
 import 'package:app/Pages/auth_pages/sign_up_page.dart';
@@ -49,8 +49,20 @@ class MyApp extends StatelessWidget {
         'firstScreen': (context) => const FirstScreen(),
         '/login': (context) => const LoginPage(),
         '/dashboard': (context) => const DashboardPage(),
-        '/loginOrSignUp': (context) => const LoginOrRegisterPage(),
         '/signUp': (context) => SignUpPage(),
+      },
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/loginOrSignUp':
+            final isLogin = settings.arguments as bool? ?? true;
+
+            return MaterialPageRoute(
+              builder: (_) => LoginOrSignUp(isLogin: isLogin),
+            );
+
+          default:
+            return null;
+        }
       },
     );
   }
