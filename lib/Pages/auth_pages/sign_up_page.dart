@@ -222,6 +222,11 @@ class _SignUpPageState extends State<SignUpPage> {
                                 if (value.length < 6) {
                                   return "Must be at least 6 characters";
                                 }
+                                if (!value.contains(
+                                  RegExp(r'^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)'),
+                                )) {
+                                  return "Password needs uppercase, lowercase, and a number.";
+                                }
 
                                 return null;
                               },
@@ -369,12 +374,13 @@ class _SignUpPageState extends State<SignUpPage> {
                                                 '/dashboard',
                                               );
                                             } else {
+                                              print('Error: ${auth.error}');
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
-                                                const SnackBar(
+                                                SnackBar(
                                                   content: Text(
-                                                    "Error in signing up user",
+                                                    "Error ${auth.error}",
                                                   ),
                                                 ),
                                               );

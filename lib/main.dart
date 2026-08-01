@@ -1,6 +1,5 @@
 import 'package:app/Pages/auth_pages/login_or_sign_up.dart';
 import 'package:app/Pages/auth_pages/login_page.dart';
-import 'package:app/Pages/auth_pages/register_page.dart';
 import 'package:app/Pages/auth_pages/sign_up_page.dart';
 import 'package:app/Pages/dashboard_page.dart';
 import 'package:app/Pages/onboarding/first_screen.dart';
