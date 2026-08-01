@@ -4,6 +4,7 @@ import 'package:app/Components/TextFields/custom_textfield.dart';
 import 'package:app/Components/Tiles/auth_tile.dart';
 import 'package:app/Dtos/auth_dtos/login_request.dart';
 import 'package:app/Providers/auth_provider.dart';
+import 'package:app/Services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_custom_clippers/flutter_custom_clippers.dart';
 import 'package:provider/provider.dart';
@@ -18,12 +19,35 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final StorageService storageService = StorageService();
   final _formKey = GlobalKey<FormState>();
 
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  bool rememberMe = false;
+  bool _rememberMe = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadLoginInfo();
+  }
+
+  Future<void> _loadLoginInfo() async {
+    final loginInfo = await storageService.getLoginInfo();
+
+    if (loginInfo == null) return;
+
+    setState(() {
+      _rememberMe = loginInfo.rememberMe;
+      if (_rememberMe) {
+        _emailController.text = loginInfo.email;
+        print(
+          "Loaded email: ${loginInfo.email}, rememberMe: ${loginInfo.rememberMe}",
+        );
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,12 +212,18 @@ class _LoginPageState extends State<LoginPage> {
                                 Row(
                                   children: [
                                     Checkbox(
-                                      value: rememberMe,
+                                      value: _rememberMe,
+                                      onChanged: (value) async {
+                                        final onChangedValue = value ?? false;
 
-                                      onChanged: (value) {
                                         setState(() {
-                                          rememberMe = value ?? false;
+                                          _rememberMe = onChangedValue;
                                         });
+
+                                        // await storageService.saveLoginInfo(
+                                        //   _emailController.text,
+                                        //   onChangedValue,
+                                        // );
                                       },
 
                                       activeColor: const Color.fromARGB(
@@ -257,6 +287,19 @@ class _LoginPageState extends State<LoginPage> {
                                             if (!mounted) return;
 
                                             if (success) {
+                                              if (_rememberMe) {
+                                                await storageService
+                                                    .saveLoginInfo(
+                                                      _emailController.text,
+                                                      true,
+                                                    );
+                                              } else {
+                                                await storageService
+                                                    .clearLoginInfo();
+                                              }
+
+                                              if (!context.mounted) return;
+
                                               Navigator.pushReplacementNamed(
                                                 context,
                                                 '/dashboard',
