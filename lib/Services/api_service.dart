@@ -23,57 +23,55 @@ class ApiService {
     }
   }
 
-Future<LoginResponse> login(LoginRequest request) async {
-  try {
-    final response = await http
-        .post(
-          Uri.parse('$baseUrl/auth/login'),
-          headers: {
-            'Content-Type': 'application/json; charset=UTF-8',
-          },
-          body: jsonEncode(request.toJson()),
-        )
-        .timeout(const Duration(seconds: 10));
+  Future<LoginResponse> login(LoginRequest request) async {
+    try {
+      final response = await http
+          .post(
+            Uri.parse('$baseUrl/auth/login'),
+            headers: {'Content-Type': 'application/json; charset=UTF-8'},
+            body: jsonEncode(request.toJson()),
+          )
+          .timeout(const Duration(seconds: 10));
 
-    switch (response.statusCode) {
-      case 200:
-        final data = jsonDecode(response.body);
-        return LoginResponse.fromJson(data);
+      switch (response.statusCode) {
+        case 200:
+          final data = jsonDecode(response.body);
+          return LoginResponse.fromJson(data);
 
-      case 400:
-        throw ValidationException(_getMessage(response.body));
+        case 400:
+          throw ValidationException(_getMessage(response.body));
 
-      case 401:
-        throw UnauthorizedException(_getMessage(response.body));
+        case 401:
+          throw UnauthorizedException(_getMessage(response.body));
 
-      case 403:
-        throw ForbiddenException(_getMessage(response.body));
+        case 403:
+          throw ForbiddenException(_getMessage(response.body));
 
-      case 404:
-        throw NotFoundException(_getMessage(response.body));
+        case 404:
+          throw NotFoundException(_getMessage(response.body));
 
-      case 409:
-        throw ConflictException(_getMessage(response.body));
+        case 409:
+          throw ConflictException(_getMessage(response.body));
 
-      case 500:
-        throw const ServerException();
+        case 500:
+          throw const ServerException();
 
-      default:
-        throw const ApiException();
-    }
-  } on http.ClientException catch (e) {
-    // Failed host lookup is reported as a ClientException by package:http.
-    if (e.message.contains('Failed host lookup')) {
+        default:
+          throw const ApiException();
+      }
+    } on http.ClientException catch (e) {
+      // Failed host lookup is reported as a ClientException by package:http.
+      if (e.message.contains('Failed host lookup')) {
+        throw const NetworkException.noInternet();
+      }
+
+      throw const NetworkException.generic();
+    } on SocketException {
       throw const NetworkException.noInternet();
+    } on TimeoutException {
+      throw const NetworkException.timeout();
     }
-
-    throw const NetworkException.generic();
-  } on SocketException {
-    throw const NetworkException.noInternet();
-  } on TimeoutException {
-    throw const NetworkException.timeout();
   }
-}
 
   Future<Map<String, dynamic>> signUp(SignUpRequest request) async {
     final response = await http
@@ -114,8 +112,14 @@ Future<LoginResponse> login(LoginRequest request) async {
     try {
       final json = jsonDecode(body);
 
-      if (json is Map && json['message'] != null) {
-        return json['message'];
+      if (json is Map) {
+        if (json['message'] != null) {
+          return json['message'].toString();
+        }
+
+        if (json['errors'] is List && json['errors'].isNotEmpty) {
+          return json['errors'][0].toString();
+        }
       }
 
       return body;
