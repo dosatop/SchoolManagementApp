@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_custom_clippers/flutter_custom_clippers.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 class FirstScreen extends StatelessWidget {
   const FirstScreen({super.key});
@@ -34,17 +35,27 @@ class FirstScreen extends StatelessWidget {
             ),
           ),
           Image.asset(
-            "lib/assets/svgs/student_with_book.png",
+            "lib/assets/svgs/team.png",
             height: size.height / 3,
             width: size.width / 1.5,
           ),
           Text(
-            "Simple",
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+            "SCHOOL",
+            style: GoogleFonts.michroma(
+              letterSpacing: 2,
+              fontSize: 45,
+              fontWeight: FontWeight.bold,
+              color: const Color.fromARGB(255, 112, 120, 184),
+            ),
           ),
           Text(
-            "EOU",
-            style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold),
+            "School Management App",
+            style: GoogleFonts.exo(
+              letterSpacing: 1.5,
+              fontSize: 16,
+              fontWeight: FontWeight.w300,
+              color: const Color.fromARGB(255, 47, 49, 61),
+            ),
           ),
 
           Container(
@@ -58,7 +69,7 @@ class FirstScreen extends StatelessWidget {
               children: [
                 Text(
                   "Enjoy your Education at your fingertips !",
-                  style: TextStyle(fontSize: 18),
+                  style: GoogleFonts.exo(fontSize: 14, letterSpacing: 1.3),
                 ),
                 SizedBox(height: 10),
                 SizedBox(

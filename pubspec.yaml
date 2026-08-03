@@ -39,6 +39,8 @@ dependencies:
   flutter_secure_storage: ^10.3.1
   flutter_custom_clippers: ^2.1.0
   flutter_svg: ^2.3.0
+  google_fonts: ^8.2.1
+  shimmer: ^3.0.0
 
 dev_dependencies:
   flutter_test:
@@ -65,6 +67,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - lib/assets/svgs/
+    - lib/assets/academics/
     # - images/a_dot_ham.jpeg
 
   # An image asset can refer to one or more resolution-specific "variants", see

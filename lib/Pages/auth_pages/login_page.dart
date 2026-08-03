@@ -42,9 +42,7 @@ class _LoginPageState extends State<LoginPage> {
       _rememberMe = loginInfo.rememberMe;
       if (_rememberMe) {
         _emailController.text = loginInfo.email;
-        print(
-          "Loaded email: ${loginInfo.email}, rememberMe: ${loginInfo.rememberMe}",
-        );
+        _passwordController.text = loginInfo.password;
       }
     });
   }
@@ -57,355 +55,367 @@ class _LoginPageState extends State<LoginPage> {
     return Scaffold(
       // backgroundColor: const Color.fromARGB(255, 9, 25, 147),
       resizeToAvoidBottomInset: true,
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight),
-                child: Column(
-                  children: [
-                    Stack(
-                      children: [
-                        ClipPath(
-                          clipper: WaveClipperOne(),
-                          child: Container(
-                            height: keyboardOpen
-                                ? size.height * 0.15
-                                : size.height * 0.27,
-                            color: const Color.fromARGB(255, 9, 25, 147),
+      body: PopScope(
+        canPop: false,
+        child: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                keyboardDismissBehavior:
+                    ScrollViewKeyboardDismissBehavior.onDrag,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  child: Column(
+                    children: [
+                      Stack(
+                        children: [
+                          ClipPath(
+                            clipper: WaveClipperOne(),
+                            child: Container(
+                              height: keyboardOpen
+                                  ? size.height * 0.15
+                                  : size.height * 0.27,
+                              color: const Color.fromARGB(255, 9, 25, 147),
+                            ),
                           ),
+
+                          Padding(
+                            padding: EdgeInsets.only(
+                              left: size.width * 0.1,
+                              top: size.height * 0.04,
+                              right: size.width * 0.05,
+                            ),
+
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+
+                                  children: [
+                                    Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+
+                                      children: [
+                                        Text(
+                                          "Log In",
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: size.width * 0.10,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+
+                                        const SizedBox(height: 8),
+
+                                        SizedBox(
+                                          width: size.width * 0.6,
+
+                                          child: Text(
+                                            "Experience a better learning environment",
+                                            style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: size.width * 0.038,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+
+                                    BackButtonFilled(),
+                                  ],
+                                ),
+
+                                SizedBox(
+                                  height: keyboardOpen
+                                      ? size.height * 0.05
+                                      : size.height * 0.08,
+                                ),
+
+                                if (!keyboardOpen)
+                                  Image.asset(
+                                    "lib/assets/svgs/exam.png",
+                                    height: size.height * 0.18,
+                                    width: size.width * 0.45,
+                                    fit: BoxFit.contain,
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      // FORM
+                      Padding(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: size.width * 0.08,
                         ),
 
-                        Padding(
-                          padding: EdgeInsets.only(
-                            left: size.width * 0.1,
-                            top: size.height * 0.04,
-                            right: size.width * 0.05,
-                          ),
+                        child: Form(
+                          key: _formKey,
 
                           child: Column(
                             children: [
+                              CustomTextfield(
+                                hintText: "Email",
+                                controller: _emailController,
+                                iconType: Icons.email_outlined,
+                                textFieldName: 'Email address',
+                                textInputType: TextInputType.emailAddress,
+
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return "Email is required";
+                                  }
+
+                                  if (!value.contains("@")) {
+                                    return "Enter a valid email";
+                                  }
+
+                                  return null;
+                                },
+
+                                obscureText: false,
+                              ),
+
+                              const SizedBox(height: 8),
+
+                              CustomTextfield(
+                                hintText: "Password",
+                                obscureText: true,
+
+                                controller: _passwordController,
+
+                                iconType: Icons.lock_clock_outlined,
+
+                                textFieldName: 'Password',
+
+                                validator: (value) {
+                                  if (value == null || value.trim().isEmpty) {
+                                    return "Password is required";
+                                  }
+
+                                  if (value.length < 6) {
+                                    return "Must be at least 6 characters";
+                                  }
+
+                                  return null;
+                                },
+
+                                textInputType: TextInputType.visiblePassword,
+                              ),
+
                               Row(
                                 mainAxisAlignment:
                                     MainAxisAlignment.spaceBetween,
 
                                 children: [
-                                  Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-
+                                  Row(
                                     children: [
-                                      Text(
-                                        "Log In",
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: size.width * 0.10,
-                                          fontWeight: FontWeight.bold,
+                                      Checkbox(
+                                        value: _rememberMe,
+                                        onChanged: (value) async {
+                                          final onChangedValue = value ?? false;
+
+                                          setState(() {
+                                            _rememberMe = onChangedValue;
+                                          });
+
+                                          // await storageService.saveLoginInfo(
+                                          //   _emailController.text,
+                                          //   onChangedValue,
+                                          // );
+                                        },
+
+                                        activeColor: const Color.fromARGB(
+                                          255,
+                                          9,
+                                          25,
+                                          147,
                                         ),
+
+                                        shape: const CircleBorder(),
+
+                                        visualDensity: VisualDensity.compact,
                                       ),
 
-                                      const SizedBox(height: 8),
-
-                                      SizedBox(
-                                        width: size.width * 0.6,
-
-                                        child: Text(
-                                          "Experience a better learning environment",
-                                          style: TextStyle(
-                                            color: Colors.white70,
-                                            fontSize: size.width * 0.038,
-                                          ),
-                                        ),
+                                      const Text(
+                                        "Remember me",
+                                        style: TextStyle(fontSize: 14),
                                       ),
                                     ],
                                   ),
 
-                                  BackButtonFilled(),
+                                  TextButton(
+                                    onPressed: () {},
+
+                                    child: const Text(
+                                      "Forgot password?",
+                                      style: TextStyle(
+                                        color: Color(0xFF091993),
+                                      ),
+                                    ),
+                                  ),
                                 ],
                               ),
 
+                              const SizedBox(height: 10),
+
                               SizedBox(
-                                height: keyboardOpen
-                                    ? size.height * 0.05
-                                    : size.height * 0.08,
+                                width: double.infinity,
+
+                                height: 50,
+
+                                child: Consumer<AuthProvider>(
+                                  builder: (context, auth, child) {
+                                    return ElevatedButton(
+                                      onPressed: auth.isLoading
+                                          ? null
+                                          : () async {
+                                              if (!_formKey.currentState!
+                                                  .validate()) {
+                                                return;
+                                              }
+
+                                              final success = await auth.login(
+                                                LoginRequest(
+                                                  email: _emailController.text
+                                                      .trim(),
+
+                                                  password:
+                                                      _passwordController.text,
+                                                ),
+                                              );
+
+                                              if (!mounted) return;
+
+                                              if (success) {
+                                                if (_rememberMe) {
+                                                  await storageService
+                                                      .saveLoginInfo(
+                                                        _emailController.text,
+                                                        _passwordController
+                                                            .text,
+                                                        true,
+                                                      );
+                                                } else {
+                                                  await storageService
+                                                      .clearLoginInfo();
+                                                }
+
+                                                if (!context.mounted) return;
+
+                                                Navigator.pushNamedAndRemoveUntil(
+                                                  context,
+                                                  '/dashboard',
+                                                  (route) => false,
+                                                );
+                                              } else {
+                                                print(
+                                                  "Login failed: ${auth.error}",
+                                                );
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  SnackBar(
+                                                    content: Text(
+                                                      "Error: ${auth.error}",
+                                                    ),
+                                                  ),
+                                                );
+                                              }
+                                            },
+
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: const Color.fromARGB(
+                                          255,
+                                          9,
+                                          25,
+                                          147,
+                                        ),
+
+                                        foregroundColor: Colors.white,
+                                      ),
+
+                                      child: auth.isLoading
+                                          ? SizedBox(
+                                              width: 24,
+                                              height: 24,
+                                              child: CircularProgressIndicator(
+                                                color: Color.fromARGB(
+                                                  255,
+                                                  9,
+                                                  25,
+                                                  147,
+                                                ),
+                                                strokeWidth:
+                                                    2, // Optional: makes the ring thinner
+                                              ),
+                                            )
+                                          : const Text("Login"),
+                                    );
+                                  },
+                                ),
                               ),
 
-                              if (!keyboardOpen)
-                                Image.asset(
-                                  "lib/assets/svgs/exam.png",
-                                  height: size.height * 0.18,
-                                  width: size.width * 0.45,
-                                  fit: BoxFit.contain,
-                                ),
+                              const SizedBox(height: 15),
+
+                              HorizontalDivider(textString: "OR"),
+
+                              const SizedBox(height: 15),
+
+                              AuthTile(
+                                authText: "Sign in with Google",
+                                imageLink: "lib/assets/svgs/google.svg",
+                              ),
+
+                              const SizedBox(height: 12),
+
+                              AuthTile(
+                                authText: "Sign in with Apple",
+                                imageLink: "lib/assets/svgs/apple.svg",
+                              ),
+
+                              const SizedBox(height: 15),
+
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+
+                                children: [
+                                  const Text("Don't have an account?"),
+
+                                  TextButton(
+                                    onPressed: widget.onTogglePage,
+
+                                    style: TextButton.styleFrom(
+                                      padding: EdgeInsets.only(
+                                        left: size.width * 0.01,
+                                      ),
+                                      minimumSize: Size.zero,
+                                      tapTargetSize:
+                                          MaterialTapTargetSize.shrinkWrap,
+                                    ),
+
+                                    child: const Text(
+                                      "Sign up",
+                                      style: TextStyle(
+                                        color: Color(0xFF091993),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
                         ),
-                      ],
-                    ),
-
-                    // FORM
-                    Padding(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: size.width * 0.08,
                       ),
-
-                      child: Form(
-                        key: _formKey,
-
-                        child: Column(
-                          children: [
-                            CustomTextfield(
-                              hintText: "Email",
-                              controller: _emailController,
-                              iconType: Icons.email_outlined,
-                              textFieldName: 'Email address',
-                              textInputType: TextInputType.emailAddress,
-
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return "Email is required";
-                                }
-
-                                if (!value.contains("@")) {
-                                  return "Enter a valid email";
-                                }
-
-                                return null;
-                              },
-
-                              obscureText: false,
-                            ),
-
-                            const SizedBox(height: 8),
-
-                            CustomTextfield(
-                              hintText: "Password",
-                              obscureText: true,
-
-                              controller: _passwordController,
-
-                              iconType: Icons.lock_clock_outlined,
-
-                              textFieldName: 'Password',
-
-                              validator: (value) {
-                                if (value == null || value.trim().isEmpty) {
-                                  return "Password is required";
-                                }
-
-                                if (value.length < 6) {
-                                  return "Must be at least 6 characters";
-                                }
-
-                                return null;
-                              },
-
-                              textInputType: TextInputType.visiblePassword,
-                            ),
-
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-
-                              children: [
-                                Row(
-                                  children: [
-                                    Checkbox(
-                                      value: _rememberMe,
-                                      onChanged: (value) async {
-                                        final onChangedValue = value ?? false;
-
-                                        setState(() {
-                                          _rememberMe = onChangedValue;
-                                        });
-
-                                        // await storageService.saveLoginInfo(
-                                        //   _emailController.text,
-                                        //   onChangedValue,
-                                        // );
-                                      },
-
-                                      activeColor: const Color.fromARGB(
-                                        255,
-                                        9,
-                                        25,
-                                        147,
-                                      ),
-
-                                      shape: const CircleBorder(),
-
-                                      visualDensity: VisualDensity.compact,
-                                    ),
-
-                                    const Text(
-                                      "Remember me",
-                                      style: TextStyle(fontSize: 14),
-                                    ),
-                                  ],
-                                ),
-
-                                TextButton(
-                                  onPressed: () {},
-
-                                  child: const Text(
-                                    "Forgot password?",
-                                    style: TextStyle(color: Color(0xFF091993)),
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            const SizedBox(height: 10),
-
-                            SizedBox(
-                              width: double.infinity,
-
-                              height: 50,
-
-                              child: Consumer<AuthProvider>(
-                                builder: (context, auth, child) {
-                                  return ElevatedButton(
-                                    onPressed: auth.isLoading
-                                        ? null
-                                        : () async {
-                                            if (!_formKey.currentState!
-                                                .validate()) {
-                                              return;
-                                            }
-
-                                            final success = await auth.login(
-                                              LoginRequest(
-                                                email: _emailController.text
-                                                    .trim(),
-
-                                                password:
-                                                    _passwordController.text,
-                                              ),
-                                            );
-
-                                            if (!mounted) return;
-
-                                            if (success) {
-                                              if (_rememberMe) {
-                                                await storageService
-                                                    .saveLoginInfo(
-                                                      _emailController.text,
-                                                      true,
-                                                    );
-                                              } else {
-                                                await storageService
-                                                    .clearLoginInfo();
-                                              }
-
-                                              if (!context.mounted) return;
-
-                                              Navigator.pushReplacementNamed(
-                                                context,
-                                                '/dashboard',
-                                              );
-                                            } else {
-                                              print(
-                                                "Login failed: ${auth.error}",
-                                              );
-                                              ScaffoldMessenger.of(
-                                                context,
-                                              ).showSnackBar(
-                                                SnackBar(
-                                                  content: Text(
-                                                    "Error: ${auth.error}",
-                                                  ),
-                                                ),
-                                              );
-                                            }
-                                          },
-
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: const Color.fromARGB(
-                                        255,
-                                        9,
-                                        25,
-                                        147,
-                                      ),
-
-                                      foregroundColor: Colors.white,
-                                    ),
-
-                                    child: auth.isLoading
-                                        ? SizedBox(
-                                            width: 24,
-                                            height: 24,
-                                            child: CircularProgressIndicator(
-                                              color: Color.fromARGB(
-                                                255,
-                                                9,
-                                                25,
-                                                147,
-                                              ),
-                                              strokeWidth:
-                                                  2, // Optional: makes the ring thinner
-                                            ),
-                                          )
-                                        : const Text("Login"),
-                                  );
-                                },
-                              ),
-                            ),
-
-                            const SizedBox(height: 15),
-
-                            HorizontalDivider(textString: "OR"),
-
-                            const SizedBox(height: 15),
-
-                            AuthTile(
-                              authText: "Sign in with Google",
-                              imageLink: "lib/assets/svgs/google.svg",
-                            ),
-
-                            const SizedBox(height: 12),
-
-                            AuthTile(
-                              authText: "Sign in with Apple",
-                              imageLink: "lib/assets/svgs/apple.svg",
-                            ),
-
-                            const SizedBox(height: 15),
-
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-
-                              children: [
-                                const Text("Don't have an account?"),
-
-                                TextButton(
-                                  onPressed: widget.onTogglePage,
-
-                                  style: TextButton.styleFrom(
-                                    padding: EdgeInsets.only(
-                                      left: size.width * 0.01,
-                                    ),
-                                    minimumSize: Size.zero,
-                                    tapTargetSize:
-                                        MaterialTapTargetSize.shrinkWrap,
-                                  ),
-
-                                  child: const Text(
-                                    "Sign up",
-                                    style: TextStyle(color: Color(0xFF091993)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

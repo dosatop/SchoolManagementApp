@@ -18,9 +18,10 @@ class StorageService {
     await _storage.delete(key: 'accessToken');
   }
 
-  Future<void> saveLoginInfo(String email, bool rememberMe) async {
+  Future<void> saveLoginInfo(String email, String password, bool rememberMe) async {
     final LoginInfoDto loginInfo = LoginInfoDto(
       email: email,
+      password: password,
       rememberMe: rememberMe,
     );
 

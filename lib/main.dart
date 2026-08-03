@@ -3,14 +3,23 @@ import 'package:app/Pages/auth_pages/login_page.dart';
 import 'package:app/Pages/auth_pages/sign_up_page.dart';
 import 'package:app/Pages/dashboard_page.dart';
 import 'package:app/Pages/onboarding/first_screen.dart';
+import 'package:app/Providers/academic_tile_provider.dart';
 import 'package:app/Providers/auth_provider.dart';
+import 'package:app/Providers/user_provider.dart';
+import 'package:app/Services/api_service.dart';
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:provider/provider.dart';
 
 void main() {
   runApp(
-    ChangeNotifierProvider(
-      create: (context) => AuthProvider(),
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+
+        ChangeNotifierProvider(create: (_) => UserProvider(ApiService())),
+        ChangeNotifierProvider(create: (_) => AcademicTileProvider()),
+      ],
       child: const MyApp(),
     ),
   );
@@ -26,6 +35,9 @@ class MyApp extends StatelessWidget {
       title: 'Flutter Demo',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
+        textTheme: GoogleFonts.exo2TextTheme(
+          // Theme.of(context).textTheme,
+        ),
         // This is the theme of your application.
         //
         // TRY THIS: Try running your application with "flutter run". You'll see
@@ -41,7 +53,7 @@ class MyApp extends StatelessWidget {
         //
         // This works for code too, not just values: Most code changes can be
         // tested with just a hot reload.
-        colorScheme: .fromSeed(seedColor: Colors.deepPurple),
+        // colorScheme: ColorScheme.fromSeed(seedColor: const Color.fromARGB(255, 128, 143, 229)),
       ),
       home: const FirstScreen(),
       routes: {

@@ -1,6 +1,12 @@
-import 'package:app/Dtos/user_dtos/user.dart';
+import 'package:app/Components/Cards/academic_card.dart';
+import 'package:app/Components/InputFields/search_input.dart';
+import 'package:app/Components/Shimmers/academic_shimmer.dart';
+import 'package:app/Components/Shimmers/e_learning.dart';
+import 'package:app/Providers/academic_tile_provider.dart';
+import 'package:app/Providers/user_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:app/Services/api_service.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
 
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
@@ -10,101 +16,139 @@ class DashboardPage extends StatefulWidget {
 }
 
 class _DashboardPageState extends State<DashboardPage> {
-  Future<User>? _userFuture;
+  DateTime? _lastBackPressed;
 
-  final ApiService api = ApiService();
+  @override
+  void initState() {
+    super.initState();
 
-  void fetchUserDetails() {
-    setState(() {
-      _userFuture = api.getUserDetails();
+    Future.microtask(() {
+      context.read<UserProvider>().fetchUserDetails();
+      context.read<AcademicTileProvider>().loadAcademicTiles();
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Dashboard"), centerTitle: true),
+    final user = context.watch<UserProvider>().user;
+    final academicProvider = context.watch<AcademicTileProvider>();
+    final tiles = academicProvider.academicTiles;
+    final isLoading = academicProvider.isLoading;
 
-      body: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            SizedBox(
-              width: double.infinity,
-              height: 50,
-              child: ElevatedButton(
-                onPressed: fetchUserDetails,
-                child: const Text(
-                  "Fetch User Details",
-                  style: TextStyle(fontSize: 16),
-                ),
-              ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+
+        final now = DateTime.now();
+
+        if (_lastBackPressed == null ||
+            now.difference(_lastBackPressed!) > const Duration(seconds: 2)) {
+          _lastBackPressed = now;
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Press back again to exit'),
+              duration: Duration(seconds: 2),
             ),
+          );
+          return;
+        }
 
-            const SizedBox(height: 30),
-
-            Expanded(
-              child: FutureBuilder<User>(
-                future: _userFuture,
-                builder: (context, snapshot) {
-                  if (_userFuture == null) {
-                    return const Center(
-                      child: Text("Press the button to load your details"),
-                    );
-                  }
-
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-
-                  if (snapshot.hasError) {
-                    return Center(child: Text("Error: ${snapshot.error}"));
-                  }
-
-                  final User user = snapshot.data!;
-
-                  return Card(
-                    elevation: 5,
-                    child: Padding(
-                      padding: const EdgeInsets.all(20),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Icon(Icons.person, size: 60),
-
-                          const SizedBox(height: 20),
-
-                          Text(
-                            "Email: ${user.email}",
-                            style: const TextStyle(fontSize: 18),
+        // Exit the app
+        SystemNavigator.pop();
+      },
+      child: Scaffold(
+        // backgroundColor: const Color.fromARGB(255, 247, 247, 247),
+        // appBar: AppBar(title: const Text("Dashboard"), centerTitle: true),
+        body: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text("Hello"),
+                        Text(
+                          user?.fullName ?? 'User',
+                          style: TextStyle(
+                            fontSize: 24,
+                            letterSpacing: 1.5,
+                            fontWeight: FontWeight.bold,
+                            color: const Color.fromARGB(255, 47, 49, 61),
                           ),
-
-                          const SizedBox(height: 10),
-
-                          Text(
-                            "Full Name: ${user.fullName}",
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                          const SizedBox(height: 10),
-
-                          Text(
-                            "Phone Number: ${user.phoneNumber}",
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                          const SizedBox(height: 10),
-
-                          Text(
-                            "User Name: ${user.userName}",
-                            style: const TextStyle(fontSize: 18),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                  );
-                },
+                    trailing: Icon(
+                      Icons.notifications_outlined,
+                      weight: 100,
+                      size: 30,
+                      color: const Color.fromARGB(255, 47, 49, 61),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SearchInput(),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Text(
+                        "Academics",
+                        textAlign: TextAlign.left,
+                        style: TextStyle(
+                          letterSpacing: 1.5,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: const Color.fromARGB(255, 47, 49, 61),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(
+                    // height: 300,
+                    child: isLoading
+                        ? academicShimmer()
+                        : GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: tiles.length,
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 3,
+                                  crossAxisSpacing: 12,
+                                  mainAxisSpacing: 12,
+                                ),
+                            itemBuilder: (context, index) {
+                              return AcademicCard(tile: tiles[index]);
+                            },
+                          ),
+                  ),
+
+                  const SizedBox(height: 30),
+                  Row(
+                    children: [
+                      Text(
+                        "E-Learning",
+                        textAlign: TextAlign.left,
+                        style: TextStyle(
+                          letterSpacing: 1.5,
+                          fontSize: 26,
+                          fontWeight: FontWeight.bold,
+                          color: const Color.fromARGB(255, 47, 49, 61),
+                        ),
+                      ),
+                    ],
+                  ),
+                  eLearningShimmer(),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
