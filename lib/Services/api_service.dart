@@ -7,6 +7,7 @@ import 'package:app/Dtos/auth_dtos/sign_up_request.dart';
 import 'package:app/Dtos/user_dtos/user.dart';
 import 'package:app/Errors/custom_exception_error.dart';
 import 'package:app/Services/storage_service.dart';
+import 'package:app/helpers/error/error_helper.dart';
 import 'package:http/http.dart' as http;
 
 class ApiService {
@@ -39,19 +40,19 @@ class ApiService {
           return LoginResponse.fromJson(data);
 
         case 400:
-          throw ValidationException(_getMessage(response.body));
+          throw ValidationException(getMessage(response.body));
 
         case 401:
-          throw UnauthorizedException(_getMessage(response.body));
+          throw UnauthorizedException(getMessage(response.body));
 
         case 403:
-          throw ForbiddenException(_getMessage(response.body));
+          throw ForbiddenException(getMessage(response.body));
 
         case 404:
-          throw NotFoundException(_getMessage(response.body));
+          throw NotFoundException(getMessage(response.body));
 
         case 409:
-          throw ConflictException(_getMessage(response.body));
+          throw ConflictException(getMessage(response.body));
 
         case 500:
           throw const ServerException();
@@ -105,26 +106,6 @@ class ApiService {
       return User.fromJson(jsonResponse);
     } else {
       throw Exception('Failed to get user details: ${response.body}');
-    }
-  }
-
-  String _getMessage(String body) {
-    try {
-      final json = jsonDecode(body);
-
-      if (json is Map) {
-        if (json['message'] != null) {
-          return json['message'].toString();
-        }
-
-        if (json['errors'] is List && json['errors'].isNotEmpty) {
-          return json['errors'][0].toString();
-        }
-      }
-
-      return body;
-    } catch (_) {
-      return body;
     }
   }
 }
