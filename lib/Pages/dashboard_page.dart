@@ -4,6 +4,7 @@ import 'package:app/Components/Shimmers/academic_shimmer.dart';
 import 'package:app/Components/Shimmers/e_learning.dart';
 import 'package:app/Providers/academic_tile_provider.dart';
 import 'package:app/Providers/user_provider.dart';
+import 'package:app/Services/email_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -17,6 +18,7 @@ class DashboardPage extends StatefulWidget {
 
 class _DashboardPageState extends State<DashboardPage> {
   DateTime? _lastBackPressed;
+  final EmailService _emailService = EmailService();
 
   @override
   void initState() {
@@ -26,6 +28,16 @@ class _DashboardPageState extends State<DashboardPage> {
       context.read<UserProvider>().fetchUserDetails();
       context.read<AcademicTileProvider>().loadAcademicTiles();
     });
+  }
+
+  String sendEmail() {
+    _emailService.sendEmail(
+      to: "AdenusiJoseph0@gmail.com",
+      subject: "Testing send email functionality",
+      htmlContent:
+          "If you're seeigng this, it means the email functionality is working perfectly from the school management app",
+    );
+    return 'Successful';
   }
 
   @override
@@ -145,6 +157,18 @@ class _DashboardPageState extends State<DashboardPage> {
                     ],
                   ),
                   eLearningShimmer(),
+                  ElevatedButton(
+                    onPressed: () async {
+                      sendEmail();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Email sent successfully'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    },
+                    child: Text("Send Email"),
+                  ),
                 ],
               ),
             ),
