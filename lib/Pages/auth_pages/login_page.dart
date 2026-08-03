@@ -305,12 +305,15 @@ class _LoginPageState extends State<LoginPage> {
                                                 '/dashboard',
                                               );
                                             } else {
+                                              print(
+                                                "Login failed: ${auth.error}",
+                                              );
                                               ScaffoldMessenger.of(
                                                 context,
                                               ).showSnackBar(
-                                                const SnackBar(
+                                                SnackBar(
                                                   content: Text(
-                                                    "Invalid email or password",
+                                                    "Error: ${auth.error}",
                                                   ),
                                                 ),
                                               );

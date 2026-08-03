@@ -1,8 +1,10 @@
 import 'package:app/Dtos/auth_dtos/login_request.dart';
 import 'package:app/Dtos/auth_dtos/sign_up_request.dart';
+import 'package:app/Errors/custom_exception_error.dart';
 import 'package:app/Services/storage_service.dart';
 import 'package:flutter/material.dart';
 import 'package:app/Services/api_service.dart';
+import 'package:http/http.dart' as http show ClientException;
 
 class AuthProvider extends ChangeNotifier {
   final ApiService _api = ApiService();
@@ -24,17 +26,16 @@ class AuthProvider extends ChangeNotifier {
 
       await _storage.saveToken(response.accessToken);
 
-      _isLoading = false;
-      notifyListeners();
-
       return true;
+    } on ApiException catch (e) {
+      _error = e.message;
+      return false;
     } catch (e) {
-      _error = e.toString();
-
+      _error = 'Something went wrong. Please try again.';
+      return false;
+    } finally {
       _isLoading = false;
       notifyListeners();
-
-      return false;
     }
   }
 
