@@ -1,8 +1,8 @@
 import 'dart:convert';
 
-import 'package:app/Services/storage_service.dart';
-import 'package:app/constants/api_constant.dart';
-import 'package:app/helpers/email/email_normalizer.dart';
+import 'package:app/core/storage/storage_service.dart';
+import 'package:app/core/constants/api_constant.dart';
+import 'package:app/core/helpers/email/email_normalizer.dart';
 import 'package:http/http.dart' as http;
 
 class EmailService {
