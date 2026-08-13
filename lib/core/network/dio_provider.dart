@@ -10,10 +10,15 @@ final secureStorageProvider = Provider((ref) {
 });
 
 final routerProvider = Provider<GoRouter>((ref) {
-  // final authState = ref.watch(authProvider);
-  // final isAuthenticated = authState.value?.isAuthenticated ?? false;
+  final router = appRouter(ref);
 
-  return appRouter();
+  ref.listen<AsyncValue<AuthState>>(authProvider, (_, __) {
+    router.refresh();
+  });
+
+  ref.onDispose(router.dispose);
+
+  return router;
 });
 
 final dioClientProvider = Provider<DioClient>((ref) {

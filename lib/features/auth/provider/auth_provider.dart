@@ -12,8 +12,9 @@ final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(
 
 class AuthState {
   final bool isAuthenticated;
+  final String? role;
 
-  const AuthState({this.isAuthenticated = false});
+  AuthState({this.isAuthenticated = false, this.role});
 }
 
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
@@ -29,7 +30,7 @@ final authRepositoryProvider = Provider<AuthRepository>((ref) {
 class AuthNotifier extends AsyncNotifier<AuthState> {
   @override
   Future<AuthState> build() async {
-    return const AuthState(isAuthenticated: false);
+    return AuthState(isAuthenticated: false,);
   }
 
   Future<String?> login(LoginRequest request) async {
@@ -42,7 +43,9 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
 
       ref.read(userProvider.notifier).state = response;
 
-      state = AsyncData(const AuthState(isAuthenticated: true));
+      state = AsyncData(
+        AuthState(isAuthenticated: true, role: response.role),
+      );
 
       return null;
     } catch (error, stackTrace) {
@@ -51,27 +54,33 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     }
   }
 
-  Future<String?> signup(SignupRequest request) async {
-    state = const AsyncLoading();
-    try {
-      final repository = ref.read(authRepositoryProvider);
+ Future<String?> signup(SignupRequest request) async {
+  state = const AsyncLoading();
 
-      final response = await repository.signup(request);
+  try {
+    final repository = ref.read(authRepositoryProvider);
 
-      ref.read(userProvider.notifier).state = response;
+    await repository.signup(request);
 
-      state = AsyncData(const AuthState(isAuthenticated: true));
-      return null;
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+    state = AsyncData(
+      AuthState(isAuthenticated: false),
+    );
 
-      return error.toString();
-    }
+    return null;
+  } catch (error, stackTrace) {
+    state = AsyncError(error, stackTrace);
+
+    return error.toString();
   }
+}
 
   Future<void> logout() async {
+    final repository = ref.read(authRepositoryProvider);
+
+    await repository.logout();
+
     ref.read(userProvider.notifier).state = null;
 
-    state = const AsyncData(AuthState(isAuthenticated: false));
+    state = AsyncData(AuthState(isAuthenticated: false));
   }
 }

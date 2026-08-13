@@ -310,9 +310,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
                                             if (!context.mounted) return;
 
-                                            context.go('/dashboard');
+                                            final auth = ref
+                                                .read(authProvider)
+                                                .value;
+
+                                            if (!context.mounted) return;
+
+                                            if (auth?.role == 'SuperAdmin') {
+                                              context.go('/super-admin');
+                                            } else if (auth?.role == 'Admin') {
+                                              context.go('/dashboard');
+                                            } else {
+                                              context.go('/dashboard');
+                                            }
                                           } else {
-                                            
                                             ScaffoldMessenger.of(
                                               context,
                                             ).showSnackBar(

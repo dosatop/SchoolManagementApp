@@ -19,10 +19,10 @@ class AuthRepository {
     return response;
   }
 
-  Future<LoginResponse> signup(SignupRequest request) async {
+  Future<String> signup(SignupRequest request) async {
     final response = await authApi.signup(request);
 
-    await _saveAuthData(response);
+    // await _saveAuthData(response);
 
     return response;
   }
@@ -31,5 +31,12 @@ class AuthRepository {
     await storage.saveToken(response.tokenResponse.accessToken);
 
     await storage.saveRefreshToken(response.tokenResponse.refreshToken);
+  }
+
+  Future<void> logout() async {
+    await authApi.logout();
+
+    await storage.deleteToken();
+    await storage.deleteRefreshToken();
   }
 }

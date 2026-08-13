@@ -1,6 +1,7 @@
 import 'package:app/features/ask/presentation/ask_doubt_page.dart';
 import 'package:app/features/assignment/presentation/assignment_page.dart';
 import 'package:app/features/assignment/presentation/assignment_view_page.dart';
+import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/events/presentation/events_page.dart';
 import 'package:app/features/exam/presentation/exam_page.dart';
 import 'package:app/features/fees/presentation/fees_page.dart';
@@ -24,6 +25,13 @@ import 'package:app/features/onboarding/first_screen.dart';
 import 'package:app/features/study/models/study_model.dart';
 import 'package:app/features/study/presentation/online_study_page.dart';
 import 'package:app/features/study/presentation/study_details_page.dart';
+import 'package:app/features/super_admin/models/school_model.dart';
+import 'package:app/features/super_admin/presentation/create_school_admin_page.dart';
+import 'package:app/features/super_admin/presentation/create_school_page.dart';
+import 'package:app/features/super_admin/presentation/school_management_page.dart';
+import 'package:app/features/super_admin/presentation/school_admins_page.dart';
+import 'package:app/features/super_admin/presentation/schools_page.dart';
+import 'package:app/features/super_admin/presentation/super_admin_daashboard.dart';
 import 'package:app/features/syllabus/presentation/syllabus_page.dart';
 import 'package:app/features/teacher/models/teacher_model.dart';
 import 'package:app/features/teacher/presentation/teacher_details_page.dart';
@@ -34,24 +42,56 @@ import 'package:app/features/timetable/presentation/time_table_page.dart';
 import 'package:app/features/tutor/models/tutor_model.dart';
 import 'package:app/features/tutor/presentation/online_tutoring_page.dart';
 import 'package:app/features/tutor/presentation/tutor_details_page.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-GoRouter appRouter() {
+GoRouter appRouter(Ref ref) {
   return GoRouter(
     initialLocation: '/',
-    // redirect: (context, state) {
-    //   final isAuthPage = state.matchedLocation == '/loginOrSignup';
+    redirect: (context, state) {
+      final authState = ref.read(authProvider);
 
-    //   if (!isAuthenticated && !isAuthPage) {
-    //     return '/loginOrSignup';
-    //   }
+      if (authState.isLoading) {
+        return null;
+      }
 
-    //   if (isAuthenticated && isAuthPage) {
-    //     return '/dashboard';
-    //   }
+      final auth = authState.value;
 
-    //   return null;
-    // },
+      final isAuthenticated = auth?.isAuthenticated ?? false;
+
+      final role = auth?.role;
+
+      final location = state.matchedLocation;
+
+      final isAuthPage = location == '/loginOrSignup';
+
+      if (!isAuthenticated) {
+        if (isAuthPage || location == '/') {
+          return null;
+        }
+
+        return '/loginOrSignup';
+      }
+      // Super Admin
+      if (role == 'SuperAdmin') {
+        if (isAuthPage || location == '/') {
+          return '/super-admin';
+        }
+      }
+
+      // Normal Admin
+      if (role == 'Admin') {
+        if (isAuthPage || location == '/') {
+          return '/dashboard';
+        }
+      }
+
+      if (isAuthPage || location == '/') {
+        return '/dashboard';
+      }
+
+      return null;
+    },
     routes: [
       GoRoute(path: '/', builder: (context, state) => const FirstScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
@@ -154,18 +194,18 @@ GoRouter appRouter() {
       ),
 
       GoRoute(
-  path: '/result-import-preview',
-  builder: (context, state) {
-    final data = state.extra as Map<String, String>;
+        path: '/result-import-preview',
+        builder: (context, state) {
+          final data = state.extra as Map<String, String>;
 
-    return ResultImportPreviewPage(
-      selectedClass: data['selectedClass']!,
-      selectedSubject: data['selectedSubject']!,
-      selectedExam: data['selectedExam']!,
-      fileName: data['fileName']!,
-    );
-  },
-),
+          return ResultImportPreviewPage(
+            selectedClass: data['selectedClass']!,
+            selectedSubject: data['selectedSubject']!,
+            selectedExam: data['selectedExam']!,
+            fileName: data['fileName']!,
+          );
+        },
+      ),
       GoRoute(
         path: '/result-entry',
         builder: (context, state) {
@@ -197,6 +237,53 @@ GoRouter appRouter() {
           );
         },
       ),
+      GoRoute(
+        path: '/super-admin',
+        builder: (context, state) => const SuperAdminDashboardPage(),
+      ),
+
+      GoRoute(
+        path: '/super-admin/create-school',
+        builder: (context, state) => const CreateSchoolPage(),
+      ),
+
+      GoRoute(
+        path: '/super-admin/create-school-admin',
+        builder: (context, state) {
+          final data = state.extra as Map<String, String>;
+
+          return CreateSchoolAdminPage(
+            schoolId: data['schoolId']!,
+            schoolName: data['schoolName']!,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/super-admin/schools',
+        builder: (context, state) => const SchoolsPage(),
+      ),
+
+      GoRoute(
+        path: '/super-admin/schools/:id',
+        builder: (context, state) {
+          final school = state.extra as SchoolModel;
+
+          return SchoolManagementPage(school: school);
+        },
+      ),
+
+      GoRoute(
+        path: '/schools/:schoolId/admins',
+        builder: (context, state) {
+          final schoolId = state.pathParameters['schoolId']!;
+
+          final schoolName = state.extra as String;
+
+          return SchoolAdminsPage(schoolId: schoolId, schoolName: schoolName);
+        },
+      ),
+
       // GoRoute(
       //   path: '/result-submissions',
       //   builder: (context, state) => const ResultSubmissionsPage(),

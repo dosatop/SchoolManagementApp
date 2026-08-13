@@ -53,13 +53,14 @@ class DioClient {
           handler.next(response);
         },
         onError: (error, handler) async {
-          AppLogger.logger.e('''
+                  AppLogger.logger.e('''
             ERROR
             ${error.message}
             ${error.requestOptions.uri}
             Response: ${error.response?.data}
             ''');
 
+          // No internet
           if (error.type == DioExceptionType.connectionError ||
               error.type == DioExceptionType.connectionTimeout ||
               error.type == DioExceptionType.receiveTimeout) {
@@ -72,6 +73,12 @@ class DioClient {
               ),
             );
           }
+
+          // Token expired / invalid
+          if (error.response?.statusCode == 401) {
+            await onLogout();
+          }
+
           handler.next(error);
         },
       ),

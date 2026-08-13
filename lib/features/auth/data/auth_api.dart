@@ -24,14 +24,22 @@ class AuthApi {
     }
   }
 
-  Future<LoginResponse> signup(SignupRequest request) async {
+  Future<String> signup(SignupRequest request) async {
     try {
       final response = await dioClient.dio.post(
         '/auth/signup',
         data: request.toJson(),
       );
 
-      return LoginResponse.fromJson(response.data);
+      return response.data;
+    } on DioException catch (error) {
+      throw AppException(ApiErrorHandler.getCode(error));
+    }
+  }
+
+  Future<void> logout() async {
+    try {
+      await dioClient.dio.post('/auth/logout');
     } on DioException catch (error) {
       throw AppException(ApiErrorHandler.getCode(error));
     }

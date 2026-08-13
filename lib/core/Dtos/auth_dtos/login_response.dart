@@ -5,6 +5,7 @@ class LoginResponse {
   final String fullName;
   final String? phoneNumber;
   final String email;
+  final String role;
   final TokenResponse tokenResponse;
 
   LoginResponse({
@@ -13,6 +14,7 @@ class LoginResponse {
     this.phoneNumber,
     required this.email,
     required this.tokenResponse,
+    required this.role,
   });
 
   factory LoginResponse.fromJson(Map<String, dynamic> json) {
@@ -21,6 +23,7 @@ class LoginResponse {
       fullName: json['fullName'] as String,
       phoneNumber: json['phoneNumber'] as String?,
       email: json['email'] as String,
+      role: json['role'] as String,
       tokenResponse: TokenResponse.fromJson(
         json['tokenResponse'] as Map<String, dynamic>,
       ),
