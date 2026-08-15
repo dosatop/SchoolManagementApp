@@ -319,9 +319,44 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                             if (auth?.role == 'SuperAdmin') {
                                               context.go('/super-admin');
                                             } else if (auth?.role == 'Admin') {
-                                              context.go('/dashboard');
+                                              final schoolId =
+                                                  auth?.user?.schoolId;
+
+                                              if (schoolId == null ||
+                                                  schoolId.isEmpty) {
+                                                ScaffoldMessenger.of(
+                                                  context,
+                                                ).showSnackBar(
+                                                  const SnackBar(
+                                                    content: Text(
+                                                      'Admin account is not assigned to a school.',
+                                                    ),
+                                                  ),
+                                                );
+                                                return;
+                                              }
+
+                                              context.go(
+                                                '/admin-dashboard/:schoolId',
+                                              );
+                                            } else if (auth?.role == 'Parent') {
+                                              context.go('/parent/dashboard');
+                                            } else if (auth?.role ==
+                                                'Student') {
+                                              context.go('/student/dashboard');
+                                            } else if (auth?.role ==
+                                                'Teacher') {
+                                              context.go('/teacher/dashboard');
                                             } else {
-                                              context.go('/dashboard');
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                SnackBar(
+                                                  content: Text(
+                                                    'Unknown account role: ${auth?.role ?? 'Unknown'}',
+                                                  ),
+                                                ),
+                                              );
                                             }
                                           } else {
                                             ScaffoldMessenger.of(

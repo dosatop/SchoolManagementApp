@@ -342,10 +342,12 @@ class _SchoolManagementCard extends StatelessWidget {
     // So they automatically display 0.
     // ---------------------------------------------------------------
 
-    final int usersCount = school.users?.length ?? 0;
-    final int classesCount = school.classes?.length ?? 0;
-    final int subjectsCount = school.subjects?.length ?? 0;
-
+    final int usersCount = school.userCount;
+    final int adminsCount = school.adminCount;
+    final int teachersCount = school.teacherCount;
+    final int studentsCount = school.studentCount;
+    final int classesCount = school.classCount;
+    final int subjectsCount = school.subjectCount;
     final String name = school.name ?? 'Unnamed School';
 
     final String address = school.address?.toString().trim().isNotEmpty == true
@@ -475,10 +477,10 @@ class _SchoolManagementCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: _MiniStat(
-                      icon: Icons.people_outline,
-                      value: usersCount,
-                      label: 'Users',
-                      color: primary,
+                      icon: Icons.admin_panel_settings_outlined,
+                      value: adminsCount,
+                      label: 'Admins',
+                      color: Colors.orange,
                     ),
                   ),
 
@@ -486,9 +488,9 @@ class _SchoolManagementCard extends StatelessWidget {
 
                   Expanded(
                     child: _MiniStat(
-                      icon: Icons.class_outlined,
-                      value: classesCount,
-                      label: 'Classes',
+                      icon: Icons.people_outline,
+                      value: teachersCount,
+                      label: 'Teachers',
                       color: Colors.green,
                     ),
                   ),
@@ -497,10 +499,10 @@ class _SchoolManagementCard extends StatelessWidget {
 
                   Expanded(
                     child: _MiniStat(
-                      icon: Icons.menu_book_outlined,
-                      value: subjectsCount,
-                      label: 'Subjects',
-                      color: Colors.orange,
+                      icon: Icons.groups_outlined,
+                      value: studentsCount,
+                      label: 'Students',
+                      color: Colors.purple,
                     ),
                   ),
                 ],

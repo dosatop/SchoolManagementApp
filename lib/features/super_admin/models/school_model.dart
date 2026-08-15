@@ -2,24 +2,28 @@ class SchoolModel {
   final String id;
   final String name;
   final String address;
-  final String? phoneNumber;
-  final String? email;
-  final DateTime? createdAt;
+  final String email;
+  final String phoneNumber;
 
-  final List<dynamic> users;
-  final List<dynamic> classes;
-  final List<dynamic> subjects;
+  final int userCount;
+  final int adminCount;
+  final int teacherCount;
+  final int studentCount;
+  final int classCount;
+  final int subjectCount;
 
-  const SchoolModel({
+  SchoolModel({
     required this.id,
     required this.name,
     required this.address,
-    this.phoneNumber,
-    this.email,
-    this.createdAt,
-    this.users = const [],
-    this.classes = const [],
-    this.subjects = const [],
+    required this.email,
+    required this.phoneNumber,
+    required this.userCount,
+    required this.adminCount,
+    required this.teacherCount,
+    required this.studentCount,
+    required this.classCount,
+    required this.subjectCount,
   });
 
   factory SchoolModel.fromJson(Map<String, dynamic> json) {
@@ -27,40 +31,15 @@ class SchoolModel {
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? '',
       address: json['address']?.toString() ?? '',
-      phoneNumber: json['phoneNumber']?.toString(),
-      email: json['email']?.toString(),
+      email: json['email']?.toString() ?? '',
+      phoneNumber: json['phoneNumber']?.toString() ?? '',
 
-      createdAt: json['createdAt'] != null
-          ? DateTime.tryParse(
-              json['createdAt'].toString(),
-            )
-          : null,
-
-      users: json['users'] is List
-          ? List<dynamic>.from(json['users'])
-          : const [],
-
-      classes: json['classes'] is List
-          ? List<dynamic>.from(json['classes'])
-          : const [],
-
-      subjects: json['subjects'] is List
-          ? List<dynamic>.from(json['subjects'])
-          : const [],
+      userCount: (json['userCount'] as num?)?.toInt() ?? 0,
+      adminCount: (json['adminCount'] as num?)?.toInt() ?? 0,
+      teacherCount: (json['teacherCount'] as num?)?.toInt() ?? 0,
+      studentCount: (json['studentCount'] as num?)?.toInt() ?? 0,
+      classCount: (json['classCount'] as num?)?.toInt() ?? 0,
+      subjectCount: (json['subjectCount'] as num?)?.toInt() ?? 0,
     );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'address': address,
-      'phoneNumber': phoneNumber,
-      'email': email,
-      'createdAt': createdAt?.toIso8601String(),
-      'users': users,
-      'classes': classes,
-      'subjects': subjects,
-    };
   }
 }

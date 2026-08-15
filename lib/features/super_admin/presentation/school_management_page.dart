@@ -1,19 +1,66 @@
 import 'package:app/features/super_admin/models/school_model.dart';
+import 'package:app/features/super_admin/provider/schools_page.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class SchoolManagementPage extends StatelessWidget {
+class SchoolManagementPage extends ConsumerStatefulWidget {
   final SchoolModel school;
 
   const SchoolManagementPage({super.key, required this.school});
 
+  @override
+  ConsumerState<SchoolManagementPage> createState() =>
+      _SchoolManagementPageState();
+}
+
+class _SchoolManagementPageState extends ConsumerState<SchoolManagementPage> {
   static const Color primary = Color(0xFF091993);
-  static const Color primaryLight = Color(0xFFE9ECFF);
   static const Color background = Color(0xFFF6F7FB);
   static const Color textDark = Color(0xFF20232E);
 
+  late SchoolModel school;
+
+  @override
+  void initState() {
+    super.initState();
+
+    school = widget.school;
+
+    Future.microtask(_refreshSchool);
+  }
+
+  // ================================================================
+  // REFRESH SCHOOL DATA
+  // ================================================================
+
+  Future<void> _refreshSchool() async {
+    try {
+      await ref.read(superAdminProvider.notifier).getSchools();
+
+      if (!mounted) return;
+
+      final schools = ref.read(superAdminProvider).value ?? [];
+
+      final updatedSchool = schools.cast<SchoolModel?>().firstWhere(
+        (item) => item?.id == widget.school.id,
+        orElse: () => null,
+      );
+
+      if (updatedSchool != null) {
+        setState(() {
+          school = updatedSchool;
+        });
+      }
+    } catch (_) {
+      // Keep the existing school data if refresh fails.
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final state = ref.watch(superAdminProvider);
+
     return Scaffold(
       backgroundColor: background,
 
@@ -24,7 +71,6 @@ class SchoolManagementPage extends StatelessWidget {
         elevation: 0,
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
-
         titleSpacing: 0,
 
         title: const Text(
@@ -38,6 +84,13 @@ class SchoolManagementPage extends StatelessWidget {
 
         actions: [
           IconButton(
+            onPressed: state.isLoading ? null : _refreshSchool,
+            icon: const Icon(Icons.refresh_rounded, color: textDark),
+          ),
+
+          const SizedBox(width: 8),
+
+          IconButton(
             onPressed: () {},
             icon: const Icon(Icons.more_vert_rounded, color: textDark),
           ),
@@ -46,194 +99,242 @@ class SchoolManagementPage extends StatelessWidget {
         ],
       ),
 
+      // ============================================================
+      // BODY
+      // ============================================================
       body: SafeArea(
-        child: ListView(
-          physics: const BouncingScrollPhysics(),
+        child: RefreshIndicator(
+          color: primary,
 
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 35),
+          onRefresh: _refreshSchool,
 
-          children: [
-            // ========================================================
-            // SCHOOL HERO
-            // ========================================================
-            _schoolHero(),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
 
-            const SizedBox(height: 22),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 35),
 
-            // ========================================================
-            // SCHOOL STATISTICS
-            // ========================================================
-            const Text(
-              'School Overview',
-              style: TextStyle(
-                color: textDark,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+            children: [
+              // ======================================================
+              // SCHOOL HERO
+              // ======================================================
+              _schoolHero(),
+
+              const SizedBox(height: 22),
+
+              // ======================================================
+              // SCHOOL STATISTICS
+              // ======================================================
+              const Text(
+                'School Overview',
+                style: TextStyle(
+                  color: textDark,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
 
-            const SizedBox(height: 5),
+              const SizedBox(height: 5),
 
-            Text(
-              'A quick overview of this school.',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-            ),
-
-            const SizedBox(height: 13),
-
-            _overviewStats(),
-
-            const SizedBox(height: 28),
-
-            // ========================================================
-            // SCHOOL INFORMATION
-            // ========================================================
-            const Text(
-              'School Information',
-              style: TextStyle(
-                color: textDark,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+              Text(
+                'A quick overview of this school.',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
               ),
-            ),
 
-            const SizedBox(height: 5),
+              const SizedBox(height: 13),
 
-            Text(
-              'Basic information about the school.',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-            ),
+              _overviewStats(),
 
-            const SizedBox(height: 13),
+              const SizedBox(height: 28),
 
-            _schoolInformation(),
-
-            const SizedBox(height: 28),
-
-            // ========================================================
-            // MANAGEMENT
-            // ========================================================
-            const Text(
-              'Management',
-              style: TextStyle(
-                color: textDark,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
+              // ======================================================
+              // SCHOOL INFORMATION
+              // ======================================================
+              const Text(
+                'School Information',
+                style: TextStyle(
+                  color: textDark,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
-            ),
 
-            const SizedBox(height: 5),
+              const SizedBox(height: 5),
 
-            Text(
-              'Manage users, academics and school administration.',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-            ),
+              Text(
+                'Basic information about the school.',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
 
-            const SizedBox(height: 14),
+              const SizedBox(height: 13),
 
-            // ========================================================
-            // ADMIN
-            // ========================================================
-            _managementTile(
-              icon: Icons.admin_panel_settings_outlined,
-              title: 'School Administrators',
-              subtitle: 'Create and manage school administrators',
-              color: Colors.orange,
-              onTap: () {
-                context.push(
-                  '/schools/${school.id}/admins',
-                  extra: school.name,
-                );
-              },
-            ),
+              _schoolInformation(),
 
-            // ========================================================
-            // TEACHERS
-            // ========================================================
-            _managementTile(
-              icon: Icons.people_outline,
-              title: 'Teachers',
-              subtitle: 'Manage teachers in this school',
-              color: Colors.green,
-              onTap: () {
-                // Coming next
-              },
-            ),
+              const SizedBox(height: 28),
 
-            // ========================================================
-            // STUDENTS
-            // ========================================================
-            _managementTile(
-              icon: Icons.groups_outlined,
-              title: 'Students',
-              subtitle: 'Manage students in this school',
-              color: Colors.purple,
-              onTap: () {
-                // Coming next
-              },
-            ),
+              // ======================================================
+              // MANAGEMENT
+              // ======================================================
+              const Text(
+                'Management',
+                style: TextStyle(
+                  color: textDark,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
 
-            // ========================================================
-            // CLASSES
-            // ========================================================
-            _managementTile(
-              icon: Icons.class_outlined,
-              title: 'Classes',
-              subtitle: 'Create and manage school classes',
-              color: Colors.blue,
-              onTap: () {
-                // Coming next
-              },
-            ),
+              const SizedBox(height: 5),
 
-            // ========================================================
-            // SUBJECTS
-            // ========================================================
-            _managementTile(
-              icon: Icons.menu_book_outlined,
-              title: 'Subjects',
-              subtitle: 'Manage subjects offered by the school',
-              color: Colors.teal,
-              onTap: () {
-                // Coming next
-              },
-            ),
+              Text(
+                'Manage users, academics and school administration.',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
 
-            const SizedBox(height: 15),
+              const SizedBox(height: 14),
 
-            // ========================================================
-            // PRIMARY ACTION
-            // ========================================================
-            SizedBox(
-              width: double.infinity,
-              height: 52,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  context.push(
+              // ======================================================
+              // ADMIN
+              // ======================================================
+              _managementTile(
+                icon: Icons.admin_panel_settings_outlined,
+                title: 'School Administrators',
+                subtitle: 'Create and manage school administrators',
+                color: Colors.orange,
+                onTap: () async {
+                  await context.push(
                     '/schools/${school.id}/admins',
                     extra: school.name,
                   );
+
+                  if (mounted) {
+                    _refreshSchool();
+                  }
                 },
+              ),
 
-                icon: const Icon(Icons.person_add_alt_1_rounded),
+              // ======================================================
+              // TEACHERS
+              // ======================================================
+              _managementTile(
+                icon: Icons.people_outline,
+                title: 'Teachers',
+                subtitle: 'Manage teachers in this school',
+                color: Colors.green,
+                onTap: () async {
+                  await context.push(
+                    '/schools/${school.id}/teachers',
+                    extra: school.name,
+                  );
 
-                label: const Text(
-                  'Create School Admin',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
-                ),
+                  if (mounted) {
+                    _refreshSchool();
+                  }
+                },
+              ),
 
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: primary,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
+              // ======================================================
+              // STUDENTS
+              // ======================================================
+              _managementTile(
+                icon: Icons.groups_outlined,
+                title: 'Students',
+                subtitle: 'Manage students in this school',
+                color: Colors.purple,
+                onTap: () async {
+                  await context.push(
+                    '/schools/${school.id}/students',
+                    extra: school.name,
+                  );
 
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
+                  if (mounted) {
+                    _refreshSchool();
+                  }
+                },
+              ),
+
+              // ======================================================
+              // CLASSES
+              // ======================================================
+              _managementTile(
+                icon: Icons.class_outlined,
+                title: 'Classes',
+                subtitle: 'Create and manage school classes',
+                color: Colors.blue,
+                onTap: () async {
+                  await context.push(
+                    '/schools/${school.id}/classes',
+                    extra: school.name,
+                  );
+
+                  if (mounted) {
+                    _refreshSchool();
+                  }
+                },
+              ),
+
+              // ======================================================
+              // SUBJECTS
+              // ======================================================
+              _managementTile(
+                icon: Icons.menu_book_outlined,
+                title: 'Subjects',
+                subtitle: 'Manage subjects offered by the school',
+                color: Colors.teal,
+                onTap: () async {
+                  await context.push(
+                    '/schools/${school.id}/subjects',
+                    extra: school.name,
+                  );
+
+                  if (mounted) {
+                    _refreshSchool();
+                  }
+                },
+              ),
+
+              const SizedBox(height: 15),
+
+              // ======================================================
+              // CREATE ADMIN
+              // ======================================================
+              SizedBox(
+                width: double.infinity,
+                height: 52,
+
+                child: ElevatedButton.icon(
+                  onPressed: () async {
+                    await context.push(
+                      '/super-admin/create-school-admin',
+                      extra: {'schoolId': school.id, 'schoolName': school.name},
+                    );
+
+                    if (mounted) {
+                      _refreshSchool();
+                    }
+                  },
+
+                  icon: const Icon(Icons.person_add_alt_1_rounded),
+
+                  label: const Text(
+                    'Create School Admin',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                  ),
+
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: primary,
+                    foregroundColor: Colors.white,
+                    elevation: 0,
+
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(15),
+                    ),
                   ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -246,11 +347,13 @@ class SchoolManagementPage extends StatelessWidget {
   Widget _schoolHero() {
     return Container(
       width: double.infinity,
+
       padding: const EdgeInsets.all(20),
 
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [primary, Color(0xFF2638C4)],
+
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -268,10 +371,8 @@ class SchoolManagementPage extends StatelessWidget {
 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+
         children: [
-          // ==========================================================
-          // ICON + STATUS
-          // ==========================================================
           Row(
             children: [
               Container(
@@ -325,9 +426,6 @@ class SchoolManagementPage extends StatelessWidget {
 
           const SizedBox(height: 20),
 
-          // ==========================================================
-          // SCHOOL NAME
-          // ==========================================================
           Text(
             school.name,
             maxLines: 2,
@@ -342,11 +440,9 @@ class SchoolManagementPage extends StatelessWidget {
 
           const SizedBox(height: 8),
 
-          // ==========================================================
-          // ADDRESS
-          // ==========================================================
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
+
             children: [
               const Icon(
                 Icons.location_on_outlined,
@@ -358,7 +454,10 @@ class SchoolManagementPage extends StatelessWidget {
 
               Expanded(
                 child: Text(
-                  school.address,
+                  school.address.isEmpty
+                      ? 'No address provided'
+                      : school.address,
+
                   style: const TextStyle(
                     color: Colors.white70,
                     fontSize: 12,
@@ -376,43 +475,62 @@ class SchoolManagementPage extends StatelessWidget {
   // ================================================================
   // OVERVIEW STATS
   // ================================================================
-
   Widget _overviewStats() {
-    final usersCount = school.users.length;
-    final classesCount = school.classes.length;
-    final subjectsCount = school.subjects.length;
+    final int adminCount = school.adminCount;
+    final int teacherCount = school.teacherCount;
+    final int classesCount = school.classCount;
+    final int subjectsCount = school.subjectCount;
 
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: _statCard(
-            icon: Icons.people_outline,
-            value: usersCount,
-            title: 'Users',
-            color: primary,
-          ),
+        Row(
+          children: [
+            Expanded(
+              child: _statCard(
+                icon: Icons.admin_panel_settings_outlined,
+                value: adminCount,
+                title: 'Admins',
+                color: Colors.orange,
+              ),
+            ),
+
+            const SizedBox(width: 12),
+
+            Expanded(
+              child: _statCard(
+                icon: Icons.people_outline,
+                value: teacherCount,
+                title: 'Teachers',
+                color: Colors.green,
+              ),
+            ),
+          ],
         ),
 
-        const SizedBox(width: 10),
+        const SizedBox(height: 12),
 
-        Expanded(
-          child: _statCard(
-            icon: Icons.class_outlined,
-            value: classesCount,
-            title: 'Classes',
-            color: Colors.green,
-          ),
-        ),
+        Row(
+          children: [
+            Expanded(
+              child: _statCard(
+                icon: Icons.class_outlined,
+                value: classesCount,
+                title: 'Classes',
+                color: Colors.blue,
+              ),
+            ),
 
-        const SizedBox(width: 10),
+            const SizedBox(width: 12),
 
-        Expanded(
-          child: _statCard(
-            icon: Icons.menu_book_outlined,
-            value: subjectsCount,
-            title: 'Subjects',
-            color: Colors.orange,
-          ),
+            Expanded(
+              child: _statCard(
+                icon: Icons.menu_book_outlined,
+                value: subjectsCount,
+                title: 'Subjects',
+                color: Colors.teal,
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -434,11 +552,13 @@ class SchoolManagementPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
+
         border: Border.all(color: Colors.grey.shade200),
       ),
 
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+
         children: [
           Container(
             width: 38,
@@ -456,6 +576,7 @@ class SchoolManagementPage extends StatelessWidget {
 
           Text(
             '$value',
+
             style: const TextStyle(
               color: textDark,
               fontSize: 21,
@@ -467,6 +588,7 @@ class SchoolManagementPage extends StatelessWidget {
 
           Text(
             title,
+
             style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
           ),
         ],
@@ -485,6 +607,7 @@ class SchoolManagementPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(19),
+
         border: Border.all(color: Colors.grey.shade200),
       ),
 
@@ -493,7 +616,9 @@ class SchoolManagementPage extends StatelessWidget {
           _infoRow(
             icon: Icons.location_on_outlined,
             label: 'Address',
-            value: school.address,
+            value: school.address.isEmpty
+                ? 'No address provided'
+                : school.address,
           ),
 
           if (school.email != null && school.email!.isNotEmpty)
@@ -551,6 +676,7 @@ class SchoolManagementPage extends StatelessWidget {
               children: [
                 Text(
                   label,
+
                   style: TextStyle(
                     color: Colors.grey.shade500,
                     fontSize: 10,
@@ -562,6 +688,7 @@ class SchoolManagementPage extends StatelessWidget {
 
                 Text(
                   value,
+
                   style: const TextStyle(
                     color: textDark,
                     fontSize: 13,
@@ -593,6 +720,7 @@ class SchoolManagementPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
+
         border: Border.all(color: Colors.grey.shade200),
       ),
 
@@ -629,6 +757,7 @@ class SchoolManagementPage extends StatelessWidget {
                     children: [
                       Text(
                         title,
+
                         style: const TextStyle(
                           color: textDark,
                           fontSize: 14,

@@ -39,9 +39,20 @@ class _SuperAdminDashboardPageState
 
     // These will remain 0 until you expose corresponding
     // count endpoints from your backend.
-    const int schoolAdminCount = 0;
-    const int teacherCount = 0;
-    const int studentCount = 0;
+    final int schoolAdminCount = schools.fold(
+      0,
+      (total, school) => total + school.adminCount,
+    );
+
+    final int teacherCount = schools.fold(
+      0,
+      (total, school) => total + school.teacherCount,
+    );
+
+    final int studentCount = schools.fold(
+      0,
+      (total, school) => total + school.studentCount,
+    );
 
     return Scaffold(
       backgroundColor: background,
@@ -82,10 +93,7 @@ class _SuperAdminDashboardPageState
                 ),
                 Text(
                   'Platform Management',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 11,
-                  ),
+                  style: TextStyle(color: Colors.grey, fontSize: 11),
                 ),
               ],
             ),
@@ -95,10 +103,7 @@ class _SuperAdminDashboardPageState
         actions: [
           IconButton(
             onPressed: () {},
-            icon: const Icon(
-              Icons.notifications_none_rounded,
-              color: textDark,
-            ),
+            icon: const Icon(Icons.notifications_none_rounded, color: textDark),
           ),
 
           const SizedBox(width: 8),
@@ -140,10 +145,7 @@ class _SuperAdminDashboardPageState
               child: const CircleAvatar(
                 radius: 19,
                 backgroundColor: Color(0xFFE9ECFF),
-                child: Icon(
-                  Icons.person,
-                  color: primary,
-                ),
+                child: Icon(Icons.person, color: primary),
               ),
             ),
           ),
@@ -157,9 +159,7 @@ class _SuperAdminDashboardPageState
         child: RefreshIndicator(
           color: primary,
           onRefresh: () async {
-            await ref
-                .read(superAdminProvider.notifier)
-                .getSchools();
+            await ref.read(superAdminProvider.notifier).getSchools();
           },
 
           child: SingleChildScrollView(
@@ -167,27 +167,17 @@ class _SuperAdminDashboardPageState
               parent: AlwaysScrollableScrollPhysics(),
             ),
 
-            padding: const EdgeInsets.fromLTRB(
-              20,
-              22,
-              20,
-              30,
-            ),
+            padding: const EdgeInsets.fromLTRB(20, 22, 20, 30),
 
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-
                 // ======================================================
                 // WELCOME
                 // ======================================================
-
                 const Text(
                   'Good morning 👋',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey, fontSize: 14),
                 ),
 
                 const SizedBox(height: 5),
@@ -205,10 +195,7 @@ class _SuperAdminDashboardPageState
 
                 Text(
                   'Manage schools, administrators and your entire school network.',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
                 ),
 
                 const SizedBox(height: 24),
@@ -216,7 +203,6 @@ class _SuperAdminDashboardPageState
                 // ======================================================
                 // CREATE SCHOOL BANNER
                 // ======================================================
-
                 _createSchoolBanner(context),
 
                 const SizedBox(height: 28),
@@ -224,7 +210,6 @@ class _SuperAdminDashboardPageState
                 // ======================================================
                 // OVERVIEW
                 // ======================================================
-
                 const Text(
                   'Overview',
                   style: TextStyle(
@@ -245,34 +230,29 @@ class _SuperAdminDashboardPageState
                   physics: const NeverScrollableScrollPhysics(),
 
                   children: [
-
                     // --------------------------------------------------
                     // SCHOOLS
                     // --------------------------------------------------
-
                     _statCard(
                       icon: Icons.school_outlined,
 
                       value: schoolsState.isLoading
                           ? '—'
                           : schoolsState.hasError
-                              ? '0'
-                              : schoolCount.toString(),
+                          ? '0'
+                          : schoolCount.toString(),
 
                       title: 'Schools',
                       color: primary,
 
                       onTap: () {
-                        context.push(
-                          '/super-admin/schools',
-                        );
+                        context.push('/super-admin/schools');
                       },
                     ),
 
                     // --------------------------------------------------
                     // SCHOOL ADMINS
                     // --------------------------------------------------
-
                     _statCard(
                       icon: Icons.admin_panel_settings_outlined,
 
@@ -284,16 +264,13 @@ class _SuperAdminDashboardPageState
                       color: Colors.orange,
 
                       onTap: () {
-                        context.push(
-                          '/super-admin/schools',
-                        );
+                        context.push('/super-admin/schools');
                       },
                     ),
 
                     // --------------------------------------------------
                     // TEACHERS
                     // --------------------------------------------------
-
                     _statCard(
                       icon: Icons.people_outline,
 
@@ -310,7 +287,6 @@ class _SuperAdminDashboardPageState
                     // --------------------------------------------------
                     // STUDENTS
                     // --------------------------------------------------
-
                     _statCard(
                       icon: Icons.groups_outlined,
 
@@ -331,7 +307,6 @@ class _SuperAdminDashboardPageState
                 // ======================================================
                 // MANAGEMENT
                 // ======================================================
-
                 _sectionHeader(
                   title: 'Management',
                   subtitle: 'Manage your school network',
@@ -345,9 +320,7 @@ class _SuperAdminDashboardPageState
                   subtitle: 'View and manage all schools',
                   color: primary,
                   onTap: () {
-                    context.push(
-                      '/super-admin/schools',
-                    );
+                    context.push('/super-admin/schools');
                   },
                 ),
 
@@ -357,9 +330,7 @@ class _SuperAdminDashboardPageState
                   subtitle: 'Register a new school',
                   color: Colors.green,
                   onTap: () {
-                    context.push(
-                      '/super-admin/create-school',
-                    );
+                    context.push('/super-admin/create-school');
                   },
                 ),
 
@@ -369,9 +340,7 @@ class _SuperAdminDashboardPageState
                   subtitle: 'Manage administrators by school',
                   color: Colors.orange,
                   onTap: () {
-                    context.push(
-                      '/super-admin/schools',
-                    );
+                    context.push('/super-admin/schools');
                   },
                 ),
 
@@ -380,15 +349,12 @@ class _SuperAdminDashboardPageState
                 // ======================================================
                 // RECENT SCHOOLS
                 // ======================================================
-
                 _sectionHeader(
                   title: 'Recent Schools',
                   subtitle: 'Recently added schools',
                   actionText: 'View all',
                   onAction: () {
-                    context.push(
-                      '/super-admin/schools',
-                    );
+                    context.push('/super-admin/schools');
                   },
                 ),
 
@@ -397,27 +363,21 @@ class _SuperAdminDashboardPageState
                 // ======================================================
                 // LOADING
                 // ======================================================
-
-                if (schoolsState.isLoading)
-                  _schoolsLoading(),
+                if (schoolsState.isLoading) _schoolsLoading(),
 
                 // ======================================================
                 // ERROR
                 // ======================================================
-
                 if (schoolsState.hasError)
                   _schoolsError(
                     onRetry: () {
-                      ref
-                          .read(superAdminProvider.notifier)
-                          .getSchools();
+                      ref.read(superAdminProvider.notifier).getSchools();
                     },
                   ),
 
                 // ======================================================
                 // EMPTY
                 // ======================================================
-
                 if (!schoolsState.isLoading &&
                     !schoolsState.hasError &&
                     schools.isEmpty)
@@ -426,7 +386,6 @@ class _SuperAdminDashboardPageState
                 // ======================================================
                 // REAL SCHOOLS
                 // ======================================================
-
                 if (!schoolsState.isLoading &&
                     !schoolsState.hasError &&
                     schools.isNotEmpty)
@@ -461,10 +420,7 @@ class _SuperAdminDashboardPageState
 
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            primary,
-            Color(0xFF2437C5),
-          ],
+          colors: [primary, Color(0xFF2437C5)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -484,8 +440,7 @@ class _SuperAdminDashboardPageState
         children: [
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
                 const Text(
@@ -512,9 +467,7 @@ class _SuperAdminDashboardPageState
 
                 ElevatedButton(
                   onPressed: () {
-                    context.push(
-                      '/super-admin/create-school',
-                    );
+                    context.push('/super-admin/create-school');
                   },
 
                   style: ElevatedButton.styleFrom(
@@ -528,16 +481,13 @@ class _SuperAdminDashboardPageState
                     ),
 
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
 
                   child: const Text(
                     'Create School',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
               ],
@@ -590,14 +540,11 @@ class _SuperAdminDashboardPageState
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(18),
-            border: Border.all(
-              color: Colors.grey.shade200,
-            ),
+            border: Border.all(color: Colors.grey.shade200),
           ),
 
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
 
             children: [
               Container(
@@ -606,15 +553,10 @@ class _SuperAdminDashboardPageState
 
                 decoration: BoxDecoration(
                   color: color.withOpacity(.09),
-                  borderRadius:
-                      BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
 
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 22,
-                ),
+                child: Icon(icon, color: color, size: 22),
               ),
 
               const Spacer(),
@@ -635,10 +577,7 @@ class _SuperAdminDashboardPageState
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
 
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
               ),
             ],
           ),
@@ -664,19 +603,13 @@ class _SuperAdminDashboardPageState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
 
       child: ListTile(
         onTap: onTap,
 
-        contentPadding:
-            const EdgeInsets.symmetric(
-          horizontal: 15,
-          vertical: 5,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 15, vertical: 5),
 
         leading: Container(
           width: 44,
@@ -684,14 +617,10 @@ class _SuperAdminDashboardPageState
 
           decoration: BoxDecoration(
             color: color.withOpacity(.09),
-            borderRadius:
-                BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(12),
           ),
 
-          child: Icon(
-            icon,
-            color: color,
-          ),
+          child: Icon(icon, color: color),
         ),
 
         title: Text(
@@ -708,17 +637,11 @@ class _SuperAdminDashboardPageState
 
           child: Text(
             subtitle,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 11,
-            ),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
           ),
         ),
 
-        trailing: const Icon(
-          Icons.chevron_right_rounded,
-          color: Colors.grey,
-        ),
+        trailing: const Icon(Icons.chevron_right_rounded, color: Colors.grey),
       ),
     );
   }
@@ -740,9 +663,7 @@ class _SuperAdminDashboardPageState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
 
       child: Row(
@@ -753,22 +674,17 @@ class _SuperAdminDashboardPageState
 
             decoration: BoxDecoration(
               color: const Color(0xFFE9ECFF),
-              borderRadius:
-                  BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(13),
             ),
 
-            child: const Icon(
-              Icons.school_outlined,
-              color: primary,
-            ),
+            child: const Icon(Icons.school_outlined, color: primary),
           ),
 
           const SizedBox(width: 12),
 
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
                 Text(
@@ -799,12 +715,10 @@ class _SuperAdminDashboardPageState
                       child: Text(
                         location,
                         maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
 
                         style: TextStyle(
-                          color:
-                              Colors.grey.shade600,
+                          color: Colors.grey.shade600,
                           fontSize: 11,
                         ),
                       ),
@@ -815,10 +729,7 @@ class _SuperAdminDashboardPageState
             ),
           ),
 
-          const Icon(
-            Icons.chevron_right_rounded,
-            color: Colors.grey,
-          ),
+          const Icon(Icons.chevron_right_rounded, color: Colors.grey),
         ],
       ),
     );
@@ -832,16 +743,12 @@ class _SuperAdminDashboardPageState
     return Container(
       width: double.infinity,
 
-      padding: const EdgeInsets.symmetric(
-        vertical: 30,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 30),
 
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
 
       child: const Center(
@@ -849,10 +756,7 @@ class _SuperAdminDashboardPageState
           width: 25,
           height: 25,
 
-          child: CircularProgressIndicator(
-            strokeWidth: 2.5,
-            color: primary,
-          ),
+          child: CircularProgressIndicator(strokeWidth: 2.5, color: primary),
         ),
       ),
     );
@@ -862,9 +766,7 @@ class _SuperAdminDashboardPageState
   // ERROR
   // ================================================================
 
-  Widget _schoolsError({
-    required VoidCallback onRetry,
-  }) {
+  Widget _schoolsError({required VoidCallback onRetry}) {
     return Container(
       width: double.infinity,
 
@@ -873,18 +775,12 @@ class _SuperAdminDashboardPageState
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
 
       child: Column(
         children: [
-          Icon(
-            Icons.cloud_off_outlined,
-            size: 38,
-            color: Colors.grey.shade400,
-          ),
+          Icon(Icons.cloud_off_outlined, size: 38, color: Colors.grey.shade400),
 
           const SizedBox(height: 10),
 
@@ -902,10 +798,7 @@ class _SuperAdminDashboardPageState
           Text(
             'Check your connection and try again.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
           ),
 
           const SizedBox(height: 14),
@@ -915,13 +808,10 @@ class _SuperAdminDashboardPageState
 
             style: OutlinedButton.styleFrom(
               foregroundColor: primary,
-              side: const BorderSide(
-                color: primary,
-              ),
+              side: const BorderSide(color: primary),
 
               shape: RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
 
@@ -940,25 +830,17 @@ class _SuperAdminDashboardPageState
     return Container(
       width: double.infinity,
 
-      padding: const EdgeInsets.symmetric(
-        vertical: 30,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 30),
 
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
 
       child: Column(
         children: [
-          Icon(
-            Icons.school_outlined,
-            size: 40,
-            color: Colors.grey.shade400,
-          ),
+          Icon(Icons.school_outlined, size: 40, color: Colors.grey.shade400),
 
           const SizedBox(height: 10),
 
@@ -975,10 +857,7 @@ class _SuperAdminDashboardPageState
 
           Text(
             'Create your first school to get started.',
-            style: TextStyle(
-              color: Colors.grey.shade500,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
           ),
 
           const SizedBox(height: 15),
@@ -995,14 +874,11 @@ class _SuperAdminDashboardPageState
               elevation: 0,
 
               shape: RoundedRectangleBorder(
-                borderRadius:
-                    BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(10),
               ),
             ),
 
-            child: const Text(
-              'Create School',
-            ),
+            child: const Text('Create School'),
           ),
         ],
       ),
@@ -1020,14 +896,12 @@ class _SuperAdminDashboardPageState
     VoidCallback? onAction,
   }) {
     return Row(
-      crossAxisAlignment:
-          CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.end,
 
       children: [
         Expanded(
           child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.start,
 
             children: [
               Text(
@@ -1045,10 +919,7 @@ class _SuperAdminDashboardPageState
               Text(
                 subtitle,
 
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 11,
-                ),
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
               ),
             ],
           ),

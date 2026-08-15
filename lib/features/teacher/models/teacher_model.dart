@@ -1,35 +1,28 @@
-import 'package:flutter/material.dart';
-
 class TeacherModel {
   final String id;
-  final String name;
-  final String subject;
-  final String department;
+  final String fullName;
   final String email;
-  final String phone;
-  final String room;
-  final String experience;
-  final String qualification;
-  final String bio;
-  final int classes;
-  final int students;
-  final Color color;
-  final IconData icon;
+  final String? phoneNumber;
+  final String schoolId;
+  final String role;
 
   const TeacherModel({
     required this.id,
-    required this.name,
-    required this.subject,
-    required this.department,
+    required this.fullName,
     required this.email,
-    required this.phone,
-    required this.room,
-    required this.experience,
-    required this.qualification,
-    required this.bio,
-    required this.classes,
-    required this.students,
-    required this.color,
-    required this.icon,
+    this.phoneNumber,
+    required this.schoolId,
+    required this.role,
   });
+
+  factory TeacherModel.fromJson(Map<String, dynamic> json) {
+    return TeacherModel(
+      id: json['id']?.toString() ?? '',
+      fullName: json['fullName']?.toString() ?? '',
+      email: json['email']?.toString() ?? '',
+      phoneNumber: json['phoneNumber']?.toString(),
+      schoolId: json['schoolId']?.toString() ?? '',
+      role: json['role']?.toString() ?? 'Teacher',
+    );
+  }
 }
