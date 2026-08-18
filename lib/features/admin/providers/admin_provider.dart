@@ -1,14 +1,25 @@
 import 'package:app/core/network/dio_provider.dart';
 import 'package:app/features/admin/data/admin_api.dart';
 import 'package:app/features/admin/data/admin_repository.dart';
+
 import 'package:app/features/admin/models/admin_teacher_details_model.dart';
+import 'package:app/features/admin/models/admin_teacher_subject_model.dart';
+
 import 'package:app/features/admin/models/classes/admin_create_class_model.dart';
+
+import 'package:app/features/admin/models/parents/admin_parent_child_model.dart';
+import 'package:app/features/admin/models/parents/admin_parent_model.dart';
+
 import 'package:app/features/admin/models/students/admin_class_model.dart';
 import 'package:app/features/admin/models/students/admin_create_student_model.dart';
+import 'package:app/features/admin/models/students/admin_edit_student_model.dart';
+import 'package:app/features/admin/models/students/admin_student_detail_model.dart';
 import 'package:app/features/admin/models/students/admin_student_model.dart';
+
 import 'package:app/features/admin/models/subjects/admin_create_subject_model.dart';
 import 'package:app/features/admin/models/subjects/admin_edit_subject_model.dart';
 import 'package:app/features/admin/models/subjects/admin_subject_model.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ==================================================================
@@ -24,8 +35,65 @@ final adminApiProvider = Provider<AdminApi>((ref) {
 // ==================================================================
 
 final adminRepositoryProvider = Provider<AdminRepository>((ref) {
-  return AdminRepository(api: ref.read(adminApiProvider));
+  return AdminRepository(
+    api: ref.read(adminApiProvider),
+  );
 });
+
+// ==================================================================
+// ADMIN STUDENT DETAILS
+// ==================================================================
+
+final adminStudentDetailsProvider =
+    FutureProvider.family<AdminStudentDetailModel, String>(
+  (ref, studentId) async {
+    final repository = ref.read(adminRepositoryProvider);
+
+    return repository.getStudentDetails(
+      studentId: studentId,
+    );
+  },
+);
+
+// ==================================================================
+// ADMIN TEACHER DETAILS
+// ==================================================================
+
+final adminTeacherDetailsProvider =
+    FutureProvider.family<AdminTeacherModel, String>(
+  (ref, teacherId) async {
+    final repository = ref.read(adminRepositoryProvider);
+
+    return repository.getTeacherDetails(
+      teacherId: teacherId,
+    );
+  },
+);
+
+// ==================================================================
+// ADMIN PARENT DETAILS
+// ==================================================================
+//
+// GET /api/admin/parents/:parentId
+//
+// The detail response contains:
+// - parent information
+// - schoolId
+// - children
+//
+// children are represented by AdminParentChildModel.
+// ==================================================================
+
+final adminParentDetailsProvider =
+    FutureProvider.family<AdminParentDetailModel, String>(
+  (ref, parentId) async {
+    final repository = ref.read(adminRepositoryProvider);
+
+    return repository.getParentDetails(
+      parentId: parentId,
+    );
+  },
+);
 
 // ==================================================================
 // ADMIN DASHBOARD DATA
@@ -36,13 +104,19 @@ class AdminDashboardData {
   final List<AdminStudentModel> students;
   final List<AdminClassModel> classes;
   final List<AdminSubjectModel> subjects;
+  final List<AdminParentModel> parents;
 
   const AdminDashboardData({
     required this.teachers,
     required this.students,
     required this.classes,
     required this.subjects,
+    required this.parents,
   });
+
+  // ================================================================
+  // COUNTS
+  // ================================================================
 
   int get teacherCount => teachers.length;
 
@@ -52,17 +126,25 @@ class AdminDashboardData {
 
   int get subjectCount => subjects.length;
 
+  int get parentCount => parents.length;
+
+  // ================================================================
+  // COPY WITH
+  // ================================================================
+
   AdminDashboardData copyWith({
     List<AdminTeacherModel>? teachers,
     List<AdminStudentModel>? students,
     List<AdminClassModel>? classes,
     List<AdminSubjectModel>? subjects,
+    List<AdminParentModel>? parents,
   }) {
     return AdminDashboardData(
       teachers: teachers ?? this.teachers,
       students: students ?? this.students,
       classes: classes ?? this.classes,
       subjects: subjects ?? this.subjects,
+      parents: parents ?? this.parents,
     );
   }
 }
@@ -73,10 +155,12 @@ class AdminDashboardData {
 
 final adminDashboardProvider =
     AsyncNotifierProvider<AdminDashboardNotifier, AdminDashboardData>(
-      AdminDashboardNotifier.new,
-    );
+  AdminDashboardNotifier.new,
+);
 
-class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
+class AdminDashboardNotifier
+    extends AsyncNotifier<AdminDashboardData> {
+
   // ================================================================
   // BUILD
   // ================================================================
@@ -98,6 +182,9 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       repository.getStudents(),
       repository.getClasses(),
       repository.getAdminSubjects(),
+
+      // Parents belong to this admin's school.
+      repository.getParents(),
     ]);
 
     return AdminDashboardData(
@@ -105,6 +192,7 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       students: results[1] as List<AdminStudentModel>,
       classes: results[2] as List<AdminClassModel>,
       subjects: results[3] as List<AdminSubjectModel>,
+      parents: results[4] as List<AdminParentModel>,
     );
   }
 
@@ -128,10 +216,31 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // GET TEACHERS FOR SCHOOL
   // ================================================================
 
-  List<AdminTeacherModel> getTeachersForSchool(String schoolId) {
+  List<AdminTeacherModel> getTeachersForSchool(
+    String schoolId,
+  ) {
     final teachers = state.value?.teachers ?? [];
 
-    return teachers.where((teacher) => teacher.schoolId == schoolId).toList();
+    return teachers
+        .where((teacher) => teacher.schoolId == schoolId)
+        .toList();
+  }
+
+  // ================================================================
+  // GET PARENTS FOR SCHOOL
+  // ================================================================
+  //
+  // The admin is tied to a particular school, and the backend
+  // /api/admin/parents endpoint already returns the parents belonging
+  // to that admin's school.
+  //
+  // Therefore we don't need to filter by schoolId here.
+  // ================================================================
+
+  List<AdminParentModel> getParentsForSchool(
+    String schoolId,
+  ) {
+    return state.value?.parents ?? [];
   }
 
   // ================================================================
@@ -139,14 +248,12 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ================================================================
 
   Future<AdminTeacherModel?> createTeacher({
-    required String schoolId,
     required Map<String, dynamic> data,
   }) async {
     try {
       final repository = ref.read(adminRepositoryProvider);
 
       final teacher = await repository.createTeacher(
-        schoolId: schoolId,
         data: data,
       );
 
@@ -154,11 +261,11 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       if (currentState != null) {
         state = AsyncData(
-          AdminDashboardData(
-            teachers: [teacher, ...currentState.teachers],
-            students: currentState.students,
-            classes: currentState.classes,
-            subjects: currentState.subjects,
+          currentState.copyWith(
+            teachers: [
+              teacher,
+              ...currentState.teachers,
+            ],
           ),
         );
       }
@@ -176,7 +283,6 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ================================================================
 
   Future<AdminTeacherModel?> updateTeacher({
-    required String schoolId,
     required String teacherId,
     required Map<String, dynamic> data,
   }) async {
@@ -184,7 +290,6 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       final repository = ref.read(adminRepositoryProvider);
 
       final updatedTeacher = await repository.updateTeacher(
-        schoolId: schoolId,
         teacherId: teacherId,
         data: data,
       );
@@ -192,7 +297,8 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       final currentState = state.value;
 
       if (currentState != null) {
-        final updatedTeachers = currentState.teachers.map((teacher) {
+        final updatedTeachers =
+            currentState.teachers.map((teacher) {
           if (teacher.teacherId == teacherId) {
             return updatedTeacher;
           }
@@ -201,14 +307,15 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
         }).toList();
 
         state = AsyncData(
-          AdminDashboardData(
+          currentState.copyWith(
             teachers: updatedTeachers,
-            students: currentState.students,
-            classes: currentState.classes,
-            subjects: currentState.subjects,
           ),
         );
       }
+
+      ref.invalidate(
+        adminTeacherDetailsProvider(teacherId),
+      );
 
       return updatedTeacher;
     } catch (error, stackTrace) {
@@ -223,30 +330,32 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ================================================================
 
   Future<bool> deleteTeacher({
-    required String schoolId,
     required String teacherId,
   }) async {
     try {
       final repository = ref.read(adminRepositoryProvider);
 
-      await repository.deleteTeacher(schoolId: schoolId, teacherId: teacherId);
+      await repository.deleteTeacher(
+        teacherId: teacherId,
+      );
 
       final currentState = state.value;
 
       if (currentState != null) {
-        final updatedTeachers = currentState.teachers
-            .where((teacher) => teacher.teacherId != teacherId)
-            .toList();
-
         state = AsyncData(
-          AdminDashboardData(
-            teachers: updatedTeachers,
-            students: currentState.students,
-            classes: currentState.classes,
-            subjects: currentState.subjects,
+          currentState.copyWith(
+            teachers: currentState.teachers
+                .where(
+                  (teacher) => teacher.teacherId != teacherId,
+                )
+                .toList(),
           ),
         );
       }
+
+      ref.invalidate(
+        adminTeacherDetailsProvider(teacherId),
+      );
 
       return true;
     } catch (error, stackTrace) {
@@ -276,11 +385,11 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       if (currentState != null) {
         state = AsyncData(
-          AdminDashboardData(
-            teachers: currentState.teachers,
-            students: [student, ...currentState.students],
-            classes: currentState.classes,
-            subjects: currentState.subjects,
+          currentState.copyWith(
+            students: [
+              student,
+              ...currentState.students,
+            ],
           ),
         );
       }
@@ -288,7 +397,98 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       return student;
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
+
       return null;
+    }
+  }
+
+  // ================================================================
+  // UPDATE STUDENT
+  // ================================================================
+
+  Future<AdminStudentModel?> updateStudent({
+    required String studentId,
+    required AdminEditStudentModel data,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      final updatedStudent = await repository.updateStudent(
+        studentId: studentId,
+        data: data,
+      );
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        final updatedStudents =
+            currentState.students.map((student) {
+          if (student.studentId == studentId) {
+            return updatedStudent;
+          }
+
+          return student;
+        }).toList();
+
+        state = AsyncData(
+          currentState.copyWith(
+            students: updatedStudents,
+          ),
+        );
+      }
+
+      ref.invalidate(
+        adminStudentDetailsProvider(studentId),
+      );
+
+      return updatedStudent;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+
+      return null;
+    }
+  }
+
+  // ================================================================
+  // DELETE STUDENT
+  // ================================================================
+
+  Future<bool> deleteStudent({
+    required String studentId,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.deleteStudent(
+        studentId: studentId,
+      );
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        final updatedStudents =
+            currentState.students
+                .where(
+                  (student) => student.studentId != studentId,
+                )
+                .toList();
+
+        state = AsyncData(
+          currentState.copyWith(
+            students: updatedStudents,
+          ),
+        );
+      }
+
+      ref.invalidate(
+        adminStudentDetailsProvider(studentId),
+      );
+
+      return true;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+
+      return false;
     }
   }
 
@@ -312,11 +512,11 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       if (currentState != null) {
         state = AsyncData(
-          AdminDashboardData(
-            teachers: currentState.teachers,
-            students: currentState.students,
-            classes: [schoolClass, ...currentState.classes],
-            subjects: currentState.subjects,
+          currentState.copyWith(
+            classes: [
+              schoolClass,
+              ...currentState.classes,
+            ],
           ),
         );
       }
@@ -328,6 +528,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       return null;
     }
   }
+
+  // ================================================================
+  // CREATE SUBJECT
+  // ================================================================
 
   Future<AdminSubjectModel?> createSubject({
     required String schoolId,
@@ -345,11 +549,11 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       if (currentState != null) {
         state = AsyncData(
-          AdminDashboardData(
-            teachers: currentState.teachers,
-            students: currentState.students,
-            classes: currentState.classes,
-            subjects: [subject, ...currentState.subjects],
+          currentState.copyWith(
+            subjects: [
+              subject,
+              ...currentState.subjects,
+            ],
           ),
         );
       }
@@ -389,58 +593,23 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ================================================================
 
   Future<bool> assignTeacherToSubject({
-    required String schoolId,
     required String teacherId,
     required String subjectId,
+    required String classId,
   }) async {
     try {
       final repository = ref.read(adminRepositoryProvider);
 
       await repository.assignTeacherToSubject(
-        schoolId: schoolId,
         teacherId: teacherId,
         subjectId: subjectId,
+        classId: classId,
       );
-
-      final currentState = state.value;
-
-      if (currentState != null) {
-        final teacher = currentState.teachers.firstWhere(
-          (item) => item.teacherId == teacherId,
-        );
-
-        final updatedSubjects = currentState.subjects.map((subject) {
-          if (subject.subjectId != subjectId) {
-            return subject;
-          }
-
-          // Don't add the same teacher twice.
-          final alreadyAssigned = subject.teacherSubjects.any(
-            (assigned) => assigned.teacherId == teacherId,
-          );
-
-          if (alreadyAssigned) {
-            return subject;
-          }
-
-          final assignedTeacher = AdminSubjectTeacherModel(
-            teacherId: teacher.teacherId,
-            teacherName: teacher.teacherName,
-            email: teacher.email,
-            phoneNumber: teacher.phoneNumber,
-          );
-
-          return subject.copyWith(
-            teacherSubjects: [...subject.teacherSubjects, assignedTeacher],
-          );
-        }).toList();
-
-        state = AsyncData(currentState.copyWith(subjects: updatedSubjects));
-      }
 
       return true;
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
+
       return false;
     }
   }
@@ -450,43 +619,26 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ================================================================
 
   Future<bool> unassignTeacherFromSubject({
-    required String schoolId,
-    required String teacherId,
-    required String subjectId,
+    required String assignmentId,
   }) async {
     try {
       final repository = ref.read(adminRepositoryProvider);
 
       await repository.unassignTeacherFromSubject(
-        schoolId: schoolId,
-        teacherId: teacherId,
-        subjectId: subjectId,
+        assignmentId: assignmentId,
       );
-
-      final currentState = state.value;
-
-      if (currentState != null) {
-        final updatedSubjects = currentState.subjects.map((subject) {
-          if (subject.subjectId != subjectId) {
-            return subject;
-          }
-
-          final updatedTeachers = subject.teacherSubjects
-              .where((teacher) => teacher.teacherId != teacherId)
-              .toList();
-
-          return subject.copyWith(teacherSubjects: updatedTeachers);
-        }).toList();
-
-        state = AsyncData(currentState.copyWith(subjects: updatedSubjects));
-      }
 
       return true;
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
+
       return false;
     }
   }
+
+  // ================================================================
+  // UPDATE SUBJECT
+  // ================================================================
 
   Future<AdminSubjectModel?> updateSubject({
     required String schoolId,
@@ -496,8 +648,8 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
     try {
       final repository = ref.read(adminRepositoryProvider);
 
-      // Send update to backend.
-      final updatedSubject = await repository.updateSubject(
+      final updatedSubject =
+          await repository.updateSubject(
         schoolId: schoolId,
         subjectId: subjectId,
         data: data,
@@ -506,21 +658,21 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       final currentState = state.value;
 
       if (currentState != null) {
-        final updatedSubjects = currentState.subjects.map((subject) {
-          if (subject.subjectId == subjectId && subject.schoolId == schoolId) {
-            // Keep the existing IDs and assigned teachers.
-            // Only update the editable fields.
-            return subject.copyWith(subjectName: data.name, code: data.code);
+        final updatedSubjects =
+            currentState.subjects.map((subject) {
+          if (subject.subjectId == subjectId &&
+              subject.schoolId == schoolId) {
+            return subject.copyWith(
+              subjectName: data.name,
+              code: data.code,
+            );
           }
 
           return subject;
         }).toList();
 
         state = AsyncData(
-          AdminDashboardData(
-            teachers: currentState.teachers,
-            students: currentState.students,
-            classes: currentState.classes,
+          currentState.copyWith(
             subjects: updatedSubjects,
           ),
         );
@@ -529,6 +681,7 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       return updatedSubject;
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
+
       return null;
     }
   }
@@ -544,20 +697,24 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
     try {
       final repository = ref.read(adminRepositoryProvider);
 
-      await repository.deleteSubject(schoolId: schoolId, subjectId: subjectId);
+      await repository.deleteSubject(
+        schoolId: schoolId,
+        subjectId: subjectId,
+      );
 
       final currentState = state.value;
 
       if (currentState != null) {
-        final updatedSubjects = currentState.subjects
-            .where((subject) => subject.subjectId != subjectId)
-            .toList();
+        final updatedSubjects =
+            currentState.subjects
+                .where(
+                  (subject) =>
+                      subject.subjectId != subjectId,
+                )
+                .toList();
 
         state = AsyncData(
-          AdminDashboardData(
-            teachers: currentState.teachers,
-            students: currentState.students,
-            classes: currentState.classes,
+          currentState.copyWith(
             subjects: updatedSubjects,
           ),
         );
@@ -565,9 +722,138 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error) {
-      // Don't change the dashboard state to AsyncError here.
-      // The current page can continue displaying normally.
       rethrow;
+    }
+  }
+
+  // ================================================================
+  // PARENTS
+  // ================================================================
+
+  // ------------------------------------------------
+  // GET PARENT BY ID
+  // ------------------------------------------------
+  //
+  // GET:
+  // /api/admin/parents/:parentId
+  //
+  // Returns AdminParentDetailModel.
+  // Its children are AdminParentChildModel.
+  // ------------------------------------------------
+
+  Future<AdminParentDetailModel?> getParentById({
+    required String parentId,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      return await repository.getParentDetails(
+        parentId: parentId,
+      );
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+
+      return null;
+    }
+  }
+
+  // ------------------------------------------------
+  // UPDATE PARENT
+  // ------------------------------------------------
+  //
+  // Creation is intentionally not included yet.
+  //
+  // We are using Map<String, dynamic> for the update
+  // body until the exact backend update DTO is defined.
+  // ------------------------------------------------
+
+  Future<AdminParentModel?> updateParent({
+    required String parentId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      final updatedParent =
+          await repository.updateParent(
+        parentId: parentId,
+        data: data,
+      );
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        final updatedParents =
+            currentState.parents.map((parent) {
+          if (parent.parentId == parentId) {
+            return updatedParent;
+          }
+
+          return parent;
+        }).toList();
+
+        state = AsyncData(
+          currentState.copyWith(
+            parents: updatedParents,
+          ),
+        );
+      }
+
+      // Refresh the detail page as well.
+      ref.invalidate(
+        adminParentDetailsProvider(parentId),
+      );
+
+      return updatedParent;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+
+      return null;
+    }
+  }
+
+  // ------------------------------------------------
+  // DELETE PARENT
+  // ------------------------------------------------
+
+  Future<bool> deleteParent({
+    required String parentId,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.deleteParent(
+        parentId: parentId,
+      );
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        final updatedParents =
+            currentState.parents
+                .where(
+                  (parent) =>
+                      parent.parentId != parentId,
+                )
+                .toList();
+
+        state = AsyncData(
+          currentState.copyWith(
+            parents: updatedParents,
+          ),
+        );
+      }
+
+      // Invalidate parent details after deletion.
+      ref.invalidate(
+        adminParentDetailsProvider(parentId),
+      );
+
+      return true;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+
+      return false;
     }
   }
 }

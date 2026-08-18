@@ -149,7 +149,7 @@ class _AdminTeachersPageState extends ConsumerState<AdminTeachersPage> {
 
     final success = await ref
         .read(adminDashboardProvider.notifier)
-        .deleteTeacher(schoolId: schoolId, teacherId: teacher.teacherId);
+        .deleteTeacher(teacherId: teacher.teacherId);
 
     if (!mounted) {
       return;

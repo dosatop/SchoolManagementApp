@@ -1,9 +1,13 @@
 import 'package:app/features/admin/data/admin_api.dart';
 import 'package:app/features/admin/models/admin_teacher_details_model.dart';
 import 'package:app/features/admin/models/classes/admin_create_class_model.dart';
+import 'package:app/features/admin/models/parents/admin_parent_child_model.dart';
 import 'package:app/features/admin/models/students/admin_class_model.dart';
 import 'package:app/features/admin/models/students/admin_create_student_model.dart';
+import 'package:app/features/admin/models/students/admin_edit_student_model.dart';
+import 'package:app/features/admin/models/students/admin_student_detail_model.dart';
 import 'package:app/features/admin/models/students/admin_student_model.dart';
+import 'package:app/features/admin/models/parents/admin_parent_model.dart';
 import 'package:app/features/admin/models/subjects/admin_create_subject_model.dart';
 import 'package:app/features/admin/models/subjects/admin_edit_subject_model.dart';
 import 'package:app/features/admin/models/subjects/admin_subject_model.dart';
@@ -22,14 +26,21 @@ class AdminRepository {
   }
 
   // ================================================================
+  // GET TEACHER DETAILS
+  // ================================================================
+
+  Future<AdminTeacherModel> getTeacherDetails({required String teacherId}) {
+    return api.getTeacherDetails(teacherId: teacherId);
+  }
+
+  // ================================================================
   // CREATE TEACHER
   // ================================================================
 
   Future<AdminTeacherModel> createTeacher({
-    required String schoolId,
     required Map<String, dynamic> data,
   }) {
-    return api.createTeacher(schoolId: schoolId, data: data);
+    return api.createTeacher(data: data);
   }
 
   // ================================================================
@@ -37,26 +48,18 @@ class AdminRepository {
   // ================================================================
 
   Future<AdminTeacherModel> updateTeacher({
-    required String schoolId,
     required String teacherId,
     required Map<String, dynamic> data,
   }) {
-    return api.updateTeacher(
-      schoolId: schoolId,
-      teacherId: teacherId,
-      data: data,
-    );
+    return api.updateTeacher(teacherId: teacherId, data: data);
   }
 
   // ================================================================
   // DELETE TEACHER
   // ================================================================
 
-  Future<void> deleteTeacher({
-    required String schoolId,
-    required String teacherId,
-  }) {
-    return api.deleteTeacher(schoolId: schoolId, teacherId: teacherId);
+  Future<void> deleteTeacher({required String teacherId}) {
+    return api.deleteTeacher(teacherId: teacherId);
   }
 
   // ================================================================
@@ -71,17 +74,40 @@ class AdminRepository {
   // CREATE STUDENT
   // ================================================================
 
-  // Future<AdminStudentModel> createStudent({
-  //   required AdminCreateStudentModel data,
-  // }) {
-  //   return api.createStudent(data: data);
-  // }
-
   Future<AdminStudentModel> createStudent({
     required String schoolId,
     required AdminCreateStudentModel data,
   }) {
     return api.createStudent(schoolId: schoolId, data: data);
+  }
+
+  // ================================================================
+  // STUDENT DETAILS
+  // ================================================================
+
+  Future<AdminStudentDetailModel> getStudentDetails({
+    required String studentId,
+  }) {
+    return api.getStudentDetails(studentId: studentId);
+  }
+
+  // ================================================================
+  // UPDATE STUDENT
+  // ================================================================
+
+  Future<AdminStudentModel> updateStudent({
+    required String studentId,
+    required AdminEditStudentModel data,
+  }) {
+    return api.updateStudent(studentId: studentId, data: data);
+  }
+
+  // ================================================================
+  // DELETE STUDENT
+  // ================================================================
+
+  Future<void> deleteStudent({required String studentId}) {
+    return api.deleteStudent(studentId: studentId);
   }
 
   // ================================================================
@@ -106,9 +132,14 @@ class AdminRepository {
   // ================================================================
   // SUBJECTS
   // ================================================================
+
   Future<List<AdminSubjectModel>> getAdminSubjects() {
     return api.getAdminSubjects();
   }
+
+  // ================================================================
+  // CREATE SUBJECT
+  // ================================================================
 
   Future<AdminSubjectModel> createSubject({
     required String schoolId,
@@ -133,14 +164,14 @@ class AdminRepository {
   // ================================================================
 
   Future<void> assignTeacherToSubject({
-    required String schoolId,
     required String teacherId,
     required String subjectId,
+    required String classId,
   }) {
     return api.assignTeacherToSubject(
-      schoolId: schoolId,
       teacherId: teacherId,
       subjectId: subjectId,
+      classId: classId,
     );
   }
 
@@ -148,16 +179,8 @@ class AdminRepository {
   // UNASSIGN TEACHER FROM SUBJECT
   // ================================================================
 
-  Future<void> unassignTeacherFromSubject({
-    required String schoolId,
-    required String teacherId,
-    required String subjectId,
-  }) {
-    return api.unassignTeacherFromSubject(
-      schoolId: schoolId,
-      teacherId: teacherId,
-      subjectId: subjectId,
-    );
+  Future<void> unassignTeacherFromSubject({required String assignmentId}) {
+    return api.unassignTeacherFromSubject(assignmentId: assignmentId);
   }
 
   // ================================================================
@@ -185,5 +208,45 @@ class AdminRepository {
     required String subjectId,
   }) {
     return api.deleteSubject(schoolId: schoolId, subjectId: subjectId);
+  }
+
+  // ================================================================
+  // PARENTS
+  // ================================================================
+
+  /// Get all parents belonging to the admin's school.
+  Future<List<AdminParentModel>> getParents() {
+    return api.getParents();
+  }
+
+  // ================================================================
+  // GET PARENT DETAILS
+  // ================================================================
+
+  /// Get a single parent and their children.
+  Future<AdminParentDetailModel> getParentDetails({required String parentId}) {
+    return api.getParentDetails(parentId: parentId);
+  }
+
+  // ================================================================
+  // UPDATE PARENT
+  // ================================================================
+
+  /// Update an existing parent.
+  ///
+  /// Parent creation is intentionally not included for now.
+  Future<AdminParentModel> updateParent({
+    required String parentId,
+    required Map<String, dynamic> data,
+  }) {
+    return api.updateParent(parentId: parentId, data: data);
+  }
+
+  // ================================================================
+  // DELETE PARENT
+  // ================================================================
+
+  Future<void> deleteParent({required String parentId}) {
+    return api.deleteParent(parentId: parentId);
   }
 }

@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:app/features/admin/providers/admin_provider.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:flutter/material.dart';
@@ -53,21 +55,6 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     }
 
     return 'School Admin';
-  }
-
-  String get adminEmail {
-    final user = ref.read(authProvider).value?.user;
-    return user?.email ?? '';
-  }
-
-  String get adminPhone {
-    final user = ref.read(authProvider).value?.user;
-    return user?.phoneNumber ?? '';
-  }
-
-  String get adminRole {
-    final user = ref.read(authProvider).value?.user;
-    return user?.role ?? 'Admin';
   }
 
   // ================================================================
@@ -281,10 +268,10 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                 const SizedBox(height: 28),
 
                 // ==================================================
-                // OVERVIEW
+                // STATISTICS
                 // ==================================================
                 const Text(
-                  'Overview',
+                  'School Statistics',
                   style: TextStyle(
                     color: textDark,
                     fontSize: 20,
@@ -295,69 +282,23 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                 const SizedBox(height: 5),
 
                 Text(
-                  'A quick overview of your school.',
+                  'A visual overview of your school population and academic structure.',
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
                 ),
 
-                const SizedBox(height: 13),
+                const SizedBox(height: 14),
 
-                // ==================================================
-                // STATISTICS
-                // ==================================================
                 if (dashboardState.isLoading && dashboard == null)
-                  _overviewStatsShimmer()
+                  _statisticsShimmer()
                 else if (dashboardState.hasError && dashboard == null)
                   _errorCard(message: 'Unable to load school statistics.')
                 else
-                  GridView.count(
-                    crossAxisCount: 2,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 1.35,
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-
-                    children: [
-                      _statCard(
-                        icon: Icons.groups_outlined,
-                        value: dashboard?.studentCount ?? 0,
-                        title: 'Students',
-                        color: Colors.purple,
-                        onTap: () {
-                          _openRoute('/admin/$schoolId/students');
-                        },
-                      ),
-
-                      _statCard(
-                        icon: Icons.person_outline_rounded,
-                        value: dashboard?.teacherCount ?? 0,
-                        title: 'Teachers',
-                        color: Colors.green,
-                        onTap: () {
-                          _openRoute('/admin/$schoolId/teachers');
-                        },
-                      ),
-
-                      _statCard(
-                        icon: Icons.class_outlined,
-                        value: dashboard?.classCount ?? 0,
-                        title: 'Classes',
-                        color: Colors.orange,
-                        onTap: () {
-                          _openRoute('/admin/$schoolId/classes');
-                        },
-                      ),
-
-                      _statCard(
-                        icon: Icons.menu_book_outlined,
-                        value: dashboard?.subjectCount ?? 0,
-                        title: 'Subjects',
-                        color: primary,
-                        onTap: () {
-                          _openRoute('/admin/$schoolId/subjects');
-                        },
-                      ),
-                    ],
+                  _statisticsChart(
+                    students: dashboard?.studentCount ?? 0,
+                    teachers: dashboard?.teacherCount ?? 0,
+                    classes: dashboard?.classCount ?? 0,
+                    subjects: dashboard?.subjectCount ?? 0,
+                    parents: dashboard?.parentCount ?? 0,
                   ),
 
                 const SizedBox(height: 28),
@@ -409,6 +350,16 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   color: primary,
                   onTap: () {
                     _openRoute('/admin/$schoolId/subjects');
+                  },
+                ),
+
+                _managementTile(
+                  icon: Icons.family_restroom_outlined,
+                  title: 'Parents',
+                  subtitle: 'View and manage parents',
+                  color: Colors.teal,
+                  onTap: () {
+                    _openRoute('/admin/$schoolId/parents');
                   },
                 ),
 
@@ -498,106 +449,55 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
         ],
       ),
 
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-
-                  children: [
-                    const Text(
-                      'Your School',
-                      style: TextStyle(color: Colors.white70, fontSize: 12),
-                    ),
-
-                    const SizedBox(height: 5),
-
-                    Text(
-                      schoolName,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 21,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              const SizedBox(width: 15),
-
-              Container(
-                width: 65,
-                height: 65,
-
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(.12),
-                  shape: BoxShape.circle,
-                ),
-
-                child: const Icon(
-                  Icons.school_outlined,
-                  color: Colors.white,
-                  size: 35,
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 18),
-
-          // ========================================================
-          // ADMIN DETAILS
-          // ========================================================
-          Container(
-            padding: const EdgeInsets.all(13),
-
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.10),
-              borderRadius: BorderRadius.circular(14),
-            ),
-
+          Expanded(
             child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _bannerDetail(
-                  icon: Icons.person_outline,
-                  label: 'Administrator',
-                  value: adminName,
+                const Text(
+                  'Your School',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
 
-                const SizedBox(height: 9),
+                const SizedBox(height: 5),
 
-                _bannerDetail(
-                  icon: Icons.email_outlined,
-                  label: 'Email',
-                  value: adminEmail,
-                ),
-
-                if (adminPhone.isNotEmpty) ...[
-                  const SizedBox(height: 9),
-
-                  _bannerDetail(
-                    icon: Icons.phone_outlined,
-                    label: 'Phone',
-                    value: adminPhone,
+                Text(
+                  schoolName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.bold,
                   ),
-                ],
+                ),
 
-                const SizedBox(height: 9),
+                const SizedBox(height: 8),
 
-                _bannerDetail(
-                  icon: Icons.badge_outlined,
-                  label: 'Role',
-                  value: adminRole,
+                const Text(
+                  'School Administration Dashboard',
+                  style: TextStyle(color: Colors.white70, fontSize: 11),
                 ),
               ],
+            ),
+          ),
+
+          const SizedBox(width: 15),
+
+          Container(
+            width: 65,
+            height: 65,
+
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(.12),
+              shape: BoxShape.circle,
+            ),
+
+            child: const Icon(
+              Icons.school_outlined,
+              color: Colors.white,
+              size: 35,
             ),
           ),
         ],
@@ -606,109 +506,142 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   }
 
   // ================================================================
-  // BANNER DETAIL
+  // STATISTICS CHART
   // ================================================================
 
-  Widget _bannerDetail({
-    required IconData icon,
-    required String label,
-    required String value,
+  Widget _statisticsChart({
+    required int students,
+    required int teachers,
+    required int classes,
+    required int subjects,
+    required int parents,
   }) {
-    return Row(
-      children: [
-        Icon(icon, color: Colors.white70, size: 17),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 20, 14, 18),
 
-        const SizedBox(width: 9),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
 
-        Text(
-          '$label:',
-          style: const TextStyle(color: Colors.white70, fontSize: 11),
-        ),
+      child: Column(
+        children: [
+          SizedBox(
+            height: 300,
+            width: double.infinity,
 
-        const SizedBox(width: 7),
-
-        Expanded(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
+            child: CustomPaint(
+              painter: _RadarChartPainter(
+                values: [
+                  students.toDouble(),
+                  teachers.toDouble(),
+                  classes.toDouble(),
+                  subjects.toDouble(),
+                  parents.toDouble(),
+                ],
+                maxValue: _calculateMaxValue([
+                  students,
+                  teachers,
+                  classes,
+                  subjects,
+                  parents,
+                ]),
+                color: primary,
+              ),
             ),
           ),
-        ),
-      ],
+
+          const SizedBox(height: 12),
+
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 14,
+            runSpacing: 10,
+
+            children: [
+              _chartLegend(
+                color: Colors.purple,
+                label: 'Students',
+                value: students,
+              ),
+              _chartLegend(
+                color: Colors.green,
+                label: 'Teachers',
+                value: teachers,
+              ),
+              _chartLegend(
+                color: Colors.orange,
+                label: 'Classes',
+                value: classes,
+              ),
+              _chartLegend(color: primary, label: 'Subjects', value: subjects),
+              _chartLegend(
+                color: Colors.teal,
+                label: 'Parents',
+                value: parents,
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
   // ================================================================
-  // STAT CARD
+  // CALCULATE CHART MAX
   // ================================================================
 
-  Widget _statCard({
-    required IconData icon,
-    required int value,
-    required String title,
+  double _calculateMaxValue(List<int> values) {
+    final highest = values.isEmpty ? 1 : values.reduce((a, b) => a > b ? a : b);
+
+    if (highest <= 0) {
+      return 10;
+    }
+
+    final padded = highest * 1.2;
+
+    return padded < 10 ? 10 : padded;
+  }
+
+  // ================================================================
+  // CHART LEGEND
+  // ================================================================
+
+  Widget _chartLegend({
     required Color color,
-    required VoidCallback onTap,
+    required String label,
+    required int value,
   }) {
-    return Material(
-      color: Colors.transparent,
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 9,
+          height: 9,
 
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(18),
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
 
-        child: Container(
-          padding: const EdgeInsets.all(16),
+        const SizedBox(width: 6),
 
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(18),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
+        Text(
+          label,
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+        ),
 
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        const SizedBox(width: 4),
 
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-
-                decoration: BoxDecoration(
-                  color: color.withOpacity(.09),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-
-                child: Icon(icon, color: color, size: 22),
-              ),
-
-              const Spacer(),
-
-              Text(
-                '$value',
-                style: const TextStyle(
-                  color: textDark,
-                  fontSize: 23,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-
-              const SizedBox(height: 2),
-
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-              ),
-            ],
+        Text(
+          '$value',
+          style: const TextStyle(
+            color: textDark,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
           ),
         ),
-      ),
+      ],
     );
   }
 
@@ -756,24 +689,21 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   }
 
   // ================================================================
-  // SHIMMER
+  // STATISTICS SHIMMER
   // ================================================================
 
-  Widget _overviewStatsShimmer() {
-    return GridView.count(
-      crossAxisCount: 2,
-      crossAxisSpacing: 12,
-      mainAxisSpacing: 12,
-      childAspectRatio: 1.35,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
+  Widget _statisticsShimmer() {
+    return Container(
+      width: double.infinity,
+      height: 350,
 
-      children: const [
-        _ShimmerStatCard(),
-        _ShimmerStatCard(),
-        _ShimmerStatCard(),
-        _ShimmerStatCard(),
-      ],
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(22),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+
+      child: const Center(child: CircularProgressIndicator(color: primary)),
     );
   }
 
@@ -985,6 +915,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   // ================================================================
 
   void _showProfile() {
+    final user = ref.read(authProvider).value?.user;
+
+    final email = user?.email ?? '';
+    final phone = user?.phoneNumber ?? '';
+    final role = user?.role ?? 'Admin';
+
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -997,6 +933,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
             child: Column(
               mainAxisSize: MainAxisSize.min,
+
               crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
@@ -1013,17 +950,17 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
                 _profileItem(Icons.person_outline, 'Full Name', adminName),
 
-                _profileItem(Icons.email_outlined, 'Email', adminEmail),
+                _profileItem(Icons.email_outlined, 'Email', email),
 
                 _profileItem(
                   Icons.phone_outlined,
                   'Phone',
-                  adminPhone.isEmpty ? 'Not provided' : adminPhone,
+                  phone.isEmpty ? 'Not provided' : phone,
                 ),
 
                 _profileItem(Icons.school_outlined, 'School', schoolName),
 
-                _profileItem(Icons.badge_outlined, 'Role', adminRole),
+                _profileItem(Icons.badge_outlined, 'Role', role),
               ],
             ),
           ),
@@ -1068,6 +1005,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   value,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
+
                   style: const TextStyle(
                     color: textDark,
                     fontSize: 14,
@@ -1128,114 +1066,212 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 }
 
 // ==================================================================
-// SHIMMER STAT CARD
+// RADAR / POLYGON CHART PAINTER
 // ==================================================================
 
-class _ShimmerStatCard extends StatefulWidget {
-  const _ShimmerStatCard();
+class _RadarChartPainter extends CustomPainter {
+  final List<double> values;
+  final double maxValue;
+  final Color color;
+
+  _RadarChartPainter({
+    required this.values,
+    required this.maxValue,
+    required this.color,
+  });
 
   @override
-  State<_ShimmerStatCard> createState() => _ShimmerStatCardState();
-}
+  void paint(Canvas canvas, Size size) {
+    if (values.length != 5) {
+      return;
+    }
 
-class _ShimmerStatCardState extends State<_ShimmerStatCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+    final center = Offset(size.width / 2, size.height / 2);
 
-  @override
-  void initState() {
-    super.initState();
+    final radius = math.min(size.width, size.height) * .32;
 
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1300),
-    )..repeat();
-  }
+    const sides = 5;
 
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
+    final angleStep = (2 * math.pi) / sides;
 
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
+    // ==============================================================
+    // GRID
+    // ==============================================================
 
-      builder: (context, child) {
-        return ShaderMask(
-          shaderCallback: (rect) {
-            final shimmerPosition = (_controller.value * 3) - 1;
+    final gridPaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFFE5E7EF);
 
-            return LinearGradient(
-              begin: Alignment(shimmerPosition - 1, 0),
+    for (int level = 1; level <= 5; level++) {
+      final levelRadius = radius * level / 5;
 
-              end: Alignment(shimmerPosition + 1, 0),
+      final path = Path();
 
-              colors: const [
-                Color(0xFFE9EBF2),
-                Color(0xFFF8F9FC),
-                Color(0xFFE9EBF2),
-              ],
+      for (int i = 0; i < sides; i++) {
+        final angle = -math.pi / 2 + (i * angleStep);
 
-              stops: const [0.35, 0.5, 0.65],
-            ).createShader(rect);
-          },
-
-          blendMode: BlendMode.srcATop,
-
-          child: Container(
-            padding: const EdgeInsets.all(16),
-
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-
-                const Spacer(),
-
-                Container(
-                  width: 55,
-                  height: 24,
-
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                Container(
-                  width: 75,
-                  height: 11,
-
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
-                    borderRadius: BorderRadius.circular(5),
-                  ),
-                ),
-              ],
-            ),
-          ),
+        final point = Offset(
+          center.dx + math.cos(angle) * levelRadius,
+          center.dy + math.sin(angle) * levelRadius,
         );
-      },
-    );
+
+        if (i == 0) {
+          path.moveTo(point.dx, point.dy);
+        } else {
+          path.lineTo(point.dx, point.dy);
+        }
+      }
+
+      path.close();
+
+      canvas.drawPath(path, gridPaint);
+    }
+
+    // ==============================================================
+    // AXIS LINES
+    // ==============================================================
+
+    for (int i = 0; i < sides; i++) {
+      final angle = -math.pi / 2 + (i * angleStep);
+
+      final point = Offset(
+        center.dx + math.cos(angle) * radius,
+        center.dy + math.sin(angle) * radius,
+      );
+
+      canvas.drawLine(center, point, gridPaint);
+    }
+
+    // ==============================================================
+    // DATA POLYGON
+    // ==============================================================
+
+    final dataPath = Path();
+
+    for (int i = 0; i < sides; i++) {
+      final normalized = maxValue <= 0
+          ? 0
+          : (values[i] / maxValue).clamp(0.0, 1.0);
+
+      final pointRadius = radius * normalized;
+
+      final angle = -math.pi / 2 + (i * angleStep);
+
+      final point = Offset(
+        center.dx + math.cos(angle) * pointRadius,
+        center.dy + math.sin(angle) * pointRadius,
+      );
+
+      if (i == 0) {
+        dataPath.moveTo(point.dx, point.dy);
+      } else {
+        dataPath.lineTo(point.dx, point.dy);
+      }
+    }
+
+    dataPath.close();
+
+    final fillPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = color.withOpacity(.13);
+
+    canvas.drawPath(dataPath, fillPaint);
+
+    final strokePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.5
+      ..color = color;
+
+    canvas.drawPath(dataPath, strokePaint);
+
+    // ==============================================================
+    // DATA POINTS
+    // ==============================================================
+
+    final pointPaint = Paint()
+      ..style = PaintingStyle.fill
+      ..color = color;
+
+    for (int i = 0; i < sides; i++) {
+      final normalized = maxValue <= 0
+          ? 0
+          : (values[i] / maxValue).clamp(0.0, 1.0);
+
+      final pointRadius = radius * normalized;
+
+      final angle = -math.pi / 2 + (i * angleStep);
+
+      final point = Offset(
+        center.dx + math.cos(angle) * pointRadius,
+        center.dy + math.sin(angle) * pointRadius,
+      );
+
+      canvas.drawCircle(point, 4.5, pointPaint);
+
+      final innerPaint = Paint()..color = Colors.white;
+
+      canvas.drawCircle(point, 2, innerPaint);
+    }
+
+    // ==============================================================
+    // LABELS
+    // ==============================================================
+
+    const labels = ['Students', 'Teachers', 'Classes', 'Subjects', 'Parents'];
+
+    const labelColors = [
+      Colors.purple,
+      Colors.green,
+      Colors.orange,
+      Color(0xFF091993),
+      Colors.teal,
+    ];
+
+    for (int i = 0; i < sides; i++) {
+      final angle = -math.pi / 2 + (i * angleStep);
+
+      final labelRadius = radius + 35;
+
+      final point = Offset(
+        center.dx + math.cos(angle) * labelRadius,
+        center.dy + math.sin(angle) * labelRadius,
+      );
+
+      final textPainter = TextPainter(
+        text: TextSpan(
+          text: labels[i],
+          style: TextStyle(
+            color: labelColors[i],
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      );
+
+      textPainter.layout();
+
+      double dx = point.dx - textPainter.width / 2;
+
+      double dy = point.dy - textPainter.height / 2;
+
+      if (i == 0) {
+        dy -= 4;
+      }
+
+      if (i == 1 || i == 2) {
+        dx += i == 1 ? 4 : -4;
+      }
+
+      textPainter.paint(canvas, Offset(dx, dy));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _RadarChartPainter oldDelegate) {
+    return oldDelegate.values != values ||
+        oldDelegate.maxValue != maxValue ||
+        oldDelegate.color != color;
   }
 }

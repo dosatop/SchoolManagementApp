@@ -44,18 +44,25 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
               ),
             ),
             Text(
-              'Manage subject teachers',
-              style: TextStyle(color: Colors.grey, fontSize: 11),
+              'View subject teachers and classes',
+              style: TextStyle(
+                color: Colors.grey,
+                fontSize: 11,
+              ),
             ),
           ],
         ),
 
         actions: [
           IconButton(
+            tooltip: 'Refresh',
             onPressed: () {
               ref.read(adminDashboardProvider.notifier).refresh();
             },
-            icon: const Icon(Icons.refresh_rounded, color: textDark),
+            icon: const Icon(
+              Icons.refresh_rounded,
+              color: textDark,
+            ),
           ),
           const SizedBox(width: 8),
         ],
@@ -63,7 +70,11 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
       body: dashboardState.when(
         loading: () {
-          return const Center(child: CircularProgressIndicator(color: primary));
+          return const Center(
+            child: CircularProgressIndicator(
+              color: primary,
+            ),
+          );
         },
 
         error: (error, stackTrace) {
@@ -79,7 +90,8 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
               .cast<AdminSubjectModel?>()
               .firstWhere(
                 (item) =>
-                    item?.subjectId == subjectId && item?.schoolId == schoolId,
+                    item?.subjectId == subjectId &&
+                    item?.schoolId == schoolId,
                 orElse: () => null,
               );
 
@@ -87,55 +99,44 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
             return _subjectNotFound();
           }
 
-          // ==========================================================
-          // SCHOOL TEACHERS
-          // ==========================================================
-
-          final schoolTeachers = dashboard.teachers
-              .where((teacher) => teacher.schoolId == schoolId)
-              .toList();
-
-          // ==========================================================
-          // ASSIGNED TEACHER IDS
-          // ==========================================================
-
-          final assignedTeacherIds = subject.teacherSubjects
-              .map((teacher) => teacher.teacherId)
-              .toSet();
-
-          // ==========================================================
-          // ONLY UNASSIGNED TEACHERS
-          // ==========================================================
-
-          final availableTeachers = schoolTeachers
-              .where(
-                (teacher) => !assignedTeacherIds.contains(teacher.teacherId),
-              )
-              .toList();
-
           return RefreshIndicator(
             color: primary,
 
             onRefresh: () {
-              return ref.read(adminDashboardProvider.notifier).refresh();
+              return ref
+                  .read(adminDashboardProvider.notifier)
+                  .refresh();
             },
 
             child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
 
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 35),
+              padding: const EdgeInsets.fromLTRB(
+                20,
+                22,
+                20,
+                35,
+              ),
 
               children: [
                 // =====================================================
                 // SUBJECT HEADER
                 // =====================================================
-                _subjectHeader(context: context, ref: ref, subject: subject),
+
+                _subjectHeader(
+                  context: context,
+                  ref: ref,
+                  subject: subject,
+                ),
 
                 const SizedBox(height: 25),
 
                 // =====================================================
                 // ASSIGNED TEACHERS
                 // =====================================================
+
                 const Text(
                   'Assigned Teachers',
                   style: TextStyle(
@@ -148,57 +149,40 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                 const SizedBox(height: 6),
 
                 Text(
-                  'Teachers currently teaching this subject.',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  'Teachers currently teaching this subject and the '
+                  'classes they teach it in.',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 12,
+                    height: 1.4,
+                  ),
                 ),
 
-                const SizedBox(height: 13),
+                const SizedBox(height: 15),
 
                 if (subject.teacherSubjects.isEmpty)
                   _emptyAssignedTeachers()
                 else
                   ...subject.teacherSubjects.map(
-                    (teacher) => _assignedTeacherTile(
-                      context: context,
-                      ref: ref,
-                      teacher: teacher,
-                      subjectId: subject.subjectId,
-                    ),
-                  ),
+                    (assignedTeacher) {
+                      final teacher = dashboard.teachers
+                          .where(
+                            (item) =>
+                                item.teacherId ==
+                                assignedTeacher.teacherId,
+                          )
+                          .cast<AdminTeacherModel?>()
+                          .firstWhere(
+                            (item) => item != null,
+                            orElse: () => null,
+                          );
 
-                const SizedBox(height: 28),
-
-                // =====================================================
-                // AVAILABLE SCHOOL TEACHERS
-                // =====================================================
-                const Text(
-                  'School Teachers',
-                  style: TextStyle(
-                    color: textDark,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                Text(
-                  'Teachers available to teach ${subject.subjectName}.',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                ),
-
-                const SizedBox(height: 13),
-
-                if (availableTeachers.isEmpty)
-                  _noAvailableTeachers()
-                else
-                  ...availableTeachers.map(
-                    (teacher) => _schoolTeacherTile(
-                      context: context,
-                      ref: ref,
-                      teacher: teacher,
-                      subjectId: subject.subjectId,
-                    ),
+                      return _assignedTeacherCard(
+                        assignedTeacher: assignedTeacher,
+                        teacher: teacher,
+                        subjectId: subjectId,
+                      );
+                    },
                   ),
               ],
             ),
@@ -223,7 +207,9 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: Colors.grey.shade200,
+        ),
       ),
 
       child: Column(
@@ -264,7 +250,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                       ),
                     ),
 
-                    const SizedBox(height: 5),
+                    const SizedBox(height: 6),
 
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -294,9 +280,34 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
           const SizedBox(height: 18),
 
+          Row(
+            children: [
+              Expanded(
+                child: _summaryItem(
+                  icon: Icons.person_outline_rounded,
+                  label: 'Teachers',
+                  value: '${subject.teacherSubjects.length}',
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: _summaryItem(
+                  icon: Icons.menu_book_outlined,
+                  label: 'Subject',
+                  value: subject.code,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 18),
+
           // ==========================================================
           // ACTION BUTTONS
           // ==========================================================
+
           Row(
             children: [
               Expanded(
@@ -309,14 +320,21 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                     );
                   },
 
-                  icon: const Icon(Icons.edit_outlined, size: 17),
+                  icon: const Icon(
+                    Icons.edit_outlined,
+                    size: 17,
+                  ),
 
                   label: const Text('Edit Subject'),
 
                   style: OutlinedButton.styleFrom(
                     foregroundColor: primary,
-                    side: const BorderSide(color: primary),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    side: const BorderSide(
+                      color: primary,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 11,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -336,14 +354,21 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                     );
                   },
 
-                  icon: const Icon(Icons.delete_outline_rounded, size: 17),
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    size: 17,
+                  ),
 
                   label: const Text('Delete'),
 
                   style: OutlinedButton.styleFrom(
                     foregroundColor: Colors.red,
-                    side: BorderSide(color: Colors.red.shade200),
-                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    side: BorderSide(
+                      color: Colors.red.shade200,
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 11,
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
@@ -358,7 +383,323 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
   }
 
   // ================================================================
-  // EDIT SUBJECT BOTTOM SHEET
+  // SUMMARY ITEM
+  // ================================================================
+
+  Widget _summaryItem({
+    required IconData icon,
+    required String label,
+    required String value,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 11,
+      ),
+
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.grey.shade200,
+        ),
+      ),
+
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            color: primary,
+            size: 18,
+          ),
+
+          const SizedBox(width: 8),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.grey.shade500,
+                    fontSize: 9,
+                  ),
+                ),
+
+                const SizedBox(height: 2),
+
+                Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: textDark,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // ASSIGNED TEACHER CARD
+  // ================================================================
+
+  Widget _assignedTeacherCard({
+    required dynamic assignedTeacher,
+    required AdminTeacherModel? teacher,
+    required String subjectId,
+  }) {
+    final teacherName =
+        assignedTeacher.teacherName?.toString().trim().isNotEmpty == true
+            ? assignedTeacher.teacherName.toString()
+            : teacher?.teacherName ?? 'Unknown Teacher';
+
+    final email =
+        assignedTeacher.email?.toString().trim().isNotEmpty == true
+            ? assignedTeacher.email.toString()
+            : teacher?.email ?? '';
+
+    // Find the classes where this teacher teaches THIS subject.
+    final classes = teacher == null
+        ? <dynamic>[]
+        : teacher.subjects
+            .where(
+              (subject) => subject.subjectId == subjectId,
+            )
+            .toList();
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+
+      padding: const EdgeInsets.all(15),
+
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(
+          color: Colors.green.withOpacity(.18),
+        ),
+      ),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ==========================================================
+          // TEACHER
+          // ==========================================================
+
+          Row(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(.09),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+
+                child: const Icon(
+                  Icons.person_rounded,
+                  color: Colors.green,
+                  size: 23,
+                ),
+              ),
+
+              const SizedBox(width: 12),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      teacherName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+
+                      style: const TextStyle(
+                        color: textDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+
+                    if (email.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+
+                      Text(
+                        email,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 5,
+                ),
+
+                decoration: BoxDecoration(
+                  color: Colors.green.withOpacity(.09),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+
+                child: const Text(
+                  'Assigned',
+                  style: TextStyle(
+                    color: Colors.green,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 15),
+
+          Divider(
+            height: 1,
+            color: Colors.grey.shade200,
+          ),
+
+          const SizedBox(height: 13),
+
+          // ==========================================================
+          // CLASSES
+          // ==========================================================
+
+          Row(
+            children: [
+              Icon(
+                Icons.class_outlined,
+                color: Colors.grey.shade500,
+                size: 17,
+              ),
+
+              const SizedBox(width: 7),
+
+              const Text(
+                'Classes',
+                style: TextStyle(
+                  color: textDark,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 9),
+
+          if (classes.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(11),
+
+              decoration: BoxDecoration(
+                color: Colors.grey.shade50,
+                borderRadius: BorderRadius.circular(10),
+              ),
+
+              child: Text(
+                'No class information available.',
+                style: TextStyle(
+                  color: Colors.grey.shade500,
+                  fontSize: 10,
+                ),
+              ),
+            )
+          else
+            Wrap(
+              spacing: 7,
+              runSpacing: 7,
+
+              children: classes.map<Widget>((subject) {
+                return _classChip(
+                  _getClassName(subject),
+                );
+              }).toList(),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // CLASS CHIP
+  // ================================================================
+
+  Widget _classChip(String className) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 10,
+        vertical: 7,
+      ),
+
+      decoration: BoxDecoration(
+        color: primaryLight,
+        borderRadius: BorderRadius.circular(9),
+      ),
+
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.class_outlined,
+            color: primary,
+            size: 14,
+          ),
+
+          const SizedBox(width: 5),
+
+          Text(
+            className,
+            style: const TextStyle(
+              color: primary,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // GET CLASS NAME
+  // ================================================================
+
+  String _getClassName(dynamic subject) {
+    try {
+      final value = subject.className;
+
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString();
+      }
+    } catch (_) {}
+
+    return 'Unknown class';
+  }
+
+  // ================================================================
+  // EDIT SUBJECT
   // ================================================================
 
   void _showEditSubjectBottomSheet({
@@ -366,9 +707,13 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
     required WidgetRef ref,
     required AdminSubjectModel subject,
   }) {
-    final nameController = TextEditingController(text: subject.subjectName);
+    final nameController = TextEditingController(
+      text: subject.subjectName,
+    );
 
-    final codeController = TextEditingController(text: subject.code);
+    final codeController = TextEditingController(
+      text: subject.code,
+    );
 
     bool isLoading = false;
 
@@ -386,7 +731,12 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
               ),
 
               child: Container(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 25),
+                padding: const EdgeInsets.fromLTRB(
+                  20,
+                  12,
+                  20,
+                  25,
+                ),
 
                 decoration: const BoxDecoration(
                   color: Colors.white,
@@ -400,11 +750,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
-
                     children: [
-                      // ==================================================
-                      // HANDLE
-                      // ==================================================
                       Container(
                         width: 42,
                         height: 5,
@@ -417,9 +763,6 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
                       const SizedBox(height: 20),
 
-                      // ==================================================
-                      // TITLE
-                      // ==================================================
                       Row(
                         children: [
                           Container(
@@ -442,8 +785,8 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
                           const Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 Text(
                                   'Edit Subject',
@@ -453,9 +796,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
-
                                 SizedBox(height: 3),
-
                                 Text(
                                   'Update subject information',
                                   style: TextStyle(
@@ -471,9 +812,6 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
                       const SizedBox(height: 25),
 
-                      // ==================================================
-                      // SUBJECT NAME
-                      // ==================================================
                       TextField(
                         controller: nameController,
                         enabled: !isLoading,
@@ -481,71 +819,88 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                         decoration: InputDecoration(
                           labelText: 'Subject Name',
                           hintText: 'e.g. Mathematics',
-
-                          prefixIcon: const Icon(Icons.menu_book_outlined),
+                          prefixIcon: const Icon(
+                            Icons.menu_book_outlined,
+                          ),
 
                           filled: true,
                           fillColor: Colors.grey.shade50,
 
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(13),
-                            borderSide: BorderSide(color: Colors.grey.shade200),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade200,
+                            ),
                           ),
 
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(13),
-                            borderSide: BorderSide(color: Colors.grey.shade200),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade200,
+                            ),
                           ),
 
-                          focusedBorder: const OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(13)),
-                            borderSide: BorderSide(color: primary, width: 1.5),
+                          focusedBorder:
+                              const OutlineInputBorder(
+                            borderRadius: BorderRadius.all(
+                              Radius.circular(13),
+                            ),
+                            borderSide: BorderSide(
+                              color: primary,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                       ),
 
                       const SizedBox(height: 15),
 
-                      // ==================================================
-                      // SUBJECT CODE
-                      // ==================================================
                       TextField(
                         controller: codeController,
                         enabled: !isLoading,
 
-                        textCapitalization: TextCapitalization.characters,
+                        textCapitalization:
+                            TextCapitalization.characters,
 
                         decoration: InputDecoration(
                           labelText: 'Subject Code',
                           hintText: 'e.g. MAT',
-
-                          prefixIcon: const Icon(Icons.code_rounded),
+                          prefixIcon: const Icon(
+                            Icons.code_rounded,
+                          ),
 
                           filled: true,
                           fillColor: Colors.grey.shade50,
 
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(13),
-                            borderSide: BorderSide(color: Colors.grey.shade200),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade200,
+                            ),
                           ),
 
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(13),
-                            borderSide: BorderSide(color: Colors.grey.shade200),
+                            borderSide: BorderSide(
+                              color: Colors.grey.shade200,
+                            ),
                           ),
 
-                          focusedBorder: const OutlineInputBorder(
-                            borderRadius: BorderRadius.all(Radius.circular(13)),
-                            borderSide: BorderSide(color: primary, width: 1.5),
+                          focusedBorder:
+                              const OutlineInputBorder(
+                            borderRadius: BorderRadius.all(
+                              Radius.circular(13),
+                            ),
+                            borderSide: BorderSide(
+                              color: primary,
+                              width: 1.5,
+                            ),
                           ),
                         ),
                       ),
 
                       const SizedBox(height: 25),
 
-                      // ==================================================
-                      // BUTTONS
-                      // ==================================================
                       Row(
                         children: [
                           Expanded(
@@ -557,16 +912,19 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                     },
 
                               style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.grey.shade700,
-
-                                padding: const EdgeInsets.symmetric(
+                                foregroundColor:
+                                    Colors.grey.shade700,
+                                padding:
+                                    const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
-
-                                side: BorderSide(color: Colors.grey.shade300),
-
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(11),
+                                side: BorderSide(
+                                  color: Colors.grey.shade300,
+                                ),
+                                shape:
+                                    RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(11),
                                 ),
                               ),
 
@@ -581,11 +939,14 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                               onPressed: isLoading
                                   ? null
                                   : () async {
-                                      final name = nameController.text.trim();
+                                      final name =
+                                          nameController.text.trim();
 
-                                      final code = codeController.text.trim();
+                                      final code =
+                                          codeController.text.trim();
 
-                                      if (name.isEmpty || code.isEmpty) {
+                                      if (name.isEmpty ||
+                                          code.isEmpty) {
                                         ScaffoldMessenger.of(
                                           context,
                                         ).showSnackBar(
@@ -593,7 +954,8 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                             content: Text(
                                               'Please enter the subject name and code.',
                                             ),
-                                            backgroundColor: Colors.red,
+                                            backgroundColor:
+                                                Colors.red,
                                           ),
                                         );
 
@@ -605,20 +967,24 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                       });
 
                                       try {
-                                        final updatedSubject = await ref
+                                        await ref
                                             .read(
-                                              adminDashboardProvider.notifier,
+                                              adminDashboardProvider
+                                                  .notifier,
                                             )
                                             .updateSubject(
                                               schoolId: schoolId,
                                               subjectId: subjectId,
-                                              data: AdminEditSubjectModel(
+                                              data:
+                                                  AdminEditSubjectModel(
                                                 name: name,
                                                 code: code,
                                               ),
                                             );
 
-                                        if (!context.mounted) return;
+                                        if (!context.mounted) {
+                                          return;
+                                        }
 
                                         Navigator.pop(sheetContext);
 
@@ -629,11 +995,14 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                             content: Text(
                                               'Subject updated successfully.',
                                             ),
-                                            backgroundColor: Colors.green,
+                                            backgroundColor:
+                                                Colors.green,
                                           ),
                                         );
                                       } catch (error) {
-                                        if (!context.mounted) return;
+                                        if (!context.mounted) {
+                                          return;
+                                        }
 
                                         setState(() {
                                           isLoading = false;
@@ -646,7 +1015,8 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                             content: Text(
                                               'Unable to update subject: $error',
                                             ),
-                                            backgroundColor: Colors.red,
+                                            backgroundColor:
+                                                Colors.red,
                                           ),
                                         );
                                       }
@@ -657,16 +1027,18 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                 foregroundColor: Colors.white,
                                 elevation: 0,
 
-                                disabledBackgroundColor: primary.withOpacity(
-                                  .6,
-                                ),
+                                disabledBackgroundColor:
+                                    primary.withOpacity(.6),
 
-                                padding: const EdgeInsets.symmetric(
+                                padding:
+                                    const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
 
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(11),
+                                shape:
+                                    RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(11),
                                 ),
                               ),
 
@@ -674,8 +1046,8 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-
-                                      child: CircularProgressIndicator(
+                                      child:
+                                          CircularProgressIndicator(
                                         strokeWidth: 2.2,
                                         color: Colors.white,
                                       ),
@@ -683,7 +1055,8 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                   : const Text(
                                       'Save Changes',
                                       style: TextStyle(
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight:
+                                            FontWeight.w600,
                                       ),
                                     ),
                             ),
@@ -702,8 +1075,9 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
   }
 
   // ================================================================
-  // DELETE SUBJECT DIALOG
+  // DELETE SUBJECT
   // ================================================================
+
   void _showDeleteSubjectDialog({
     required BuildContext context,
     required WidgetRef ref,
@@ -711,12 +1085,14 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
   }) {
     bool isDeleting = false;
 
-    final hasAssignedTeachers = subject.teacherSubjects.isNotEmpty;
+    final hasAssignedTeachers =
+        subject.teacherSubjects.isNotEmpty;
 
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
+
       builder: (sheetContext) {
         return StatefulBuilder(
           builder: (context, setModalState) {
@@ -725,23 +1101,27 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                 left: 20,
                 right: 20,
                 top: 20,
-                bottom: MediaQuery.of(context).viewInsets.bottom + 25,
+                bottom:
+                    MediaQuery.of(context).viewInsets.bottom + 25,
               ),
+
               decoration: const BoxDecoration(
                 color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(25)),
+                borderRadius: BorderRadius.vertical(
+                  top: Radius.circular(25),
+                ),
               ),
+
               child: SafeArea(
                 top: false,
+
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // =====================================================
-                    // HANDLE
-                    // =====================================================
                     Container(
                       width: 42,
                       height: 5,
+
                       decoration: BoxDecoration(
                         color: Colors.grey.shade300,
                         borderRadius: BorderRadius.circular(20),
@@ -750,37 +1130,36 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
                     const SizedBox(height: 22),
 
-                    // =====================================================
-                    // ICON
-                    // =====================================================
                     Container(
                       width: 58,
                       height: 58,
+
                       decoration: BoxDecoration(
                         color: hasAssignedTeachers
                             ? Colors.orange.withOpacity(.10)
                             : Colors.red.withOpacity(.09),
                         borderRadius: BorderRadius.circular(17),
                       ),
+
                       child: Icon(
                         hasAssignedTeachers
                             ? Icons.warning_amber_rounded
                             : Icons.delete_outline_rounded,
-                        color: hasAssignedTeachers ? Colors.orange : Colors.red,
+                        color: hasAssignedTeachers
+                            ? Colors.orange
+                            : Colors.red,
                         size: 30,
                       ),
                     ),
 
                     const SizedBox(height: 15),
 
-                    // =====================================================
-                    // TITLE
-                    // =====================================================
                     Text(
                       hasAssignedTeachers
                           ? 'Cannot Delete Subject'
                           : 'Delete Subject?',
                       textAlign: TextAlign.center,
+
                       style: const TextStyle(
                         color: textDark,
                         fontSize: 20,
@@ -790,26 +1169,27 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
                     const SizedBox(height: 10),
 
-                    // =====================================================
-                    // DESCRIPTION
-                    // =====================================================
                     if (hasAssignedTeachers)
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(14),
+
                         decoration: BoxDecoration(
                           color: Colors.orange.withOpacity(.07),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: Colors.orange.withOpacity(.18),
+                            color:
+                                Colors.orange.withOpacity(.18),
                           ),
                         ),
+
                         child: Column(
                           children: [
                             Text(
-                              '"${subject.subjectName}" cannot be deleted '
-                              'because it has assigned teachers.',
+                              '"${subject.subjectName}" cannot be '
+                              'deleted because it has assigned teachers.',
                               textAlign: TextAlign.center,
+
                               style: TextStyle(
                                 color: Colors.grey.shade700,
                                 fontSize: 13,
@@ -824,6 +1204,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                               'teacher${subject.teacherSubjects.length == 1 ? '' : 's'} '
                               'currently assigned.',
                               textAlign: TextAlign.center,
+
                               style: const TextStyle(
                                 color: Colors.orange,
                                 fontSize: 12,
@@ -834,9 +1215,10 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                             const SizedBox(height: 8),
 
                             Text(
-                              'Please unassign all teachers from this subject '
-                              'before deleting it.',
+                              'Please remove all teacher assignments '
+                              'before deleting this subject.',
                               textAlign: TextAlign.center,
+
                               style: TextStyle(
                                 color: Colors.grey.shade600,
                                 fontSize: 12,
@@ -852,6 +1234,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                         '"${subject.subjectName}"? '
                         'This action cannot be undone.',
                         textAlign: TextAlign.center,
+
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 13,
@@ -861,31 +1244,40 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
                     const SizedBox(height: 24),
 
-                    // =====================================================
-                    // BUTTONS
-                    // =====================================================
                     Row(
                       children: [
-                        // ===================================================
-                        // CLOSE / CANCEL
-                        // ===================================================
                         Expanded(
                           child: OutlinedButton(
                             onPressed: isDeleting
                                 ? null
                                 : () {
-                                    Navigator.pop(sheetContext);
+                                    Navigator.pop(
+                                      sheetContext,
+                                    );
                                   },
+
                             style: OutlinedButton.styleFrom(
-                              foregroundColor: Colors.grey.shade700,
-                              side: BorderSide(color: Colors.grey.shade300),
-                              padding: const EdgeInsets.symmetric(vertical: 13),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
+                              foregroundColor:
+                                  Colors.grey.shade700,
+                              side: BorderSide(
+                                color: Colors.grey.shade300,
+                              ),
+                              padding:
+                                  const EdgeInsets.symmetric(
+                                vertical: 13,
+                              ),
+                              shape:
+                                  RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(12),
                               ),
                             ),
+
                             child: Text(
-                              hasAssignedTeachers ? 'Close' : 'Cancel',
+                              hasAssignedTeachers
+                                  ? 'Close'
+                                  : 'Cancel',
+
                               style: const TextStyle(
                                 fontWeight: FontWeight.w600,
                               ),
@@ -893,9 +1285,6 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                           ),
                         ),
 
-                        // ===================================================
-                        // DELETE BUTTON
-                        // ===================================================
                         if (!hasAssignedTeachers) ...[
                           const SizedBox(width: 12),
 
@@ -911,19 +1300,23 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                       try {
                                         await ref
                                             .read(
-                                              adminDashboardProvider.notifier,
+                                              adminDashboardProvider
+                                                  .notifier,
                                             )
                                             .deleteSubject(
                                               schoolId: schoolId,
-                                              subjectId: subject.subjectId,
+                                              subjectId:
+                                                  subject.subjectId,
                                             );
 
-                                        if (!context.mounted) return;
+                                        if (!context.mounted) {
+                                          return;
+                                        }
 
-                                        // Close bottom sheet.
-                                        Navigator.pop(sheetContext);
+                                        Navigator.pop(
+                                          sheetContext,
+                                        );
 
-                                        // Leave subject details page.
                                         Navigator.pop(context);
 
                                         ScaffoldMessenger.of(
@@ -933,11 +1326,14 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                             content: Text(
                                               'Subject deleted successfully',
                                             ),
-                                            backgroundColor: Colors.green,
+                                            backgroundColor:
+                                                Colors.green,
                                           ),
                                         );
                                       } catch (error) {
-                                        if (!context.mounted) return;
+                                        if (!context.mounted) {
+                                          return;
+                                        }
 
                                         setModalState(() {
                                           isDeleting = false;
@@ -948,38 +1344,47 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                         ).showSnackBar(
                                           SnackBar(
                                             content: Text(
-                                              error.toString().replaceFirst(
-                                                'Exception: ',
-                                                '',
-                                              ),
+                                              error
+                                                  .toString()
+                                                  .replaceFirst(
+                                                    'Exception: ',
+                                                    '',
+                                                  ),
                                             ),
-                                            backgroundColor: Colors.red,
-                                            duration: const Duration(
+                                            backgroundColor:
+                                                Colors.red,
+                                            duration:
+                                                const Duration(
                                               seconds: 4,
                                             ),
                                           ),
                                         );
                                       }
                                     },
+
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.red,
                                 foregroundColor: Colors.white,
-                                disabledBackgroundColor: Colors.red.withOpacity(
-                                  .55,
-                                ),
+                                disabledBackgroundColor:
+                                    Colors.red.withOpacity(.55),
                                 elevation: 0,
-                                padding: const EdgeInsets.symmetric(
+                                padding:
+                                    const EdgeInsets.symmetric(
                                   vertical: 13,
                                 ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                shape:
+                                    RoundedRectangleBorder(
+                                  borderRadius:
+                                      BorderRadius.circular(12),
                                 ),
                               ),
+
                               child: isDeleting
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(
+                                      child:
+                                          CircularProgressIndicator(
                                         strokeWidth: 2.3,
                                         color: Colors.white,
                                       ),
@@ -987,7 +1392,8 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                   : const Text(
                                       'Delete',
                                       style: TextStyle(
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight:
+                                            FontWeight.w600,
                                       ),
                                     ),
                             ),
@@ -1006,233 +1412,20 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
   }
 
   // ================================================================
-  // ASSIGNED TEACHER TILE
-  // ================================================================
-
-  Widget _assignedTeacherTile({
-    required BuildContext context,
-    required WidgetRef ref,
-    required dynamic teacher,
-    required String subjectId,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-
-      padding: const EdgeInsets.all(13),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.green.withOpacity(.18)),
-      ),
-
-      child: Row(
-        children: [
-          Container(
-            width: 43,
-            height: 43,
-
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(.09),
-              borderRadius: BorderRadius.circular(12),
-            ),
-
-            child: const Icon(
-              Icons.person_rounded,
-              color: Colors.green,
-              size: 22,
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
-              children: [
-                Text(
-                  teacher.teacherName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 3),
-
-                Text(
-                  teacher.email ?? '',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          OutlinedButton(
-            onPressed: () async {
-              await _unassignTeacher(
-                context: context,
-                ref: ref,
-                subjectId: subjectId,
-                teacherId: teacher.teacherId,
-              );
-            },
-
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-
-              side: BorderSide(color: Colors.red.shade200),
-
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-
-              minimumSize: Size.zero,
-
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
-
-            child: const Text(
-              'Unassign',
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // AVAILABLE SCHOOL TEACHER TILE
-  // ================================================================
-
-  Widget _schoolTeacherTile({
-    required BuildContext context,
-    required WidgetRef ref,
-    required AdminTeacherModel teacher,
-    required String subjectId,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-
-      padding: const EdgeInsets.all(13),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-
-      child: Row(
-        children: [
-          Container(
-            width: 43,
-            height: 43,
-
-            decoration: BoxDecoration(
-              color: primaryLight,
-              borderRadius: BorderRadius.circular(12),
-            ),
-
-            child: const Icon(
-              Icons.person_outline_rounded,
-              color: primary,
-              size: 22,
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
-              children: [
-                Text(
-                  teacher.teacherName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 3),
-
-                Text(
-                  teacher.email,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          ElevatedButton(
-            onPressed: () async {
-              await _assignTeacher(
-                context: context,
-                ref: ref,
-                subjectId: subjectId,
-                teacherId: teacher.teacherId,
-              );
-            },
-
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-
-              minimumSize: Size.zero,
-
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-
-            child: const Text(
-              'Assign',
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
   // EMPTY ASSIGNED TEACHERS
   // ================================================================
 
   Widget _emptyAssignedTeachers() {
     return Container(
       width: double.infinity,
-
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.all(22),
 
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(
+          color: Colors.grey.shade200,
+        ),
       ),
 
       child: Column(
@@ -1240,151 +1433,34 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
           Icon(
             Icons.person_off_outlined,
             color: Colors.grey.shade400,
-            size: 30,
+            size: 34,
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: 9),
+
+          const Text(
+            'No teachers assigned',
+            style: TextStyle(
+              color: textDark,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+
+          const SizedBox(height: 4),
 
           Text(
-            'No teachers assigned yet.',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // NO AVAILABLE TEACHERS
-  // ================================================================
-
-  Widget _noAvailableTeachers() {
-    return Container(
-      width: double.infinity,
-
-      padding: const EdgeInsets.all(18),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-
-      child: Column(
-        children: [
-          Icon(
-            Icons.check_circle_outline_rounded,
-            color: Colors.green.shade400,
-            size: 30,
-          ),
-
-          const SizedBox(height: 8),
-
-          Text(
-            'All school teachers are assigned.',
+            'No teachers are currently teaching this subject.',
             textAlign: TextAlign.center,
 
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            style: TextStyle(
+              color: Colors.grey.shade500,
+              fontSize: 11,
+            ),
           ),
         ],
       ),
     );
-  }
-
-  // ================================================================
-  // ASSIGN TEACHER
-  // ================================================================
-
-  Future<void> _assignTeacher({
-    required BuildContext context,
-    required WidgetRef ref,
-    required String subjectId,
-    required String teacherId,
-  }) async {
-    try {
-      final success = await ref
-          .read(adminDashboardProvider.notifier)
-          .assignTeacherToSubject(
-            schoolId: schoolId,
-            subjectId: subjectId,
-            teacherId: teacherId,
-          );
-
-      if (!context.mounted) return;
-
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Teacher assigned successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to assign teacher.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (error) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unable to assign teacher: $error'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  // ================================================================
-  // UNASSIGN TEACHER
-  // ================================================================
-
-  Future<void> _unassignTeacher({
-    required BuildContext context,
-    required WidgetRef ref,
-    required String subjectId,
-    required String teacherId,
-  }) async {
-    try {
-      final success = await ref
-          .read(adminDashboardProvider.notifier)
-          .unassignTeacherFromSubject(
-            schoolId: schoolId,
-            subjectId: subjectId,
-            teacherId: teacherId,
-          );
-
-      if (!context.mounted) return;
-
-      if (success) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Teacher unassigned successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Unable to unassign teacher.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
-    } catch (error) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Unable to unassign teacher: $error'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
   }
 
   // ================================================================
@@ -1400,7 +1476,11 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
 
           children: [
-            const Icon(Icons.menu_book_outlined, color: Colors.grey, size: 50),
+            const Icon(
+              Icons.menu_book_outlined,
+              color: Colors.grey,
+              size: 50,
+            ),
 
             const SizedBox(height: 12),
 
@@ -1419,7 +1499,10 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
               'This subject could not be found in your school.',
               textAlign: TextAlign.center,
 
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 12,
+              ),
             ),
           ],
         ),
@@ -1440,7 +1523,11 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
 
           children: [
-            const Icon(Icons.error_outline, color: Colors.red, size: 45),
+            const Icon(
+              Icons.error_outline,
+              color: Colors.red,
+              size: 45,
+            ),
 
             const SizedBox(height: 12),
 
@@ -1457,7 +1544,9 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
             ElevatedButton(
               onPressed: () {
-                ref.read(adminDashboardProvider.notifier).refresh();
+                ref
+                    .read(adminDashboardProvider.notifier)
+                    .refresh();
               },
 
               style: ElevatedButton.styleFrom(

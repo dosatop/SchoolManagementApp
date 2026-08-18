@@ -8,26 +8,19 @@ class AdminStudentsPage extends ConsumerStatefulWidget {
   final String schoolId;
   final String? schoolName;
 
-  const AdminStudentsPage({
-    super.key,
-    required this.schoolId,
-    this.schoolName,
-  });
+  const AdminStudentsPage({super.key, required this.schoolId, this.schoolName});
 
   @override
-  ConsumerState<AdminStudentsPage> createState() =>
-      _AdminStudentsPageState();
+  ConsumerState<AdminStudentsPage> createState() => _AdminStudentsPageState();
 }
 
-class _AdminStudentsPageState
-    extends ConsumerState<AdminStudentsPage> {
+class _AdminStudentsPageState extends ConsumerState<AdminStudentsPage> {
   static const Color primary = Color(0xFF091993);
   static const Color primaryLight = Color(0xFFE9ECFF);
   static const Color background = Color(0xFFF6F7FB);
   static const Color textDark = Color(0xFF20232E);
 
-  final TextEditingController _searchController =
-      TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
 
   String _searchQuery = '';
 
@@ -48,8 +41,7 @@ class _AdminStudentsPageState
     super.initState();
 
     _searchController.addListener(() {
-      final query =
-          _searchController.text.trim().toLowerCase();
+      final query = _searchController.text.trim().toLowerCase();
 
       if (_searchQuery == query) {
         return;
@@ -72,37 +64,28 @@ class _AdminStudentsPageState
   // ================================================================
 
   Future<void> _refresh() async {
-    await ref
-        .read(adminDashboardProvider.notifier)
-        .refresh();
+    await ref.read(adminDashboardProvider.notifier).refresh();
   }
 
   // ================================================================
   // FILTER
   // ================================================================
 
-  List<AdminStudentModel> _filteredStudents(
-    List<AdminStudentModel> students,
-  ) {
+  List<AdminStudentModel> _filteredStudents(List<AdminStudentModel> students) {
     if (_searchQuery.isEmpty) {
       return students;
     }
 
     return students.where((student) {
-      final name =
-          student.studentName.toLowerCase();
+      final name = student.studentName.toLowerCase();
 
-      final number =
-          student.studentNumber.toLowerCase();
+      final number = student.studentNumber.toLowerCase();
 
-      final email =
-          student.email.toLowerCase();
+      final email = student.email.toLowerCase();
 
-      final className =
-          student.className.toLowerCase();
+      final className = student.className.toLowerCase();
 
-      final phone =
-          student.phoneNumber?.toLowerCase() ?? '';
+      final phone = student.phoneNumber?.toLowerCase() ?? '';
 
       return name.contains(_searchQuery) ||
           number.contains(_searchQuery) ||
@@ -116,13 +99,8 @@ class _AdminStudentsPageState
   // PROFILE
   // ================================================================
 
-  void _openStudentProfile(
-    AdminStudentModel student,
-  ) {
-    context.push(
-      '/admin/$schoolId/student/${student.studentId}',
-      extra: student,
-    );
+  void _openStudentProfile(AdminStudentModel student) {
+    context.push('/admin/$schoolId/student/${student.studentId}');
   }
 
   // ================================================================
@@ -131,14 +109,11 @@ class _AdminStudentsPageState
 
   @override
   Widget build(BuildContext context) {
-    final adminState =
-        ref.watch(adminDashboardProvider);
+    final adminState = ref.watch(adminDashboardProvider);
 
-    final allStudents =
-        adminState.value?.students ?? [];
+    final allStudents = adminState.value?.students ?? [];
 
-    final students =
-        _filteredStudents(allStudents);
+    final students = _filteredStudents(allStudents);
 
     return Scaffold(
       backgroundColor: background,
@@ -146,7 +121,6 @@ class _AdminStudentsPageState
       // ============================================================
       // APP BAR
       // ============================================================
-
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
@@ -154,21 +128,14 @@ class _AdminStudentsPageState
 
         title: const Text(
           'Students',
-          style: TextStyle(
-            color: textDark,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: textDark, fontWeight: FontWeight.bold),
         ),
 
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            onPressed:
-                adminState.isLoading ? null : _refresh,
-            icon: const Icon(
-              Icons.refresh_rounded,
-              color: textDark,
-            ),
+            onPressed: adminState.isLoading ? null : _refresh,
+            icon: const Icon(Icons.refresh_rounded, color: textDark),
           ),
           const SizedBox(width: 8),
         ],
@@ -177,47 +144,38 @@ class _AdminStudentsPageState
       // ============================================================
       // ADD STUDENT
       // ============================================================
-
-      floatingActionButton:
-          FloatingActionButton.extended(
+      floatingActionButton: FloatingActionButton.extended(
         backgroundColor: primary,
         foregroundColor: Colors.white,
 
         onPressed: () {
-          context.push(
-            '/admin/$schoolId/create-student',
-            extra: schoolTitle,
-          ).then((_) {
-            if (mounted) {
-              _refresh();
-            }
-          });
+          context
+              .push('/admin/$schoolId/create-student', extra: schoolTitle)
+              .then((_) {
+                if (mounted) {
+                  _refresh();
+                }
+              });
         },
 
-        icon: const Icon(
-          Icons.person_add_alt_1_rounded,
-        ),
+        icon: const Icon(Icons.person_add_alt_1_rounded),
 
         label: const Text(
           'Add Student',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
 
       // ============================================================
       // BODY
       // ============================================================
-
       body: SafeArea(
         child: RefreshIndicator(
           color: primary,
           onRefresh: _refresh,
 
           child: CustomScrollView(
-            physics:
-                const AlwaysScrollableScrollPhysics(
+            physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
 
@@ -225,26 +183,18 @@ class _AdminStudentsPageState
               // ======================================================
               // HEADER
               // ======================================================
-
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    20,
-                    22,
-                    20,
-                    10,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
 
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
                       Text(
                         schoolTitle,
                         maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           color: Colors.grey,
                           fontSize: 13,
@@ -268,8 +218,7 @@ class _AdminStudentsPageState
                         'View and manage students in '
                         'your school.',
                         style: TextStyle(
-                          color:
-                              Colors.grey.shade600,
+                          color: Colors.grey.shade600,
                           fontSize: 13,
                           height: 1.4,
                         ),
@@ -293,75 +242,42 @@ class _AdminStudentsPageState
               // ======================================================
               // LOADING
               // ======================================================
-
-              if (adminState.isLoading &&
-                  adminState.value == null)
+              if (adminState.isLoading && adminState.value == null)
                 const SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
-                    child: CircularProgressIndicator(
-                      color: primary,
-                    ),
+                    child: CircularProgressIndicator(color: primary),
                   ),
                 )
-
               // ======================================================
               // ERROR
               // ======================================================
-
-              else if (adminState.hasError &&
-                  adminState.value == null)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _errorState(),
-                )
-
+              else if (adminState.hasError && adminState.value == null)
+                SliverFillRemaining(hasScrollBody: false, child: _errorState())
               // ======================================================
               // EMPTY
               // ======================================================
-
               else if (students.isEmpty)
                 SliverFillRemaining(
                   hasScrollBody: false,
-                  child: _emptyState(
-                    hasStudents:
-                        allStudents.isNotEmpty,
-                  ),
+                  child: _emptyState(hasStudents: allStudents.isNotEmpty),
                 )
-
               // ======================================================
               // STUDENTS
               // ======================================================
-
               else
                 SliverPadding(
-                  padding:
-                      const EdgeInsets.fromLTRB(
-                    20,
-                    18,
-                    20,
-                    110,
-                  ),
+                  padding: const EdgeInsets.fromLTRB(20, 18, 20, 110),
 
                   sliver: SliverList(
-                    delegate:
-                        SliverChildBuilderDelegate(
-                      (context, index) {
-                        final student =
-                            students[index];
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final student = students[index];
 
-                        return Padding(
-                          padding:
-                              const EdgeInsets.only(
-                            bottom: 12,
-                          ),
-                          child:
-                              _studentCard(student),
-                        );
-                      },
-
-                      childCount: students.length,
-                    ),
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 12),
+                        child: _studentCard(student),
+                      );
+                    }, childCount: students.length),
                   ),
                 ),
             ],
@@ -380,62 +296,41 @@ class _AdminStudentsPageState
       controller: _searchController,
 
       decoration: InputDecoration(
-        hintText:
-            'Search name, student number, email or class...',
-        hintStyle: TextStyle(
-          color: Colors.grey.shade500,
-          fontSize: 12,
-        ),
+        hintText: 'Search name, student number, email or class...',
+        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 12),
 
-        prefixIcon: const Icon(
-          Icons.search_rounded,
-          color: Colors.grey,
-        ),
+        prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
 
-        suffixIcon:
-            _searchQuery.isNotEmpty
-                ? IconButton(
-                    onPressed: () {
-                      _searchController.clear();
-                    },
-                    icon: const Icon(Icons.close),
-                  )
-                : null,
+        suffixIcon: _searchQuery.isNotEmpty
+            ? IconButton(
+                onPressed: () {
+                  _searchController.clear();
+                },
+                icon: const Icon(Icons.close),
+              )
+            : null,
 
         filled: true,
         fillColor: Colors.white,
 
-        contentPadding:
-            const EdgeInsets.symmetric(
+        contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
           vertical: 15,
         ),
 
         border: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(15),
-          borderSide: BorderSide(
-            color: Colors.grey.shade200,
-          ),
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
 
         enabledBorder: OutlineInputBorder(
-          borderRadius:
-              BorderRadius.circular(15),
-          borderSide: BorderSide(
-            color: Colors.grey.shade200,
-          ),
+          borderRadius: BorderRadius.circular(15),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
 
-        focusedBorder:
-            const OutlineInputBorder(
-          borderRadius: BorderRadius.all(
-            Radius.circular(15),
-          ),
-          borderSide: BorderSide(
-            color: primary,
-            width: 1.4,
-          ),
+        focusedBorder: const OutlineInputBorder(
+          borderRadius: BorderRadius.all(Radius.circular(15)),
+          borderSide: BorderSide(color: primary, width: 1.4),
         ),
       ),
     );
@@ -445,34 +340,21 @@ class _AdminStudentsPageState
   // COUNT
   // ================================================================
 
-  Widget _studentCount({
-    required int total,
-    required int visible,
-  }) {
-    final searching =
-        _searchQuery.isNotEmpty;
+  Widget _studentCount({required int total, required int visible}) {
+    final searching = _searchQuery.isNotEmpty;
 
     return Container(
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 10,
-        vertical: 6,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
 
       decoration: BoxDecoration(
         color: primaryLight,
-        borderRadius:
-            BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(9),
       ),
 
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.groups_outlined,
-            color: primary,
-            size: 16,
-          ),
+          const Icon(Icons.groups_outlined, color: primary, size: 16),
 
           const SizedBox(width: 6),
 
@@ -480,7 +362,7 @@ class _AdminStudentsPageState
             searching
                 ? '$visible found'
                 : '$total '
-                    '${total == 1 ? 'student' : 'students'}',
+                      '${total == 1 ? 'student' : 'students'}',
 
             style: const TextStyle(
               color: primary,
@@ -497,59 +379,45 @@ class _AdminStudentsPageState
   // STUDENT CARD
   // ================================================================
 
-  Widget _studentCard(
-    AdminStudentModel student,
-  ) {
-    final phone =
-        student.phoneNumber?.trim() ?? '';
+  Widget _studentCard(AdminStudentModel student) {
+    final phone = student.phoneNumber?.trim() ?? '';
 
-    final parentCount =
-        student.parents.length;
+    final parentCount = student.parents.length;
 
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
       ),
 
       child: Material(
         color: Colors.transparent,
 
         child: InkWell(
-          borderRadius:
-              BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(18),
 
           onTap: () {
             _openStudentProfile(student);
           },
 
           child: Padding(
-            padding:
-                const EdgeInsets.all(15),
+            padding: const EdgeInsets.all(15),
 
             child: Row(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
                 // ==================================================
                 // AVATAR
                 // ==================================================
-
                 Container(
                   width: 54,
                   height: 54,
 
                   decoration: BoxDecoration(
                     color: primaryLight,
-                    borderRadius:
-                        BorderRadius.circular(
-                      16,
-                    ),
+                    borderRadius: BorderRadius.circular(16),
                   ),
 
                   child: Center(
@@ -558,8 +426,7 @@ class _AdminStudentsPageState
 
                       style: const TextStyle(
                         color: primary,
-                        fontWeight:
-                            FontWeight.bold,
+                        fontWeight: FontWeight.bold,
                         fontSize: 17,
                       ),
                     ),
@@ -571,25 +438,20 @@ class _AdminStudentsPageState
                 // ==================================================
                 // DETAILS
                 // ==================================================
-
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
                       Text(
                         student.studentName,
                         maxLines: 1,
-                        overflow:
-                            TextOverflow.ellipsis,
+                        overflow: TextOverflow.ellipsis,
 
-                        style:
-                            const TextStyle(
+                        style: const TextStyle(
                           color: textDark,
                           fontSize: 15,
-                          fontWeight:
-                              FontWeight.w700,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
 
@@ -612,15 +474,12 @@ class _AdminStudentsPageState
                               '${student.studentNumber.isEmpty ? 'N/A' : student.studentNumber}',
 
                               maxLines: 1,
-                              overflow:
-                                  TextOverflow.ellipsis,
+                              overflow: TextOverflow.ellipsis,
 
                               style: TextStyle(
-                                color: Colors
-                                    .grey.shade700,
+                                color: Colors.grey.shade700,
                                 fontSize: 11,
-                                fontWeight:
-                                    FontWeight.w600,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
@@ -635,27 +494,22 @@ class _AdminStudentsPageState
                           Icon(
                             Icons.class_outlined,
                             size: 14,
-                            color:
-                                Colors.grey.shade500,
+                            color: Colors.grey.shade500,
                           ),
 
                           const SizedBox(width: 5),
 
                           Expanded(
                             child: Text(
-                              student.className
-                                      .trim()
-                                      .isEmpty
+                              student.className.trim().isEmpty
                                   ? 'No class'
                                   : student.className,
 
                               maxLines: 1,
-                              overflow:
-                                  TextOverflow.ellipsis,
+                              overflow: TextOverflow.ellipsis,
 
                               style: TextStyle(
-                                color: Colors
-                                    .grey.shade600,
+                                color: Colors.grey.shade600,
                                 fontSize: 11,
                               ),
                             ),
@@ -671,8 +525,7 @@ class _AdminStudentsPageState
                           Icon(
                             Icons.email_outlined,
                             size: 14,
-                            color:
-                                Colors.grey.shade500,
+                            color: Colors.grey.shade500,
                           ),
 
                           const SizedBox(width: 5),
@@ -684,12 +537,10 @@ class _AdminStudentsPageState
                                   : student.email,
 
                               maxLines: 1,
-                              overflow:
-                                  TextOverflow.ellipsis,
+                              overflow: TextOverflow.ellipsis,
 
                               style: TextStyle(
-                                color: Colors
-                                    .grey.shade600,
+                                color: Colors.grey.shade600,
                                 fontSize: 11,
                               ),
                             ),
@@ -705,8 +556,7 @@ class _AdminStudentsPageState
                             Icon(
                               Icons.phone_outlined,
                               size: 14,
-                              color: Colors
-                                  .grey.shade500,
+                              color: Colors.grey.shade500,
                             ),
 
                             const SizedBox(width: 5),
@@ -714,8 +564,7 @@ class _AdminStudentsPageState
                             Text(
                               phone,
                               style: TextStyle(
-                                color: Colors
-                                    .grey.shade600,
+                                color: Colors.grey.shade600,
                                 fontSize: 11,
                               ),
                             ),
@@ -728,8 +577,7 @@ class _AdminStudentsPageState
                       Row(
                         children: [
                           _smallInfo(
-                            icon:
-                                Icons.family_restroom_outlined,
+                            icon: Icons.family_restroom_outlined,
                             label:
                                 '$parentCount '
                                 '${parentCount == 1 ? 'parent' : 'parents'}',
@@ -738,10 +586,8 @@ class _AdminStudentsPageState
                           const SizedBox(width: 8),
 
                           _smallInfo(
-                            icon:
-                                Icons.school_outlined,
-                            label:
-                                student.schoolName,
+                            icon: Icons.school_outlined,
+                            label: student.schoolName,
                           ),
                         ],
                       ),
@@ -754,24 +600,23 @@ class _AdminStudentsPageState
                 // ==================================================
                 // MENU
                 // ==================================================
-
                 PopupMenuButton<String>(
                   onSelected: (value) {
                     if (value == 'profile') {
-                      _openStudentProfile(
-                        student,
-                      );
+                      _openStudentProfile(student);
                     }
 
                     if (value == 'edit') {
-                      context.push(
-                        '/admin/$schoolId/edit-student/${student.studentId}',
-                        extra: student,
-                      ).then((_) {
-                        if (mounted) {
-                          _refresh();
-                        }
-                      });
+                      context
+                          .push(
+                            '/admin/$schoolId/edit-student/${student.studentId}',
+                            extra: student,
+                          )
+                          .then((_) {
+                            if (mounted) {
+                              _refresh();
+                            }
+                          });
                     }
                   },
 
@@ -780,10 +625,7 @@ class _AdminStudentsPageState
                       value: 'profile',
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.person_outline,
-                            size: 20,
-                          ),
+                          Icon(Icons.person_outline, size: 20),
                           SizedBox(width: 10),
                           Text('View Profile'),
                         ],
@@ -794,10 +636,7 @@ class _AdminStudentsPageState
                       value: 'edit',
                       child: Row(
                         children: [
-                          Icon(
-                            Icons.edit_outlined,
-                            size: 20,
-                          ),
+                          Icon(Icons.edit_outlined, size: 20),
                           SizedBox(width: 10),
                           Text('Edit'),
                         ],
@@ -817,36 +656,21 @@ class _AdminStudentsPageState
   // SMALL INFO
   // ================================================================
 
-  Widget _smallInfo({
-    required IconData icon,
-    required String label,
-  }) {
+  Widget _smallInfo({required IconData icon, required String label}) {
     return Container(
-      constraints:
-          const BoxConstraints(
-        maxWidth: 145,
-      ),
+      constraints: const BoxConstraints(maxWidth: 145),
 
-      padding:
-          const EdgeInsets.symmetric(
-        horizontal: 7,
-        vertical: 4,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
 
       decoration: BoxDecoration(
         color: Colors.grey.shade100,
-        borderRadius:
-            BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(7),
       ),
 
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            icon,
-            size: 12,
-            color: Colors.grey.shade600,
-          ),
+          Icon(icon, size: 12, color: Colors.grey.shade600),
 
           const SizedBox(width: 4),
 
@@ -854,15 +678,12 @@ class _AdminStudentsPageState
             child: Text(
               label,
               maxLines: 1,
-              overflow:
-                  TextOverflow.ellipsis,
+              overflow: TextOverflow.ellipsis,
 
               style: TextStyle(
-                color:
-                    Colors.grey.shade600,
+                color: Colors.grey.shade600,
                 fontSize: 9,
-                fontWeight:
-                    FontWeight.w500,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ),
@@ -875,11 +696,8 @@ class _AdminStudentsPageState
   // INITIALS
   // ================================================================
 
-  String _initials(
-    AdminStudentModel student,
-  ) {
-    final name =
-        student.studentName.trim();
+  String _initials(AdminStudentModel student) {
+    final name = student.studentName.trim();
 
     if (name.isEmpty) {
       return 'S';
@@ -887,15 +705,11 @@ class _AdminStudentsPageState
 
     final parts = name
         .split(RegExp(r'\s+'))
-        .where(
-          (part) =>
-              part.trim().isNotEmpty,
-        )
+        .where((part) => part.trim().isNotEmpty)
         .toList();
 
     if (parts.length == 1) {
-      return parts.first[0]
-          .toUpperCase();
+      return parts.first[0].toUpperCase();
     }
 
     return '${parts.first[0]}'
@@ -907,28 +721,22 @@ class _AdminStudentsPageState
   // EMPTY STATE
   // ================================================================
 
-  Widget _emptyState({
-    required bool hasStudents,
-  }) {
-    final searching =
-        _searchQuery.isNotEmpty;
+  Widget _emptyState({required bool hasStudents}) {
+    final searching = _searchQuery.isNotEmpty;
 
     return Center(
       child: Padding(
-        padding:
-            const EdgeInsets.all(30),
+        padding: const EdgeInsets.all(30),
 
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
 
           children: [
             Container(
               width: 80,
               height: 80,
 
-              decoration:
-                  const BoxDecoration(
+              decoration: const BoxDecoration(
                 color: primaryLight,
                 shape: BoxShape.circle,
               ),
@@ -943,16 +751,12 @@ class _AdminStudentsPageState
             const SizedBox(height: 18),
 
             Text(
-              searching
-                  ? 'No students found'
-                  : 'No students yet',
+              searching ? 'No students found' : 'No students yet',
 
-              style:
-                  const TextStyle(
+              style: const TextStyle(
                 color: textDark,
                 fontSize: 18,
-                fontWeight:
-                    FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
 
@@ -961,21 +765,19 @@ class _AdminStudentsPageState
             Text(
               searching
                   ? 'Try searching with another name, '
-                      'student number, email or class.'
+                        'student number, email or class.'
                   : 'Start by adding a student to your school.',
 
               textAlign: TextAlign.center,
 
               style: TextStyle(
-                color:
-                    Colors.grey.shade600,
+                color: Colors.grey.shade600,
                 fontSize: 12,
                 height: 1.4,
               ),
             ),
 
-            if (!searching &&
-                !hasStudents) ...[
+            if (!searching && !hasStudents) ...[
               const SizedBox(height: 18),
 
               FilledButton.icon(
@@ -986,20 +788,11 @@ class _AdminStudentsPageState
                   );
                 },
 
-                style:
-                    FilledButton.styleFrom(
-                  backgroundColor:
-                      primary,
-                ),
+                style: FilledButton.styleFrom(backgroundColor: primary),
 
-                icon: const Icon(
-                  Icons
-                      .person_add_alt_1_rounded,
-                ),
+                icon: const Icon(Icons.person_add_alt_1_rounded),
 
-                label: const Text(
-                  'Add Student',
-                ),
+                label: const Text('Add Student'),
               ),
             ],
           ],
@@ -1015,12 +808,10 @@ class _AdminStudentsPageState
   Widget _errorState() {
     return Center(
       child: Padding(
-        padding:
-            const EdgeInsets.all(30),
+        padding: const EdgeInsets.all(30),
 
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
 
           children: [
             const Icon(
@@ -1033,12 +824,10 @@ class _AdminStudentsPageState
 
             const Text(
               'Unable to load students',
-              style:
-                  TextStyle(
+              style: TextStyle(
                 color: textDark,
                 fontSize: 17,
-                fontWeight:
-                    FontWeight.bold,
+                fontWeight: FontWeight.bold,
               ),
             ),
 
@@ -1050,11 +839,7 @@ class _AdminStudentsPageState
 
               textAlign: TextAlign.center,
 
-              style: TextStyle(
-                color:
-                    Colors.grey.shade600,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             ),
 
             const SizedBox(height: 18),
@@ -1062,14 +847,9 @@ class _AdminStudentsPageState
             FilledButton(
               onPressed: _refresh,
 
-              style:
-                  FilledButton.styleFrom(
-                backgroundColor:
-                    primary,
-              ),
+              style: FilledButton.styleFrom(backgroundColor: primary),
 
-              child:
-                  const Text('Retry'),
+              child: const Text('Retry'),
             ),
           ],
         ),

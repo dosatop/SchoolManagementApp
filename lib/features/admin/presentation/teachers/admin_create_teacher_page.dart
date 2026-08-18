@@ -1,3 +1,4 @@
+import 'package:app/features/admin/models/admin_teacher_details_model.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -153,13 +154,22 @@ class _AdminCreateTeacherPageState
         'password': _passwordController.text.trim(),
     };
 
-    final teacher = await ref
-        .read(adminDashboardProvider.notifier)
-        .createTeacher(schoolId: schoolId, data: data);
+    final AdminTeacherModel? teacher = await ref
+    .read(adminDashboardProvider.notifier)
+    .createTeacher(
+      // school: widget.schoolId,
+      data: data,
+    );
 
-    if (!mounted) {
-      return;
-    }
+if (!mounted) {
+  return;
+}
+
+if (teacher == null) {
+  // Handle failure
+  return;
+}
+
 
     setState(() {
       _isCreating = false;

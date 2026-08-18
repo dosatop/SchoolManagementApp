@@ -1,5 +1,10 @@
 import 'package:app/features/Classes/presentation/classes_page.dart';
 import 'package:app/features/Subjects/presentation/subjects_page.dart';
+import 'package:app/features/admin/models/students/admin_student_model.dart';
+import 'package:app/features/admin/presentation/parents/admin_parent_details_page.dart';
+import 'package:app/features/admin/presentation/parents/admin_parents_page.dart';
+import 'package:app/features/admin/presentation/students/admin_edit_student_page.dart';
+import 'package:app/features/admin/presentation/students/admin_student_details_page.dart';
 import 'package:app/features/admin/presentation/subjects/admin_create_subject_page.dart';
 import 'package:app/features/admin/presentation/subjects/admin_subject_details_page.dart';
 import 'package:app/features/admin/presentation/subjects/admin_subjects_page.dart';
@@ -7,6 +12,7 @@ import 'package:app/features/admin/presentation/classes/admin_create_class_page.
 import 'package:app/features/admin/presentation/teachers/admin_create_teacher_page.dart';
 import 'package:app/features/admin/presentation/admin_dashboard_page.dart';
 import 'package:app/features/admin/presentation/teachers/admin_edit_teacher_page.dart';
+import 'package:app/features/admin/presentation/teachers/admin_teacher_details_page.dart';
 import 'package:app/features/admin/presentation/teachers/admin_teachers_page.dart';
 import 'package:app/features/admin/presentation/classes/admin_classes_page.dart';
 import 'package:app/features/admin/presentation/students/admin_create_student_page.dart';
@@ -253,6 +259,73 @@ GoRouter appRouter(Ref ref) {
           );
         },
       ),
+
+      GoRoute(
+  path: '/admin/:schoolId/parents',
+  builder: (context, state) {
+    final schoolId = state.pathParameters['schoolId']!;
+
+    return AdminParentsPage(
+      schoolId: schoolId,
+    );
+  },
+),
+
+GoRoute(
+  path: '/admin/:schoolId/parents/:parentId',
+  builder: (context, state) {
+        final parentId = state.pathParameters['parentId']!;
+
+    return AdminParentDetailsPage(
+      // schoolId: schoolId,
+      parentId: parentId,
+    );
+  },
+),
+
+      GoRoute(
+        path: '/admin/:schoolId/student/:studentId',
+        builder: (context, state) {
+          final schoolId = state.pathParameters['schoolId']!;
+
+          final studentId = state.pathParameters['studentId']!;
+
+          return AdminStudentDetailsPage(
+            schoolId: schoolId,
+            studentId: studentId,
+          );
+        },
+      ),
+
+      GoRoute(
+  path: '/admin/:schoolId/edit-student/:studentId',
+  builder: (context, state) {
+    final schoolId =
+        state.pathParameters['schoolId']!;
+
+    final student =
+        state.extra as AdminStudentModel;
+
+    return AdminEditStudentPage(
+      schoolId: schoolId,
+      student: student,
+    );
+  },
+),
+
+GoRoute(
+  path: '/admin/:schoolId/teacher/:teacherId',
+  name: 'admin-teacher-details',
+  builder: (context, state) {
+    final schoolId = state.pathParameters['schoolId']!;
+    final teacherId = state.pathParameters['teacherId']!;
+
+    return AdminTeacherDetailsPage(
+      schoolId: schoolId,
+      teacherId: teacherId,
+    );
+  },
+),
       // GoRoute(
       //   path: '/schools/:schoolId/students',
       //   builder: (context, state) {
