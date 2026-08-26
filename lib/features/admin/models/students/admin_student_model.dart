@@ -10,6 +10,7 @@ class AdminStudentModel {
   final String? phoneNumber;
   final String classId;
   final String className;
+  final int parentCount;
   final List<AdminStudentParentModel> parents;
 
   const AdminStudentModel({
@@ -23,11 +24,10 @@ class AdminStudentModel {
     required this.classId,
     required this.className,
     required this.parents,
+    required this.parentCount,
   });
 
-  factory AdminStudentModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminStudentModel.fromJson(Map<String, dynamic> json) {
     return AdminStudentModel(
       studentId: json['studentId']?.toString() ?? '',
       studentNumber: json['studentNumber']?.toString() ?? '',
@@ -38,6 +38,7 @@ class AdminStudentModel {
       phoneNumber: json['phoneNumber']?.toString(),
       classId: json['classId']?.toString() ?? '',
       className: json['className']?.toString() ?? '',
+      parentCount: json['parentCount'] ?? '',
       parents: (json['parents'] as List<dynamic>? ?? [])
           .map(
             (item) => AdminStudentParentModel.fromJson(

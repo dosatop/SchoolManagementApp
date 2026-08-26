@@ -382,7 +382,11 @@ class _AdminStudentsPageState extends ConsumerState<AdminStudentsPage> {
   Widget _studentCard(AdminStudentModel student) {
     final phone = student.phoneNumber?.trim() ?? '';
 
-    final parentCount = student.parents.length;
+    final parentCount = int.tryParse(
+  student.parentCount.toString()
+) ?? 0;
+
+    
 
     return Container(
       decoration: BoxDecoration(

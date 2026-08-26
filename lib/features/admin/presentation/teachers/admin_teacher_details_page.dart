@@ -88,6 +88,76 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
   }
 
   // ================================================================
+  // UNASSIGN SUBJECT
+  // ================================================================
+
+  Future<void> _confirmUnassign(
+    BuildContext context,
+    WidgetRef ref,
+    AdminTeacherSubjectModel subject,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text(
+            'Unassign Subject?',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          content: Text(
+            'Remove ${subject.name} from this teacher\'s teaching assignments?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(dialogContext).pop(false);
+              },
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
+              onPressed: () {
+                Navigator.of(dialogContext).pop(true);
+              },
+              child: const Text('Unassign'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) {
+      return;
+    }
+
+    final success = await ref
+        .read(adminDashboardProvider.notifier)
+        .unassignTeacherFromSubject(assignmentId: subject.assignmentId);
+
+    if (!context.mounted) {
+      return;
+    }
+
+    if (success) {
+      ref.invalidate(adminTeacherDetailsProvider(teacherId));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Teaching assignment removed successfully.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to remove teaching assignment.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  // ================================================================
   // BUILD
   // ================================================================
 
@@ -184,18 +254,22 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
                   sliver: SliverList(
                     delegate: SliverChildListDelegate([
+                      // PROFILE
                       _profileHeader(teacher),
 
                       const SizedBox(height: 18),
 
+                      // TEACHER INFORMATION
                       _teacherInformation(teacher),
 
                       const SizedBox(height: 18),
 
+                      // CLASS TEACHER ASSIGNMENT
                       _classTeacherSection(teacher),
 
                       const SizedBox(height: 18),
 
+                      // SUBJECT + CLASS ASSIGNMENTS
                       _subjectsSection(
                         context: context,
                         ref: ref,
@@ -267,6 +341,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
           Text(
             teacher.email.isEmpty ? 'No email' : teacher.email,
+
             textAlign: TextAlign.center,
 
             style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
@@ -307,7 +382,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
           _detailRow(
             icon: Icons.person_outline,
             label: 'Name',
-            value: teacher.teacherName,
+            value: teacher.fullName,
           ),
 
           _divider(),
@@ -343,16 +418,177 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
   }
 
   // ================================================================
-  // CLASS TEACHER
+  // CLASS TEACHER ASSIGNMENT
   // ================================================================
 
   Widget _classTeacherSection(AdminTeacherModel teacher) {
+    final classTeacher = teacher.classTeacher;
+
     return _sectionCard(
       title: 'Class Teacher Assignment',
       icon: Icons.class_outlined,
-
-      child: _emptyAssignment(),
+      child: teacher.isClassTeacher && classTeacher != null
+          ? Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: primaryLight.withOpacity(0.45),
+                borderRadius: BorderRadius.circular(13),
+                border: Border.all(color: primary.withOpacity(0.12)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 45,
+                    height: 45,
+                    decoration: BoxDecoration(
+                      color: primaryLight,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.class_outlined, color: primary),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Class Teacher',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 10,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          classTeacher.className,
+                          style: const TextStyle(
+                            color: textDark,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.check_circle, color: Colors.green, size: 21),
+                ],
+              ),
+            )
+          : _emptyAssignment(),
     );
+  }
+
+  // ================================================================
+  // CLASS TEACHER CARD
+  // ================================================================
+
+  Widget _classTeacherAssignmentCard(String className) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
+
+      decoration: BoxDecoration(
+        color: primaryLight,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: primary.withOpacity(.12)),
+      ),
+
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+            ),
+
+            child: const Icon(Icons.class_outlined, color: primary, size: 23),
+          ),
+
+          const SizedBox(width: 12),
+
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+
+              children: [
+                Text(
+                  'Class Teacher',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+
+                const SizedBox(height: 4),
+
+                Text(
+                  className,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+
+                  style: const TextStyle(
+                    color: textDark,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+            ),
+
+            child: const Text(
+              'Assigned',
+              style: TextStyle(
+                color: primary,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // GET CLASS TEACHER NAME
+  // ================================================================
+
+  String? _getClassTeacherName(AdminTeacherModel teacher) {
+    /*
+     * CHANGE THIS ONE METHOD to match your actual model.
+     *
+     * For example, if your model has:
+     *
+     *     teacher.className
+     *
+     * use:
+     *
+     *     return teacher.className;
+     *
+     * If it has:
+     *
+     *     teacher.classTeacherClassName
+     *
+     * use:
+     *
+     *     return teacher.classTeacherClassName;
+     */
+
+    return null;
   }
 
   // ================================================================
@@ -377,6 +613,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
           SizedBox(
             height: 34,
+
             child: ElevatedButton.icon(
               onPressed: () {
                 _showAssignSubjectSheet(
@@ -390,6 +627,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                 backgroundColor: primary,
                 foregroundColor: Colors.white,
                 elevation: 0,
+
                 padding: const EdgeInsets.symmetric(horizontal: 10),
 
                 shape: RoundedRectangleBorder(
@@ -417,6 +655,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
                 SizedBox(
                   width: double.infinity,
+
                   child: OutlinedButton.icon(
                     onPressed: () {
                       _showAssignSubjectSheet(
@@ -433,7 +672,9 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: primary,
                       side: const BorderSide(color: primary),
+
                       padding: const EdgeInsets.symmetric(vertical: 12),
+
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(11),
                       ),
@@ -445,7 +686,11 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
           : Column(
               children: [
                 for (int i = 0; i < teacher.subjects.length; i++) ...[
-                  _subjectCard(teacher.subjects[i]),
+                  _subjectCard(
+                    context: context,
+                    ref: ref,
+                    subject: teacher.subjects[i],
+                  ),
 
                   if (i != teacher.subjects.length - 1)
                     const SizedBox(height: 10),
@@ -515,10 +760,10 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
       builder: (sheetContext) {
         return StatefulBuilder(
-          builder: (context, setModalState) {
+          builder: (modalContext, setModalState) {
             return Padding(
               padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom,
               ),
 
               child: Container(
@@ -536,6 +781,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                 child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
+
                     crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
@@ -617,19 +863,24 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                       DropdownButtonFormField<String>(
                         value: selectedSubjectId,
                         isExpanded: true,
+
                         decoration: InputDecoration(
                           hintText: 'Select subject',
+
                           prefixIcon: const Icon(Icons.menu_book_outlined),
+
                           filled: true,
                           fillColor: Colors.grey.shade50,
 
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(13),
+
                             borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
 
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(13),
+
                             borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
                         ),
@@ -637,6 +888,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                         items: subjects.map((subject) {
                           return DropdownMenuItem<String>(
                             value: subject.subjectId,
+
                             child: Text(
                               '${subject.subjectName} (${subject.code})',
                               overflow: TextOverflow.ellipsis,
@@ -669,19 +921,24 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                       DropdownButtonFormField<String>(
                         value: selectedClassId,
                         isExpanded: true,
+
                         decoration: InputDecoration(
                           hintText: 'Select class',
+
                           prefixIcon: const Icon(Icons.class_outlined),
+
                           filled: true,
                           fillColor: Colors.grey.shade50,
 
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(13),
+
                             borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
 
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(13),
+
                             borderSide: BorderSide(color: Colors.grey.shade200),
                           ),
                         ),
@@ -689,6 +946,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                         items: classes.map((item) {
                           return DropdownMenuItem<String>(
                             value: item.classId,
+
                             child: Text(
                               item.className,
                               overflow: TextOverflow.ellipsis,
@@ -719,10 +977,13 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
                               style: OutlinedButton.styleFrom(
                                 foregroundColor: Colors.grey.shade700,
+
                                 side: BorderSide(color: Colors.grey.shade300),
+
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
+
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(11),
                                 ),
@@ -742,7 +1003,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                                       if (selectedSubjectId == null ||
                                           selectedClassId == null) {
                                         ScaffoldMessenger.of(
-                                          context,
+                                          modalContext,
                                         ).showSnackBar(
                                           const SnackBar(
                                             content: Text(
@@ -795,7 +1056,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                                         });
 
                                         ScaffoldMessenger.of(
-                                          context,
+                                          modalContext,
                                         ).showSnackBar(
                                           const SnackBar(
                                             content: Text(
@@ -811,12 +1072,15 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                                 backgroundColor: primary,
                                 foregroundColor: Colors.white,
                                 elevation: 0,
+
                                 disabledBackgroundColor: primary.withOpacity(
                                   .5,
                                 ),
+
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 14,
                                 ),
+
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(11),
                                 ),
@@ -856,7 +1120,11 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
   // SUBJECT CARD
   // ================================================================
 
-  Widget _subjectCard(AdminTeacherSubjectModel subject) {
+  Widget _subjectCard({
+    required BuildContext context,
+    required WidgetRef ref,
+    required AdminTeacherSubjectModel subject,
+  }) {
     return Container(
       padding: const EdgeInsets.all(13),
 
@@ -868,6 +1136,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
       child: Row(
         children: [
+          // SUBJECT CODE
           Container(
             width: 44,
             height: 44,
@@ -880,6 +1149,10 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
             child: Center(
               child: Text(
                 subject.code,
+
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+
                 style: const TextStyle(
                   color: primary,
                   fontSize: 11,
@@ -891,6 +1164,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
           const SizedBox(width: 12),
 
+          // SUBJECT + CLASS
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -898,6 +1172,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
               children: [
                 Text(
                   subject.name,
+
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
 
@@ -905,6 +1180,52 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                     color: textDark,
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
+                  ),
+                ),
+
+                const SizedBox(height: 7),
+
+                // CLASS
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 5,
+                  ),
+
+                  decoration: BoxDecoration(
+                    color: primaryLight,
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+
+                    children: [
+                      const Icon(
+                        Icons.class_outlined,
+                        size: 13,
+                        color: primary,
+                      ),
+
+                      const SizedBox(width: 5),
+
+                      Flexible(
+                        child: Text(
+                          subject.className.trim().isEmpty
+                              ? 'No class assigned'
+                              : subject.className,
+
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+
+                          style: const TextStyle(
+                            color: primary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
 
@@ -933,7 +1254,20 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
             ),
           ),
 
-          const Icon(Icons.check_circle_outline, color: Colors.green, size: 20),
+          // UNASSIGN
+          IconButton(
+            tooltip: 'Unassign',
+
+            onPressed: () {
+              _confirmUnassign(context, ref, subject);
+            },
+
+            icon: const Icon(
+              Icons.link_off_rounded,
+              color: Colors.red,
+              size: 20,
+            ),
+          ),
         ],
       ),
     );
@@ -950,6 +1284,8 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
     Widget? trailing,
   }) {
     return Container(
+      width: double.infinity,
+
       padding: const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
@@ -963,6 +1299,8 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+
             children: [
               Container(
                 width: 34,
@@ -1028,6 +1366,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
           child: Text(
             value,
             textAlign: TextAlign.right,
+
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
 
@@ -1065,6 +1404,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
           Text(
             text,
+
             style: TextStyle(
               color: Colors.grey.shade700,
               fontSize: 9,
@@ -1091,6 +1431,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
       child: Text(
         '$count',
+
         style: const TextStyle(
           color: primary,
           fontSize: 10,
@@ -1101,12 +1442,13 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
   }
 
   // ================================================================
-  // EMPTY ASSIGNMENT
+  // EMPTY CLASS ASSIGNMENT
   // ================================================================
 
   Widget _emptyAssignment() {
     return Container(
       width: double.infinity,
+
       padding: const EdgeInsets.all(16),
 
       decoration: BoxDecoration(
@@ -1145,6 +1487,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
       child: Text(
         text,
+
         style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
       ),
     );
@@ -1157,6 +1500,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
   Widget _divider() {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
+
       child: Divider(height: 1, color: Colors.grey.shade200),
     );
   }
@@ -1184,6 +1528,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
             const Text(
               'Unable to load teacher',
+
               style: TextStyle(
                 color: textDark,
                 fontSize: 17,
@@ -1195,7 +1540,9 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
             Text(
               error.toString(),
+
               textAlign: TextAlign.center,
+
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
 

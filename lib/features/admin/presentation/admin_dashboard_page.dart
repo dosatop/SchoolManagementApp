@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:app/features/admin/providers/admin_provider.dart';
@@ -21,7 +22,16 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   static const Color background = Color(0xFFF6F7FB);
   static const Color textDark = Color(0xFF20232E);
 
+  int _currentIndex = 0;
   bool isRefreshing = false;
+
+  // ================================================================
+  // BACK BUTTON
+  // ================================================================
+
+  DateTime? _lastBackPressed;
+
+  static const Duration _exitDelay = Duration(seconds: 2);
 
   // ================================================================
   // AUTHENTICATED ADMIN DETAILS
@@ -58,6 +68,128 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   }
 
   // ================================================================
+  // BACK HANDLER
+  // ================================================================
+
+  Future<void> _handleBackPressed() async {
+    // --------------------------------------------------------------
+    // If user is inside another bottom navigation tab,
+    // first back press simply returns to Dashboard.
+    // --------------------------------------------------------------
+
+    if (_currentIndex != 0) {
+      setState(() {
+        _currentIndex = 0;
+      });
+
+      return;
+    }
+
+    // --------------------------------------------------------------
+    // User is already on Dashboard.
+    // Check whether this is the second back press.
+    // --------------------------------------------------------------
+
+    final now = DateTime.now();
+
+    if (_lastBackPressed != null &&
+        now.difference(_lastBackPressed!) <= _exitDelay) {
+      // Allow the route/app to pop.
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      return;
+    }
+
+    // --------------------------------------------------------------
+    // First back press.
+    // --------------------------------------------------------------
+
+    _lastBackPressed = now;
+
+    _showExitPill();
+
+    // Clear the timer after the allowed duration.
+    Future.delayed(_exitDelay, () {
+      if (!mounted) {
+        return;
+      }
+
+      if (_lastBackPressed != null &&
+          DateTime.now().difference(_lastBackPressed!) > _exitDelay) {
+        _lastBackPressed = null;
+      }
+    });
+  }
+
+  // ================================================================
+  // EXIT PILL
+  // ================================================================
+
+  void _showExitPill() {
+    final messenger = ScaffoldMessenger.of(context);
+
+    messenger.hideCurrentSnackBar();
+
+    messenger.showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+
+        margin: EdgeInsets.only(left: 80, right: 80, bottom: 5),
+
+        padding: EdgeInsets.zero,
+
+        backgroundColor: Colors.transparent,
+
+        elevation: 0,
+
+        content: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
+
+          decoration: BoxDecoration(
+            color: const Color(0xFF20232E),
+            borderRadius: BorderRadius.circular(100),
+
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(.18),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+
+          child: const Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+
+            children: [
+              Icon(
+                Icons.keyboard_double_arrow_left_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+
+              SizedBox(width: 8),
+
+              Text(
+                'Tap again to exit',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
   // REFRESH
   // ================================================================
 
@@ -86,338 +218,681 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   @override
   Widget build(BuildContext context) {
     final dashboardState = ref.watch(adminDashboardProvider);
-
     final dashboard = dashboardState.value;
 
-    return Scaffold(
-      backgroundColor: background,
+    return PopScope(
+      canPop: false,
 
-      // ============================================================
-      // APP BAR
-      // ============================================================
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        titleSpacing: 20,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) {
+          return;
+        }
 
-        title: Row(
-          children: [
-            const CircleAvatar(
-              radius: 20,
-              backgroundColor: primary,
-              child: Icon(
-                Icons.admin_panel_settings,
-                color: Colors.white,
-                size: 23,
+        await _handleBackPressed();
+      },
+
+      child: Scaffold(
+        backgroundColor: background,
+
+        // ============================================================
+        // APP BAR
+        // ============================================================
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
+          titleSpacing: 20,
+
+          title: Row(
+            children: [
+              const CircleAvatar(
+                radius: 19,
+                backgroundColor: primary,
+                child: Icon(
+                  Icons.admin_panel_settings,
+                  color: Colors.white,
+                  size: 22,
+                ),
               ),
-            ),
 
-            const SizedBox(width: 12),
+              const SizedBox(width: 11),
 
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    adminName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: textDark,
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+
+                  children: [
+                    Text(
+                      _pageTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+
+                      style: const TextStyle(
+                        color: textDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
-                  ),
 
-                  Text(
-                    schoolName,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.grey, fontSize: 11),
-                  ),
-                ],
+                    Text(
+                      schoolName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+
+                      style: const TextStyle(color: Colors.grey, fontSize: 10),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            ],
+          ),
+
+          actions: [
+            if (_currentIndex == 0)
+              IconButton(
+                tooltip: 'Refresh',
+
+                onPressed: dashboardState.isLoading || isRefreshing
+                    ? null
+                    : _refreshDashboard,
+
+                icon: const Icon(Icons.refresh_rounded, color: textDark),
+              ),
+
+            if (_currentIndex == 3)
+              IconButton(
+                tooltip: 'Logout',
+                onPressed: _logout,
+
+                icon: const Icon(Icons.logout_rounded, color: Colors.red),
+              ),
+
+            const SizedBox(width: 8),
           ],
         ),
 
-        actions: [
-          IconButton(
-            onPressed: dashboardState.isLoading || isRefreshing
-                ? null
-                : _refreshDashboard,
-            icon: const Icon(Icons.refresh_rounded, color: textDark),
-          ),
+        // ============================================================
+        // BODY
+        // ============================================================
+        body: IndexedStack(
+          index: _currentIndex,
 
-          const SizedBox(width: 4),
+          children: [
+            _dashboardTab(dashboardState, dashboard),
 
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.notifications_none_rounded, color: textDark),
-          ),
+            _managementTab(),
 
-          const SizedBox(width: 8),
+            _quickActionsTab(),
 
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
+            _profileTab(),
+          ],
+        ),
 
-            child: PopupMenuButton<String>(
-              onSelected: (value) async {
-                if (value == 'profile') {
-                  _showProfile();
-                }
+        // ============================================================
+        // BOTTOM NAVIGATION
+        // ============================================================
+        bottomNavigationBar: NavigationBar(
+          selectedIndex: _currentIndex,
 
-                if (value == 'logout') {
-                  await _logout();
-                }
-              },
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.white,
 
-              itemBuilder: (context) => const [
-                PopupMenuItem(
-                  value: 'profile',
-                  child: Row(
-                    children: [
-                      Icon(Icons.person_outline),
-                      SizedBox(width: 10),
-                      Text('Profile'),
-                    ],
-                  ),
-                ),
+          indicatorColor: primaryLight,
 
-                PopupMenuItem(
-                  value: 'logout',
-                  child: Row(
-                    children: [
-                      Icon(Icons.logout),
-                      SizedBox(width: 10),
-                      Text('Logout'),
-                    ],
-                  ),
-                ),
-              ],
+          height: 70,
 
-              child: const CircleAvatar(
-                radius: 19,
-                backgroundColor: primaryLight,
-                child: Icon(Icons.person, color: primary),
+          onDestinationSelected: (index) {
+            setState(() {
+              _currentIndex = index;
+            });
+          },
+
+          destinations: const [
+            NavigationDestination(
+              icon: Icon(Icons.dashboard_outlined),
+
+              selectedIcon: Icon(Icons.dashboard_rounded, color: primary),
+
+              label: 'Dashboard',
+            ),
+
+            NavigationDestination(
+              icon: Icon(Icons.manage_accounts_outlined),
+
+              selectedIcon: Icon(Icons.manage_accounts_rounded, color: primary),
+
+              label: 'Management',
+            ),
+
+            NavigationDestination(
+              icon: Icon(Icons.flash_on_outlined),
+
+              selectedIcon: Icon(Icons.flash_on_rounded, color: primary),
+
+              label: 'Actions',
+            ),
+
+            NavigationDestination(
+              icon: Icon(Icons.person_outline_rounded),
+
+              selectedIcon: Icon(Icons.person_rounded, color: primary),
+
+              label: 'Profile',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // PAGE TITLE
+  // ================================================================
+
+  String get _pageTitle {
+    switch (_currentIndex) {
+      case 0:
+        return 'Dashboard';
+
+      case 1:
+        return 'Management';
+
+      case 2:
+        return 'Quick Actions';
+
+      case 3:
+        return 'Admin Profile';
+
+      default:
+        return 'Dashboard';
+    }
+  }
+
+  // ================================================================
+  // DASHBOARD TAB
+  // ================================================================
+
+  Widget _dashboardTab(AsyncValue dashboardState, dynamic dashboard) {
+    return RefreshIndicator(
+      color: primary,
+
+      onRefresh: _refreshDashboard,
+
+      child: SingleChildScrollView(
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
+        ),
+
+        padding: const EdgeInsets.fromLTRB(20, 22, 20, 35),
+
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+
+          children: [
+            Text(
+              'Good morning, $adminName 👋',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+
+              style: const TextStyle(color: Colors.grey, fontSize: 14),
+            ),
+
+            const SizedBox(height: 5),
+
+            const Text(
+              'School Overview',
+
+              style: TextStyle(
+                color: textDark,
+                fontSize: 27,
+                fontWeight: FontWeight.bold,
               ),
+            ),
+
+            const SizedBox(height: 6),
+
+            Text(
+              'Manage your school, students, teachers and academic activities.',
+
+              style: TextStyle(
+                color: Colors.grey.shade600,
+                fontSize: 13,
+                height: 1.4,
+              ),
+            ),
+
+            const SizedBox(height: 24),
+
+            _schoolBanner(),
+
+            const SizedBox(height: 28),
+
+            const Text(
+              'School Statistics',
+
+              style: TextStyle(
+                color: textDark,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+
+            const SizedBox(height: 5),
+
+            Text(
+              'A visual overview of your school population and academic structure.',
+
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+            ),
+
+            const SizedBox(height: 14),
+
+            if (dashboardState.isLoading && dashboard == null)
+              _statisticsShimmer()
+            else if (dashboardState.hasError && dashboard == null)
+              _errorCard(message: 'Unable to load school statistics.')
+            else
+              _statisticsChart(
+                students: dashboard?.studentCount ?? 0,
+
+                teachers: dashboard?.teacherCount ?? 0,
+
+                classes: dashboard?.classCount ?? 0,
+
+                subjects: dashboard?.subjectCount ?? 0,
+
+                parents: dashboard?.parentCount ?? 0,
+              ),
+
+            const SizedBox(height: 28),
+
+            _dashboardSummaryCard(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // DASHBOARD SUMMARY
+  // ================================================================
+
+  Widget _dashboardSummaryCard() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(18),
+
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+
+                decoration: BoxDecoration(
+                  color: primaryLight,
+                  borderRadius: BorderRadius.circular(11),
+                ),
+
+                child: const Icon(Icons.school_outlined, color: primary),
+              ),
+
+              const SizedBox(width: 11),
+
+              const Expanded(
+                child: Text(
+                  'School Administration',
+
+                  style: TextStyle(
+                    color: textDark,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 13),
+
+          Text(
+            'Use the Management tab to manage your school records, or Quick Actions to quickly create new records.',
+
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 11,
+              height: 1.5,
             ),
           ),
         ],
       ),
+    );
+  }
 
-      // ============================================================
-      // BODY
-      // ============================================================
-      body: SafeArea(
-        child: RefreshIndicator(
-          color: primary,
-          onRefresh: _refreshDashboard,
+  // ================================================================
+  // MANAGEMENT TAB
+  // ================================================================
 
-          child: SingleChildScrollView(
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
+  Widget _managementTab() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 35),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          const Text(
+            'Manage your school',
+
+            style: TextStyle(
+              color: textDark,
+              fontSize: 25,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            'View and manage students, teachers and academic records.',
+
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+
+          const SizedBox(height: 24),
+
+          _managementTile(
+            icon: Icons.groups_outlined,
+            title: 'Students',
+            subtitle: 'View and manage students',
+            color: Colors.purple,
+
+            onTap: () {
+              _openRoute('/admin/$schoolId/students');
+            },
+          ),
+
+          _managementTile(
+            icon: Icons.person_outline_rounded,
+            title: 'Teachers',
+            subtitle: 'Manage teachers in your school',
+            color: Colors.green,
+
+            onTap: () {
+              _openRoute('/admin/$schoolId/teachers');
+            },
+          ),
+
+          _managementTile(
+            icon: Icons.class_outlined,
+            title: 'Classes',
+            subtitle: 'Manage classes and classrooms',
+            color: Colors.orange,
+
+            onTap: () {
+              _openRoute('/admin/$schoolId/classes');
+            },
+          ),
+
+          _managementTile(
+            icon: Icons.menu_book_outlined,
+            title: 'Subjects',
+            subtitle: 'Manage academic subjects',
+            color: primary,
+
+            onTap: () {
+              _openRoute('/admin/$schoolId/subjects');
+            },
+          ),
+
+          _managementTile(
+            icon: Icons.family_restroom_outlined,
+            title: 'Parents',
+            subtitle: 'View and manage parents',
+            color: Colors.teal,
+
+            onTap: () {
+              _openRoute('/admin/$schoolId/parents');
+            },
+          ),
+
+          _managementTile(
+            icon: Icons.assessment_outlined,
+            title: 'Results',
+            subtitle: 'View and manage student results',
+            color: Colors.blue,
+            onTap: () {
+              _openRoute('/admin/$schoolId/results');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // QUICK ACTIONS TAB
+  // ================================================================
+
+  Widget _quickActionsTab() {
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 35),
+
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+
+        children: [
+          const Text(
+            'Quick Actions',
+
+            style: TextStyle(
+              color: textDark,
+              fontSize: 25,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 6),
+
+          Text(
+            'Common school administration tasks.',
+
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+
+          const SizedBox(height: 24),
+
+          _quickActionCard(
+            icon: Icons.person_add_alt_1_rounded,
+            title: 'Add Student',
+            subtitle: 'Register a new student',
+            color: Colors.purple,
+
+            onTap: () {
+              _openRoute('/admin/$schoolId/create-student');
+            },
+          ),
+
+          _quickActionCard(
+            icon: Icons.person_add_outlined,
+            title: 'Add Teacher',
+            subtitle: 'Register a new teacher',
+            color: Colors.green,
+
+            onTap: () {
+              _openRoute('/admin/$schoolId/create-teacher');
+            },
+          ),
+
+          _quickActionCard(
+            icon: Icons.add_box_outlined,
+            title: 'Create Class',
+            subtitle: 'Create a new class or classroom',
+            color: Colors.orange,
+
+            onTap: () {
+              _openRoute('/admin/$schoolId/create-class');
+            },
+          ),
+
+          _quickActionCard(
+            icon: Icons.library_add_outlined,
+            title: 'Add Subject',
+            subtitle: 'Create a new academic subject',
+            color: primary,
+
+            onTap: () {
+              _openRoute('/admin/$schoolId/create-subject');
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // PROFILE TAB
+  // ================================================================
+
+  Widget _profileTab() {
+    final user = ref.read(authProvider).value?.user;
+
+    final email = user?.email ?? '';
+    final phone = user?.phoneNumber ?? '';
+    final role = user?.role ?? 'Admin';
+
+    return SingleChildScrollView(
+      physics: const BouncingScrollPhysics(
+        parent: AlwaysScrollableScrollPhysics(),
+      ),
+
+      padding: const EdgeInsets.fromLTRB(20, 25, 20, 40),
+
+      child: Column(
+        children: [
+          Container(
+            width: 90,
+            height: 90,
+
+            decoration: const BoxDecoration(
+              color: primaryLight,
+              shape: BoxShape.circle,
             ),
 
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 35),
+            child: const Icon(Icons.person_rounded, color: primary, size: 48),
+          ),
+
+          const SizedBox(height: 15),
+
+          Text(
+            adminName,
+            textAlign: TextAlign.center,
+
+            style: const TextStyle(
+              color: textDark,
+              fontSize: 21,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+
+          const SizedBox(height: 5),
+
+          Text(
+            role,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+
+          const SizedBox(height: 25),
+
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(18),
+
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
 
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
               children: [
-                // ==================================================
-                // GREETING
-                // ==================================================
-                Text(
-                  'Good morning, $adminName 👋',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.grey, fontSize: 14),
+                _profileItem(Icons.person_outline, 'Full Name', adminName),
+
+                _profileDivider(),
+
+                _profileItem(
+                  Icons.email_outlined,
+                  'Email',
+                  email.isEmpty ? 'Not provided' : email,
                 ),
 
-                const SizedBox(height: 5),
+                _profileDivider(),
 
-                const Text(
-                  'School Overview',
-                  style: TextStyle(
-                    color: textDark,
-                    fontSize: 27,
-                    fontWeight: FontWeight.bold,
-                  ),
+                _profileItem(
+                  Icons.phone_outlined,
+                  'Phone',
+                  phone.isEmpty ? 'Not provided' : phone,
                 ),
 
-                const SizedBox(height: 6),
+                _profileDivider(),
 
-                Text(
-                  'Manage your school, students, teachers and academic activities.',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 13,
-                    height: 1.4,
-                  ),
-                ),
+                _profileItem(Icons.school_outlined, 'School', schoolName),
 
-                const SizedBox(height: 24),
+                _profileDivider(),
 
-                // ==================================================
-                // SCHOOL BANNER
-                // ==================================================
-                _schoolBanner(),
-
-                const SizedBox(height: 28),
-
-                // ==================================================
-                // STATISTICS
-                // ==================================================
-                const Text(
-                  'School Statistics',
-                  style: TextStyle(
-                    color: textDark,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 5),
-
-                Text(
-                  'A visual overview of your school population and academic structure.',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                ),
-
-                const SizedBox(height: 14),
-
-                if (dashboardState.isLoading && dashboard == null)
-                  _statisticsShimmer()
-                else if (dashboardState.hasError && dashboard == null)
-                  _errorCard(message: 'Unable to load school statistics.')
-                else
-                  _statisticsChart(
-                    students: dashboard?.studentCount ?? 0,
-                    teachers: dashboard?.teacherCount ?? 0,
-                    classes: dashboard?.classCount ?? 0,
-                    subjects: dashboard?.subjectCount ?? 0,
-                    parents: dashboard?.parentCount ?? 0,
-                  ),
-
-                const SizedBox(height: 28),
-
-                // ==================================================
-                // MANAGEMENT
-                // ==================================================
-                _sectionHeader(
-                  title: 'Management',
-                  subtitle: 'Manage your school',
-                ),
-
-                const SizedBox(height: 13),
-
-                _managementTile(
-                  icon: Icons.groups_outlined,
-                  title: 'Students',
-                  subtitle: 'View and manage students',
-                  color: Colors.purple,
-                  onTap: () {
-                    _openRoute('/admin/$schoolId/students');
-                  },
-                ),
-
-                _managementTile(
-                  icon: Icons.person_outline_rounded,
-                  title: 'Teachers',
-                  subtitle: 'Manage teachers in your school',
-                  color: Colors.green,
-                  onTap: () {
-                    _openRoute('/admin/$schoolId/teachers');
-                  },
-                ),
-
-                _managementTile(
-                  icon: Icons.class_outlined,
-                  title: 'Classes',
-                  subtitle: 'Manage classes and classrooms',
-                  color: Colors.orange,
-                  onTap: () {
-                    _openRoute('/admin/$schoolId/classes');
-                  },
-                ),
-
-                _managementTile(
-                  icon: Icons.menu_book_outlined,
-                  title: 'Subjects',
-                  subtitle: 'Manage academic subjects',
-                  color: primary,
-                  onTap: () {
-                    _openRoute('/admin/$schoolId/subjects');
-                  },
-                ),
-
-                _managementTile(
-                  icon: Icons.family_restroom_outlined,
-                  title: 'Parents',
-                  subtitle: 'View and manage parents',
-                  color: Colors.teal,
-                  onTap: () {
-                    _openRoute('/admin/$schoolId/parents');
-                  },
-                ),
-
-                const SizedBox(height: 28),
-
-                // ==================================================
-                // QUICK ACTIONS
-                // ==================================================
-                _sectionHeader(
-                  title: 'Quick Actions',
-                  subtitle: 'Common school administration tasks',
-                ),
-
-                const SizedBox(height: 13),
-
-                _quickActionCard(
-                  icon: Icons.person_add_alt_1_rounded,
-                  title: 'Add Student',
-                  subtitle: 'Register a new student',
-                  color: Colors.purple,
-                  onTap: () {
-                    _openRoute('/admin/$schoolId/create-student');
-                  },
-                ),
-
-                _quickActionCard(
-                  icon: Icons.person_add_outlined,
-                  title: 'Add Teacher',
-                  subtitle: 'Register a new teacher',
-                  color: Colors.green,
-                  onTap: () {
-                    _openRoute('/admin/$schoolId/create-teacher');
-                  },
-                ),
-
-                _quickActionCard(
-                  icon: Icons.add_box_outlined,
-                  title: 'Create Class',
-                  subtitle: 'Create a new class or classroom',
-                  color: Colors.orange,
-                  onTap: () {
-                    _openRoute('/admin/$schoolId/create-class');
-                  },
-                ),
-
-                _quickActionCard(
-                  icon: Icons.library_add_outlined,
-                  title: 'Add Subject',
-                  subtitle: 'Create a new academic subject',
-                  color: primary,
-                  onTap: () {
-                    _openRoute('/admin/$schoolId/create-subject');
-                  },
-                ),
+                _profileItem(Icons.badge_outlined, 'Role', role),
               ],
             ),
           ),
-        ),
+
+          const SizedBox(height: 20),
+
+          SizedBox(
+            width: double.infinity,
+
+            child: OutlinedButton.icon(
+              onPressed: _logout,
+
+              icon: const Icon(Icons.logout_rounded, color: Colors.red),
+
+              label: const Text(
+                'Logout',
+
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 14),
+
+                side: BorderSide(color: Colors.red.shade200),
+
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(13),
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -434,6 +909,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [primary, Color(0xFF2437C5)],
+
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -454,9 +930,11 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+
               children: [
                 const Text(
                   'Your School',
+
                   style: TextStyle(color: Colors.white70, fontSize: 12),
                 ),
 
@@ -466,6 +944,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   schoolName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 21,
@@ -477,6 +956,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
                 const Text(
                   'School Administration Dashboard',
+
                   style: TextStyle(color: Colors.white70, fontSize: 11),
                 ),
               ],
@@ -541,6 +1021,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   subjects.toDouble(),
                   parents.toDouble(),
                 ],
+
                 maxValue: _calculateMaxValue([
                   students,
                   teachers,
@@ -548,6 +1029,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   subjects,
                   parents,
                 ]),
+
                 color: primary,
               ),
             ),
@@ -566,17 +1048,21 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                 label: 'Students',
                 value: students,
               ),
+
               _chartLegend(
                 color: Colors.green,
                 label: 'Teachers',
                 value: teachers,
               ),
+
               _chartLegend(
                 color: Colors.orange,
                 label: 'Classes',
                 value: classes,
               ),
+
               _chartLegend(color: primary, label: 'Subjects', value: subjects),
+
               _chartLegend(
                 color: Colors.teal,
                 label: 'Parents',
@@ -616,6 +1102,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   }) {
     return Row(
       mainAxisSize: MainAxisSize.min,
+
       children: [
         Container(
           width: 9,
@@ -628,6 +1115,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
         Text(
           label,
+
           style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
         ),
 
@@ -635,6 +1123,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
         Text(
           '$value',
+
           style: const TextStyle(
             color: textDark,
             fontSize: 11,
@@ -669,6 +1158,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           Text(
             message,
             textAlign: TextAlign.center,
+
             style: const TextStyle(
               color: textDark,
               fontWeight: FontWeight.w600,
@@ -678,9 +1168,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           const SizedBox(height: 12),
 
           ElevatedButton(
-            onPressed: () {
-              ref.read(adminDashboardProvider.notifier).refresh();
-            },
+            onPressed: _refreshDashboard,
             child: const Text('Retry'),
           ),
         ],
@@ -719,7 +1207,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     required VoidCallback onTap,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
 
       decoration: BoxDecoration(
         color: Colors.white,
@@ -754,6 +1242,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
             title: Text(
               title,
+
               style: const TextStyle(
                 color: textDark,
                 fontWeight: FontWeight.w600,
@@ -766,6 +1255,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
               child: Text(
                 subtitle,
+
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
               ),
             ),
@@ -792,7 +1282,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     required VoidCallback onTap,
   }) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 12),
 
       decoration: BoxDecoration(
         color: Colors.white,
@@ -827,6 +1317,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
             title: Text(
               title,
+
               style: const TextStyle(
                 color: textDark,
                 fontSize: 14,
@@ -839,6 +1330,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
               child: Text(
                 subtitle,
+
                 style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
               ),
             ),
@@ -861,30 +1353,62 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   }
 
   // ================================================================
-  // SECTION HEADER
+  // PROFILE ITEM
   // ================================================================
 
-  Widget _sectionHeader({required String title, required String subtitle}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-
+  Widget _profileItem(IconData icon, String label, String value) {
+    return Row(
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: textDark,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
+        Container(
+          width: 40,
+          height: 40,
+
+          decoration: BoxDecoration(
+            color: primaryLight,
+            borderRadius: BorderRadius.circular(11),
+          ),
+
+          child: Icon(icon, color: primary, size: 20),
+        ),
+
+        const SizedBox(width: 12),
+
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+
+            children: [
+              Text(
+                label,
+
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+              ),
+
+              const SizedBox(height: 2),
+
+              Text(
+                value,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+
+                style: const TextStyle(
+                  color: textDark,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
           ),
         ),
-
-        const SizedBox(height: 3),
-
-        Text(
-          subtitle,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-        ),
       ],
+    );
+  }
+
+  Widget _profileDivider() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14),
+
+      child: Divider(height: 1, color: Colors.grey.shade200),
     );
   }
 
@@ -911,116 +1435,6 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   }
 
   // ================================================================
-  // PROFILE
-  // ================================================================
-
-  void _showProfile() {
-    final user = ref.read(authProvider).value?.user;
-
-    final email = user?.email ?? '';
-    final phone = user?.phoneNumber ?? '';
-    final role = user?.role ?? 'Admin';
-
-    showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 10, 24, 30),
-
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-
-              crossAxisAlignment: CrossAxisAlignment.start,
-
-              children: [
-                const Text(
-                  'Administrator Profile',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: textDark,
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                _profileItem(Icons.person_outline, 'Full Name', adminName),
-
-                _profileItem(Icons.email_outlined, 'Email', email),
-
-                _profileItem(
-                  Icons.phone_outlined,
-                  'Phone',
-                  phone.isEmpty ? 'Not provided' : phone,
-                ),
-
-                _profileItem(Icons.school_outlined, 'School', schoolName),
-
-                _profileItem(Icons.badge_outlined, 'Role', role),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _profileItem(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 15),
-
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-
-            decoration: BoxDecoration(
-              color: primaryLight,
-              borderRadius: BorderRadius.circular(11),
-            ),
-
-            child: Icon(icon, color: primary, size: 20),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                ),
-
-                const SizedBox(height: 2),
-
-                Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
   // LOGOUT
   // ================================================================
 
@@ -1039,6 +1453,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
               onPressed: () {
                 Navigator.pop(context, false);
               },
+
               child: const Text('Cancel'),
             ),
 
@@ -1046,6 +1461,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
               onPressed: () {
                 Navigator.pop(context, true);
               },
+
               child: const Text('Logout'),
             ),
           ],
@@ -1059,7 +1475,9 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
     await ref.read(authProvider.notifier).logout();
 
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
 
     context.go('/login');
   }
@@ -1094,10 +1512,6 @@ class _RadarChartPainter extends CustomPainter {
 
     final angleStep = (2 * math.pi) / sides;
 
-    // ==============================================================
-    // GRID
-    // ==============================================================
-
     final gridPaint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1
@@ -1113,6 +1527,7 @@ class _RadarChartPainter extends CustomPainter {
 
         final point = Offset(
           center.dx + math.cos(angle) * levelRadius,
+
           center.dy + math.sin(angle) * levelRadius,
         );
 
@@ -1128,24 +1543,17 @@ class _RadarChartPainter extends CustomPainter {
       canvas.drawPath(path, gridPaint);
     }
 
-    // ==============================================================
-    // AXIS LINES
-    // ==============================================================
-
     for (int i = 0; i < sides; i++) {
       final angle = -math.pi / 2 + (i * angleStep);
 
       final point = Offset(
         center.dx + math.cos(angle) * radius,
+
         center.dy + math.sin(angle) * radius,
       );
 
       canvas.drawLine(center, point, gridPaint);
     }
-
-    // ==============================================================
-    // DATA POLYGON
-    // ==============================================================
 
     final dataPath = Path();
 
@@ -1160,6 +1568,7 @@ class _RadarChartPainter extends CustomPainter {
 
       final point = Offset(
         center.dx + math.cos(angle) * pointRadius,
+
         center.dy + math.sin(angle) * pointRadius,
       );
 
@@ -1185,10 +1594,6 @@ class _RadarChartPainter extends CustomPainter {
 
     canvas.drawPath(dataPath, strokePaint);
 
-    // ==============================================================
-    // DATA POINTS
-    // ==============================================================
-
     final pointPaint = Paint()
       ..style = PaintingStyle.fill
       ..color = color;
@@ -1204,6 +1609,7 @@ class _RadarChartPainter extends CustomPainter {
 
       final point = Offset(
         center.dx + math.cos(angle) * pointRadius,
+
         center.dy + math.sin(angle) * pointRadius,
       );
 
@@ -1213,10 +1619,6 @@ class _RadarChartPainter extends CustomPainter {
 
       canvas.drawCircle(point, 2, innerPaint);
     }
-
-    // ==============================================================
-    // LABELS
-    // ==============================================================
 
     const labels = ['Students', 'Teachers', 'Classes', 'Subjects', 'Parents'];
 
@@ -1235,18 +1637,21 @@ class _RadarChartPainter extends CustomPainter {
 
       final point = Offset(
         center.dx + math.cos(angle) * labelRadius,
+
         center.dy + math.sin(angle) * labelRadius,
       );
 
       final textPainter = TextPainter(
         text: TextSpan(
           text: labels[i],
+
           style: TextStyle(
             color: labelColors[i],
             fontSize: 11,
             fontWeight: FontWeight.w700,
           ),
         ),
+
         textDirection: TextDirection.ltr,
       );
 

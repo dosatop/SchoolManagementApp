@@ -1,10 +1,12 @@
 import 'package:app/core/network/dio_client.dart';
 import 'package:app/features/Classes/models/class_model.dart';
-import 'package:app/features/Subjects/models/subject_model.dart';
+import 'package:app/features/admin/models/academic_session/current_academic_session_model.dart';
 import 'package:app/features/admin/models/admin_teacher_details_model.dart';
+import 'package:app/features/admin/models/attendance/admin_attendance_model.dart';
 import 'package:app/features/admin/models/classes/admin_create_class_model.dart';
 import 'package:app/features/admin/models/parents/admin_parent_child_model.dart';
 import 'package:app/features/admin/models/parents/admin_parent_model.dart';
+import 'package:app/features/admin/models/results/admin_result_model.dart';
 import 'package:app/features/admin/models/students/admin_class_model.dart';
 import 'package:app/features/admin/models/students/admin_create_student_model.dart';
 import 'package:app/features/admin/models/students/admin_edit_student_model.dart';
@@ -239,7 +241,7 @@ class AdminApi {
   Future<void> unassignTeacherFromSubject({
     required String assignmentId,
   }) async {
-    await dioClient.dio.delete('/adminteaching-subjects/$assignmentId');
+    await dioClient.dio.delete('/admin/teaching-subjects/$assignmentId');
   }
 
   // ================================================================
@@ -378,4 +380,216 @@ class AdminApi {
   Future<void> deleteParent({required String parentId}) async {
     await dioClient.dio.delete('/admin/parents/$parentId');
   }
+
+  // ================================================================
+  // STUDENT ATTENDANCE
+  // ================================================================
+
+  Future<AdminStudentAttendanceModel> getStudentAttendance({
+    required String studentId,
+    required String session,
+    required String term,
+  }) async {
+    final response = await dioClient.dio.get(
+      '/admin/students/$studentId/attendance',
+      queryParameters: {'session': session, 'term': term},
+    );
+
+    return AdminStudentAttendanceModel.fromJson(
+      Map<String, dynamic>.from(response.data),
+    );
+  }
+
+
+  // ================================================================
+// GET RESULTS FOR SCHOOL
+// ================================================================
+//
+// GET /api/admin/results
+//
+// Optional:
+// - session
+// - term
+//
+// Returns all results belonging to the school.
+// ================================================================
+
+Future<AdminResultsResponse> getResultsForSchool({
+  required String schoolId,
+  String? session,
+  String? term,
+}) async {
+  final response = await dioClient.dio.get(
+    '/admin/results',
+    queryParameters: {
+      'schoolId': schoolId,
+      if (session != null && session.isNotEmpty)
+        'session': session,
+      if (term != null && term.isNotEmpty)
+        'term': term,
+    },
+  );
+
+  return AdminResultsResponse.fromJson(
+    response.data,
+  );
+}
+
+
+  // ================================================================
+  // CREATE RESULT
+  // ================================================================
+
+  Future<AdminResultModel> createResult(
+    CreateAdminResultRequest request,
+  ) async {
+    final response = await dioClient.dio.post(
+      '/admin/results',
+      data: request.toJson(),
+    );
+
+    return AdminResultModel.fromJson(Map<String, dynamic>.from(response.data));
+  }
+// ================================================================
+// CREATE TEST RESULT
+// ================================================================
+
+Future<AdminResultModel> createTestResult(
+  CreateAdminResultRequest request,
+) async {
+  final response = await dioClient.dio.post(
+    '/admin/results/test',
+    data: request.toJson(),
+  );
+
+  return AdminResultModel.fromJson(
+    Map<String, dynamic>.from(response.data),
+  );
+}
+
+// ================================================================
+// CREATE EXAM RESULT
+// ================================================================
+
+Future<AdminResultModel> createExamResult(
+  CreateAdminResultRequest request,
+) async {
+  final response = await dioClient.dio.post(
+    '/admin/results/exam',
+    data: request.toJson(),
+  );
+
+  return AdminResultModel.fromJson(
+    Map<String, dynamic>.from(response.data),
+  );
+}
+
+
+  // ================================================================
+  // GET RESULT
+  // ================================================================
+
+  Future<AdminResultModel> getResult({required String resultId}) async {
+    final response = await dioClient.dio.get('/admin/results/$resultId');
+
+    return AdminResultModel.fromJson(Map<String, dynamic>.from(response.data));
+  }
+
+  // ================================================================
+  // GET STUDENT RESULTS
+  // ================================================================
+
+  Future<AdminResultsResponse> getStudentResults({
+    required String studentId,
+    required String session,
+    required String term,
+  }) async {
+    final response = await dioClient.dio.get(
+      '/admin/students/$studentId/results',
+      queryParameters: {'session': session, 'term': term},
+    );
+
+    return AdminResultsResponse.fromJson(
+      Map<String, dynamic>.from(response.data),
+    );
+  }
+
+  // ================================================================
+  // GET CLASS RESULTS
+  // ================================================================
+
+  Future<AdminResultsResponse> getClassResults({
+    required String classId,
+    required String session,
+    required String term,
+  }) async {
+    final response = await dioClient.dio.get(
+      '/admin/classes/$classId/results',
+      queryParameters: {'session': session, 'term': term},
+    );
+
+    return AdminResultsResponse.fromJson(
+      Map<String, dynamic>.from(response.data),
+    );
+  }
+
+  // ================================================================
+  // GET SUBJECT RESULTS
+  // ================================================================
+
+  Future<AdminResultsResponse> getSubjectResults({
+    required String subjectId,
+    required String classId,
+    required String session,
+    required String term,
+  }) async {
+    final response = await dioClient.dio.get(
+      '/admin/subjects/$subjectId/results',
+      queryParameters: {'classId': classId, 'session': session, 'term': term},
+    );
+
+    return AdminResultsResponse.fromJson(
+      Map<String, dynamic>.from(response.data),
+    );
+  }
+  // ================================================================
+  // UPDATE RESULT
+  // ================================================================
+
+  Future<AdminResultModel> updateResult({
+    required String resultId,
+    required UpdateAdminResultRequest request,
+  }) async {
+    final response = await dioClient.dio.put(
+      '/admin/results/$resultId',
+      data: request.toJson(),
+    );
+
+    return AdminResultModel.fromJson(Map<String, dynamic>.from(response.data));
+  }
+
+  // ================================================================
+  // DELETE RESULT
+  // ================================================================
+
+  Future<void> deleteResult({required String resultId}) async {
+    await dioClient.dio.delete('/admin/results/$resultId');
+  }
+
+ Future<CurrentAcademicSessionModel> getCurrentAcademicSession({
+  required String schoolId,
+}) async {
+  final response = await dioClient.dio.get(
+    '/academic-sessions/current',
+    queryParameters: {
+      'schoolId': schoolId,
+    },
+  );
+
+  return CurrentAcademicSessionModel.fromJson(
+    Map<String, dynamic>.from(response.data),
+  );
+}
+
+
 }

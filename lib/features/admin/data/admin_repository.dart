@@ -1,7 +1,10 @@
 import 'package:app/features/admin/data/admin_api.dart';
+import 'package:app/features/admin/models/academic_session/current_academic_session_model.dart';
 import 'package:app/features/admin/models/admin_teacher_details_model.dart';
+import 'package:app/features/admin/models/attendance/admin_attendance_model.dart';
 import 'package:app/features/admin/models/classes/admin_create_class_model.dart';
 import 'package:app/features/admin/models/parents/admin_parent_child_model.dart';
+import 'package:app/features/admin/models/results/admin_result_model.dart';
 import 'package:app/features/admin/models/students/admin_class_model.dart';
 import 'package:app/features/admin/models/students/admin_create_student_model.dart';
 import 'package:app/features/admin/models/students/admin_edit_student_model.dart';
@@ -249,4 +252,171 @@ class AdminRepository {
   Future<void> deleteParent({required String parentId}) {
     return api.deleteParent(parentId: parentId);
   }
+
+  // ================================================================
+// STUDENT ATTENDANCE
+// ================================================================
+
+Future<AdminStudentAttendanceModel> getStudentAttendance({
+  required String studentId,
+  required String session,
+  required String term,
+}) {
+  return api.getStudentAttendance(
+    studentId: studentId,
+    session: session,
+    term: term,
+  );
+}
+
+  // ================================================================
+  // CREATE RESULT
+  // ================================================================
+
+  Future<AdminResultModel> createResult(
+    CreateAdminResultRequest request,
+  ) {
+    return api.createResult(request);
+  }
+
+  // ================================================================
+// CREATE TEST RESULT
+// ================================================================
+
+Future<AdminResultModel> createTestResult(
+  CreateAdminResultRequest request,
+) async {
+  return api.createTestResult(
+    request,
+  );
+}
+
+// ================================================================
+// CREATE EXAM RESULT
+// ================================================================
+
+Future<AdminResultModel> createExamResult(
+  CreateAdminResultRequest request,
+) async {
+  return api.createExamResult(
+    request,
+  );
+}
+
+
+
+
+  // ================================================================
+  // GET SINGLE RESULT
+  // ================================================================
+
+  Future<AdminResultModel> getResult({
+    required String resultId,
+  }) {
+    return api.getResult(
+      resultId: resultId,
+    );
+  }
+
+  Future<List<AdminResultModel>> getResultsForSchool({
+  required String schoolId,
+  String? session,
+  String? term,
+}) async {
+  final response = await api.getResultsForSchool(
+    schoolId: schoolId,
+    session: session,
+    term: term,
+  );
+
+  return response.results;
+}
+
+
+  // ================================================================
+  // GET STUDENT RESULTS
+  // ================================================================
+
+  Future<AdminResultsResponse> getStudentResults({
+    required String studentId,
+    required String session,
+    required String term,
+  }) {
+    return api.getStudentResults(
+      studentId: studentId,
+      session: session,
+      term: term,
+    );
+  }
+
+  // ================================================================
+  // GET CLASS RESULTS
+  // ================================================================
+
+  Future<AdminResultsResponse> getClassResults({
+    required String classId,
+    required String session,
+    required String term,
+  }) {
+    return api.getClassResults(
+      classId: classId,
+      session: session,
+      term: term,
+    );
+  }
+
+  // ================================================================
+  // GET SUBJECT RESULTS
+  // ================================================================
+
+  Future<AdminResultsResponse> getSubjectResults({
+    required String subjectId,
+    required String classId,
+    required String session,
+    required String term,
+  }) {
+    return api.getSubjectResults(
+      subjectId: subjectId,
+      classId: classId,
+      session: session,
+      term: term,
+    );
+  }
+
+
+  // ================================================================
+  // UPDATE RESULT
+  // ================================================================
+
+  Future<AdminResultModel> updateResult({
+    required String resultId,
+    required UpdateAdminResultRequest request,
+  }) {
+    return api.updateResult(
+      resultId: resultId,
+      request: request,
+    );
+  }
+
+  // ================================================================
+  // DELETE RESULT
+  // ================================================================
+
+  Future<void> deleteResult({
+    required String resultId,
+  }) {
+    return api.deleteResult(
+      resultId: resultId,
+    );
+  }
+
+Future<CurrentAcademicSessionModel> getCurrentAcademicSession({
+  required String schoolId,
+}) async {
+  return await api.getCurrentAcademicSession(
+    schoolId: schoolId,
+  );
+}
+
+  
 }

@@ -1,3 +1,4 @@
+import 'package:app/features/admin/models/attendance/admin_attendance_model.dart';
 import 'package:app/features/admin/models/students/admin_student_parent_model.dart';
 
 class AdminStudentDetailModel {
@@ -34,9 +35,7 @@ class AdminStudentDetailModel {
     required this.assignments,
   });
 
-  factory AdminStudentDetailModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminStudentDetailModel.fromJson(Map<String, dynamic> json) {
     return AdminStudentDetailModel(
       studentId: json['studentId']?.toString() ?? '',
       studentNumber: json['studentNumber']?.toString() ?? '',
@@ -106,9 +105,7 @@ class AdminStudentSubjectModel {
     required this.code,
   });
 
-  factory AdminStudentSubjectModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminStudentSubjectModel.fromJson(Map<String, dynamic> json) {
     return AdminStudentSubjectModel(
       subjectId: json['subjectId']?.toString() ?? '',
       subjectName: json['subjectName']?.toString() ?? '',
@@ -146,22 +143,17 @@ class AdminStudentResultModel {
     required this.term,
   });
 
-  factory AdminStudentResultModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminStudentResultModel.fromJson(Map<String, dynamic> json) {
     return AdminStudentResultModel(
       id: json['id']?.toString() ?? '',
       subjectId: json['subjectId']?.toString() ?? '',
       subjectName: json['subjectName']?.toString() ?? '',
 
-      testScore:
-          (json['testScore'] as num?)?.toDouble() ?? 0,
+      testScore: (json['testScore'] as num?)?.toDouble() ?? 0,
 
-      examScore:
-          (json['examScore'] as num?)?.toDouble() ?? 0,
+      examScore: (json['examScore'] as num?)?.toDouble() ?? 0,
 
-      score:
-          (json['score'] as num?)?.toDouble() ?? 0,
+      score: (json['score'] as num?)?.toDouble() ?? 0,
 
       grade: json['grade']?.toString() ?? '',
       remark: json['remark']?.toString() ?? '',
@@ -181,22 +173,6 @@ class AdminStudentResultModel {
 //
 // Since you haven't shown the attendance object structure yet,
 // keep this flexible for now.
-
-class AdminStudentAttendanceModel {
-  final Map<String, dynamic> data;
-
-  const AdminStudentAttendanceModel({
-    required this.data,
-  });
-
-  factory AdminStudentAttendanceModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
-    return AdminStudentAttendanceModel(
-      data: json,
-    );
-  }
-}
 
 // ================================================================
 // ASSIGNMENT
@@ -246,61 +222,39 @@ class AdminStudentAssignmentModel {
     this.submission,
   });
 
-  factory AdminStudentAssignmentModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminStudentAssignmentModel.fromJson(Map<String, dynamic> json) {
     return AdminStudentAssignmentModel(
-      assignmentId:
-          json['assignmentId']?.toString() ?? '',
+      assignmentId: json['assignmentId']?.toString() ?? '',
 
-      title:
-          json['title']?.toString() ?? '',
+      title: json['title']?.toString() ?? '',
 
-      description:
-          json['description']?.toString() ?? '',
+      description: json['description']?.toString() ?? '',
 
-      attachmentUrl:
-          json['attachmentUrl']?.toString(),
+      attachmentUrl: json['attachmentUrl']?.toString(),
 
-      assignedAt:
-          DateTime.tryParse(
-            json['assignedAt']?.toString() ?? '',
-          ),
+      assignedAt: DateTime.tryParse(json['assignedAt']?.toString() ?? ''),
 
-      dueDate:
-          DateTime.tryParse(
-            json['dueDate']?.toString() ?? '',
-          ),
+      dueDate: DateTime.tryParse(json['dueDate']?.toString() ?? ''),
 
-      session:
-          json['session']?.toString() ?? '',
+      session: json['session']?.toString() ?? '',
 
-      term:
-          json['term']?.toString() ?? '',
+      term: json['term']?.toString() ?? '',
 
-      classId:
-          json['classId']?.toString() ?? '',
+      classId: json['classId']?.toString() ?? '',
 
-      className:
-          json['className']?.toString() ?? '',
+      className: json['className']?.toString() ?? '',
 
-      subjectId:
-          json['subjectId']?.toString() ?? '',
+      subjectId: json['subjectId']?.toString() ?? '',
 
-      subjectName:
-          json['subjectName']?.toString() ?? '',
+      subjectName: json['subjectName']?.toString() ?? '',
 
-      teacherId:
-          json['teacherId']?.toString() ?? '',
+      teacherId: json['teacherId']?.toString() ?? '',
 
-      teacherName:
-          json['teacherName']?.toString() ?? '',
+      teacherName: json['teacherName']?.toString() ?? '',
 
-      isPublished:
-          json['isPublished'] == true,
+      isPublished: json['isPublished'] == true,
 
-      submission:
-          json['submission'],
+      submission: json['submission'],
     );
   }
 }

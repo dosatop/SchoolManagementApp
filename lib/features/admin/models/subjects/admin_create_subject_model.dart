@@ -14,3 +14,29 @@ class AdminCreateSubjectModel {
     };
   }
 }
+
+// ==================================================================
+// CLASS SUBJECT
+// ==================================================================
+
+class AdminClassSubjectModel {
+  final String subjectId;
+  final String subjectName;
+  final String subjectCode;
+
+  const AdminClassSubjectModel({
+    required this.subjectId,
+    required this.subjectName,
+    required this.subjectCode,
+  });
+
+  factory AdminClassSubjectModel.fromJson(
+    Map<String, dynamic> json,
+  ) {
+    return AdminClassSubjectModel(
+      subjectId: json['subjectId'] as String? ?? '',
+      subjectName: json['subjectName'] as String? ?? '',
+      subjectCode: json['subjectCode'] as String? ?? '',
+    );
+  }
+}

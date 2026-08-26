@@ -1,4 +1,7 @@
 class AdminTeacherSubjectModel {
+  final String assignmentId;
+  final String teacherId;
+  final String teacherName;
   final String subjectId;
   final String name;
   final String code;
@@ -6,6 +9,9 @@ class AdminTeacherSubjectModel {
   final String className;
 
   const AdminTeacherSubjectModel({
+    required this.assignmentId,
+    required this.teacherId,
+    required this.teacherName,
     required this.subjectId,
     required this.name,
     required this.code,
@@ -17,29 +23,32 @@ class AdminTeacherSubjectModel {
     Map<String, dynamic> json,
   ) {
     return AdminTeacherSubjectModel(
-      subjectId: json['subjectId']?.toString() ?? '',
-      name: json['subjectName']?.toString() ??
-          json['name']?.toString() ??
-          '',
-      code: json['code']?.toString() ?? '',
-      classId: json['classId']?.toString() ?? '',
-      className: json['className']?.toString() ?? '',
-    );
-  }
+      assignmentId:
+          json['assignmentId']?.toString() ?? '',
 
-  AdminTeacherSubjectModel copyWith({
-    String? subjectId,
-    String? name,
-    String? code,
-    String? classId,
-    String? className,
-  }) {
-    return AdminTeacherSubjectModel(
-      subjectId: subjectId ?? this.subjectId,
-      name: name ?? this.name,
-      code: code ?? this.code,
-      classId: classId ?? this.classId,
-      className: className ?? this.className,
+      teacherId:
+          json['teacherId']?.toString() ?? '',
+
+      teacherName:
+          json['teacherName']?.toString() ?? '',
+
+      subjectId:
+          json['subjectId']?.toString() ?? '',
+
+      name:
+          json['subjectName']?.toString() ?? '',
+
+      // If the GET response provides code.
+      code:
+          json['subjectCode']?.toString() ??
+          json['code']?.toString() ??
+          '',
+
+      classId:
+          json['classId']?.toString() ?? '',
+
+      className:
+          json['className']?.toString() ?? '',
     );
   }
 }

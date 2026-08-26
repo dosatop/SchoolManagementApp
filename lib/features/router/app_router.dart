@@ -1,8 +1,15 @@
 import 'package:app/features/Classes/presentation/classes_page.dart';
 import 'package:app/features/Subjects/presentation/subjects_page.dart';
+import 'package:app/features/admin/models/results/admin_result_model.dart';
+import 'package:app/features/admin/models/students/admin_class_model.dart';
 import 'package:app/features/admin/models/students/admin_student_model.dart';
+import 'package:app/features/admin/presentation/classes/admin_class_details_page.dart';
 import 'package:app/features/admin/presentation/parents/admin_parent_details_page.dart';
 import 'package:app/features/admin/presentation/parents/admin_parents_page.dart';
+import 'package:app/features/admin/presentation/results/admin_create_result_page.dart';
+import 'package:app/features/admin/presentation/results/admin_edit_result_page.dart';
+import 'package:app/features/admin/presentation/results/admin_result_details_page.dart';
+import 'package:app/features/admin/presentation/results/admin_results_page.dart';
 import 'package:app/features/admin/presentation/students/admin_edit_student_page.dart';
 import 'package:app/features/admin/presentation/students/admin_student_details_page.dart';
 import 'package:app/features/admin/presentation/subjects/admin_create_subject_page.dart';
@@ -261,27 +268,25 @@ GoRouter appRouter(Ref ref) {
       ),
 
       GoRoute(
-  path: '/admin/:schoolId/parents',
-  builder: (context, state) {
-    final schoolId = state.pathParameters['schoolId']!;
+        path: '/admin/:schoolId/parents',
+        builder: (context, state) {
+          final schoolId = state.pathParameters['schoolId']!;
 
-    return AdminParentsPage(
-      schoolId: schoolId,
-    );
-  },
-),
+          return AdminParentsPage(schoolId: schoolId);
+        },
+      ),
 
-GoRoute(
-  path: '/admin/:schoolId/parents/:parentId',
-  builder: (context, state) {
-        final parentId = state.pathParameters['parentId']!;
+      GoRoute(
+        path: '/admin/:schoolId/parents/:parentId',
+        builder: (context, state) {
+          final parentId = state.pathParameters['parentId']!;
 
-    return AdminParentDetailsPage(
-      // schoolId: schoolId,
-      parentId: parentId,
-    );
-  },
-),
+          return AdminParentDetailsPage(
+            // schoolId: schoolId,
+            parentId: parentId,
+          );
+        },
+      ),
 
       GoRoute(
         path: '/admin/:schoolId/student/:studentId',
@@ -296,36 +301,92 @@ GoRoute(
           );
         },
       ),
+      GoRoute(
+        path: '/admin/:schoolId/class/:classId',
+        builder: (context, state) {
+          final schoolClass = state.extra as AdminClassModel;
+
+          return AdminClassDetailsPage(schoolClass: schoolClass);
+        },
+      ),
+      GoRoute(
+        path: '/admin/:schoolId/results',
+        builder: (context, state) {
+          final schoolId = state.pathParameters['schoolId']!;
+
+          return AdminResultsPage(schoolId: schoolId, schoolName: 'School');
+        },
+      ),
+      GoRoute(
+        path: '/admin/:schoolId/student/:studentId/results',
+        builder: (context, state) {
+          final schoolId = state.pathParameters['schoolId']!;
+          final studentId = state.pathParameters['studentId']!;
+
+          final extra = state.extra as Map<String, dynamic>;
+
+          final results = (extra['results'] as List).cast<AdminResultModel>();
+
+          return AdminResultDetailsPage(
+            schoolId: schoolId,
+            studentId: studentId,
+            studentName: extra['studentName'] as String? ?? '',
+            studentNumber: extra['studentNumber'] as String? ?? '',
+            className: extra['className'] as String? ?? '',
+            session: extra['session'] as String? ?? '',
+            term: extra['term'] as String? ?? '',
+            results: results,
+          );
+        },
+      ),
 
       GoRoute(
-  path: '/admin/:schoolId/edit-student/:studentId',
-  builder: (context, state) {
-    final schoolId =
-        state.pathParameters['schoolId']!;
+        path: '/admin/:schoolId/edit-result/:resultId',
+        builder: (context, state) {
+          final result = state.extra as AdminResultModel;
 
-    final student =
-        state.extra as AdminStudentModel;
+          return AdminEditResultPage(
+            schoolId: state.pathParameters['schoolId']!,
+            resultId: state.pathParameters['resultId']!,
+            result: result,
+          );
+        },
+      ),
 
-    return AdminEditStudentPage(
-      schoolId: schoolId,
-      student: student,
-    );
-  },
-),
+      GoRoute(
+        path: '/admin/:schoolId/create-result',
+        name: 'admin-create-result',
+        builder: (context, state) {
+          final schoolId = state.pathParameters['schoolId']!;
 
-GoRoute(
-  path: '/admin/:schoolId/teacher/:teacherId',
-  name: 'admin-teacher-details',
-  builder: (context, state) {
-    final schoolId = state.pathParameters['schoolId']!;
-    final teacherId = state.pathParameters['teacherId']!;
+          return AdminCreateResultPage(schoolId: schoolId);
+        },
+      ),
 
-    return AdminTeacherDetailsPage(
-      schoolId: schoolId,
-      teacherId: teacherId,
-    );
-  },
-),
+      GoRoute(
+        path: '/admin/:schoolId/edit-student/:studentId',
+        builder: (context, state) {
+          final schoolId = state.pathParameters['schoolId']!;
+
+          final student = state.extra as AdminStudentModel;
+
+          return AdminEditStudentPage(schoolId: schoolId, student: student);
+        },
+      ),
+
+      GoRoute(
+        path: '/admin/:schoolId/teacher/:teacherId',
+        name: 'admin-teacher-details',
+        builder: (context, state) {
+          final schoolId = state.pathParameters['schoolId']!;
+          final teacherId = state.pathParameters['teacherId']!;
+
+          return AdminTeacherDetailsPage(
+            schoolId: schoolId,
+            teacherId: teacherId,
+          );
+        },
+      ),
       // GoRoute(
       //   path: '/schools/:schoolId/students',
       //   builder: (context, state) {
