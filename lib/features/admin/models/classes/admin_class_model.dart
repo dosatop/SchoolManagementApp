@@ -7,46 +7,85 @@ class AdminClassModel {
   final String className;
   final String schoolId;
 
+  // ================================================================
+  // SCHOOL LEVEL
+  // ================================================================
+
+  final String schoolLevel;
+  final int schoolLevelId;
+
+  // ================================================================
+  // CLASS TEACHER
+  // ================================================================
+
   final String? classTeacherId;
   final String? classTeacherName;
 
+  // ================================================================
+  // SUBJECTS
+  // ================================================================
+
   final List<AdminClassSubjectModel> subjects;
+
+  // ================================================================
+  // STUDENTS
+  // ================================================================
+
   final List<AdminClassStudentModel> students;
+
+  // ================================================================
+  // TEACHERS
+  // ================================================================
+
   final List<AdminClassTeacherModel> teachers;
 
   const AdminClassModel({
     required this.classId,
     required this.className,
     required this.schoolId,
+
+    required this.schoolLevel,
+    required this.schoolLevelId,
+
     required this.classTeacherId,
     required this.classTeacherName,
+
     required this.subjects,
     required this.students,
     required this.teachers,
   });
 
-  factory AdminClassModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminClassModel.fromJson(Map<String, dynamic> json) {
     return AdminClassModel(
-      classId: json['classId'] as String? ?? '',
-      className: json['className'] as String? ?? '',
-      schoolId: json['schoolId'] as String? ?? '',
+      // ============================================================
+      // BASIC
+      // ============================================================
+      classId: json['classId']?.toString() ?? '',
 
-      classTeacherId:
-          json['classTeacherId'] as String?,
+      className: json['className']?.toString() ?? '',
 
-      classTeacherName:
-          json['classTeacherName'] as String?,
+      schoolId: json['schoolId']?.toString() ?? '',
+
+      // ============================================================
+      // SCHOOL LEVEL
+      // ============================================================
+      schoolLevel: json['levelName']?.toString() ?? '',
+
+      schoolLevelId: int.tryParse(json['level']?.toString() ?? '') ?? 0,
+
+      // ============================================================
+      // CLASS TEACHER
+      // ============================================================
+      classTeacherId: json['classTeacherId']?.toString(),
+
+      classTeacherName: json['classTeacherName']?.toString(),
 
       // ============================================================
       // SUBJECTS
       // ============================================================
-
       subjects: (json['subjects'] as List? ?? [])
           .map(
-            (subject) =>
-                AdminClassSubjectModel.fromJson(
+            (subject) => AdminClassSubjectModel.fromJson(
               Map<String, dynamic>.from(subject),
             ),
           )
@@ -55,11 +94,9 @@ class AdminClassModel {
       // ============================================================
       // STUDENTS
       // ============================================================
-
       students: (json['students'] as List? ?? [])
           .map(
-            (student) =>
-                AdminClassStudentModel.fromJson(
+            (student) => AdminClassStudentModel.fromJson(
               Map<String, dynamic>.from(student),
             ),
           )
@@ -68,11 +105,9 @@ class AdminClassModel {
       // ============================================================
       // TEACHERS
       // ============================================================
-
       teachers: (json['teachers'] as List? ?? [])
           .map(
-            (teacher) =>
-                AdminClassTeacherModel.fromJson(
+            (teacher) => AdminClassTeacherModel.fromJson(
               Map<String, dynamic>.from(teacher),
             ),
           )
@@ -80,7 +115,6 @@ class AdminClassModel {
     );
   }
 }
-
 // ==================================================================
 // SUBJECT
 // ==================================================================
@@ -96,18 +130,13 @@ class AdminClassSubjectModel {
     required this.subjectCode,
   });
 
-  factory AdminClassSubjectModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminClassSubjectModel.fromJson(Map<String, dynamic> json) {
     return AdminClassSubjectModel(
-      subjectId:
-          json['subjectId'] as String? ?? '',
+      subjectId: json['subjectId'] as String? ?? '',
 
-      subjectName:
-          json['subjectName'] as String? ?? '',
+      subjectName: json['subjectName'] as String? ?? '',
 
-      subjectCode:
-          json['subjectCode'] as String? ?? '',
+      subjectCode: json['subjectCode'] as String? ?? '',
     );
   }
 }
@@ -140,36 +169,26 @@ class AdminClassStudentModel {
     required this.attendance,
   });
 
-  factory AdminClassStudentModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminClassStudentModel.fromJson(Map<String, dynamic> json) {
     return AdminClassStudentModel(
-      studentId:
-          json['studentId'] as String? ?? '',
+      studentId: json['studentId'] as String? ?? '',
 
-      studentNumber:
-          json['studentNumber'] as String? ?? '',
+      studentNumber: json['studentNumber'] as String? ?? '',
 
-      studentName:
-          json['studentName'] as String? ?? '',
+      studentName: json['studentName'] as String? ?? '',
 
-      email:
-          json['email'] as String? ?? '',
+      email: json['email'] as String? ?? '',
 
-      phoneNumber:
-          json['phoneNumber'] as String?,
+      phoneNumber: json['phoneNumber'] as String?,
 
-      parentCount:
-          (json['parentCount'] as num?)?.toInt() ?? 0,
+      parentCount: (json['parentCount'] as num?)?.toInt() ?? 0,
 
       // ============================================================
       // RESULTS
       // ============================================================
-
       results: (json['results'] as List? ?? [])
           .map(
-            (result) =>
-                AdminClassStudentResultModel.fromJson(
+            (result) => AdminClassStudentResultModel.fromJson(
               Map<String, dynamic>.from(result),
             ),
           )
@@ -178,11 +197,9 @@ class AdminClassStudentModel {
       // ============================================================
       // ATTENDANCE
       // ============================================================
-
       attendance: (json['attendance'] as List? ?? [])
           .map(
-            (item) =>
-                AdminClassStudentAttendanceModel.fromJson(
+            (item) => AdminClassStudentAttendanceModel.fromJson(
               Map<String, dynamic>.from(item),
             ),
           )
@@ -206,16 +223,10 @@ class AdminClassStudentModel {
 class AdminClassStudentResultModel {
   final Map<String, dynamic> data;
 
-  const AdminClassStudentResultModel({
-    required this.data,
-  });
+  const AdminClassStudentResultModel({required this.data});
 
-  factory AdminClassStudentResultModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
-    return AdminClassStudentResultModel(
-      data: json,
-    );
+  factory AdminClassStudentResultModel.fromJson(Map<String, dynamic> json) {
+    return AdminClassStudentResultModel(data: json);
   }
 }
 
@@ -253,39 +264,27 @@ class AdminClassStudentAttendanceModel {
     required this.term,
   });
 
-  factory AdminClassStudentAttendanceModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminClassStudentAttendanceModel.fromJson(Map<String, dynamic> json) {
     return AdminClassStudentAttendanceModel(
-      attendanceId:
-          json['attendanceId'] as String? ?? '',
+      attendanceId: json['attendanceId'] as String? ?? '',
 
-      subjectId:
-          json['subjectId'] as String? ?? '',
+      subjectId: json['subjectId'] as String? ?? '',
 
-      subjectName:
-          json['subjectName'] as String? ?? '',
+      subjectName: json['subjectName'] as String? ?? '',
 
-      subjectCode:
-          json['subjectCode'] as String? ?? '',
+      subjectCode: json['subjectCode'] as String? ?? '',
 
-      teacherId:
-          json['teacherId'] as String? ?? '',
+      teacherId: json['teacherId'] as String? ?? '',
 
-      teacherName:
-          json['teacherName'] as String? ?? '',
+      teacherName: json['teacherName'] as String? ?? '',
 
-      attendanceDate:
-          json['attendanceDate'] as String? ?? '',
+      attendanceDate: json['attendanceDate'] as String? ?? '',
 
-      status:
-          (json['status'] as num?)?.toInt() ?? 0,
+      status: (json['status'] as num?)?.toInt() ?? 0,
 
-      session:
-          json['session'] as String? ?? '',
+      session: json['session'] as String? ?? '',
 
-      term:
-          json['term'] as String? ?? '',
+      term: json['term'] as String? ?? '',
     );
   }
 
@@ -324,36 +323,25 @@ class AdminClassTeacherModel {
     required this.subjectCode,
   });
 
-  factory AdminClassTeacherModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminClassTeacherModel.fromJson(Map<String, dynamic> json) {
     return AdminClassTeacherModel(
-      teacherId:
-          json['teacherId'] as String? ?? '',
+      teacherId: json['teacherId'] as String? ?? '',
 
-      teacherName:
-          json['teacherName'] as String? ?? '',
+      teacherName: json['teacherName'] as String? ?? '',
 
-      email:
-          json['email'] as String?,
+      email: json['email'] as String?,
 
-      phoneNumber:
-          json['phoneNumber'] as String?,
+      phoneNumber: json['phoneNumber'] as String?,
 
-      subjectId:
-          json['subjectId'] as String?,
+      subjectId: json['subjectId'] as String?,
 
-      classId:
-          json['classId'] as String?,
+      classId: json['classId'] as String?,
 
-      className:
-          json['className'] as String?,
+      className: json['className'] as String?,
 
-      subjectName:
-          json['subjectName'] as String?,
+      subjectName: json['subjectName'] as String?,
 
-      subjectCode:
-          json['subjectCode'] as String?,
+      subjectCode: json['subjectCode'] as String?,
     );
   }
 }

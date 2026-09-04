@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 class AdminTeacherSubjectModel {
   final String assignmentId;
   final String teacherId;
@@ -19,36 +21,25 @@ class AdminTeacherSubjectModel {
     required this.className,
   });
 
-  factory AdminTeacherSubjectModel.fromJson(
-    Map<String, dynamic> json,
-  ) {
+  factory AdminTeacherSubjectModel.fromJson(Map<String, dynamic> json) {
+    debugPrint('TEACHER SUBJECT JSON: $json');
     return AdminTeacherSubjectModel(
-      assignmentId:
-          json['assignmentId']?.toString() ?? '',
+      assignmentId: json['assignmentId']?.toString() ?? '',
 
-      teacherId:
-          json['teacherId']?.toString() ?? '',
+      teacherId: json['teacherId']?.toString() ?? '',
 
-      teacherName:
-          json['teacherName']?.toString() ?? '',
+      teacherName: json['teacherName']?.toString() ?? '',
 
-      subjectId:
-          json['subjectId']?.toString() ?? '',
+      subjectId: json['subjectId']?.toString() ?? '',
 
-      name:
-          json['subjectName']?.toString() ?? '',
+      name: json['subjectName']?.toString() ?? '',
 
       // If the GET response provides code.
-      code:
-          json['subjectCode']?.toString() ??
-          json['code']?.toString() ??
-          '',
+      code: json['subjectCode']?.toString() ?? json['code']?.toString() ?? '',
 
-      classId:
-          json['classId']?.toString() ?? '',
+      classId: json['classId']?.toString() ?? '',
 
-      className:
-          json['className']?.toString() ?? '',
+      className: json['className']?.toString() ?? '',
     );
   }
 }

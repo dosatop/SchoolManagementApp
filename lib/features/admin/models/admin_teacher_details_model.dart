@@ -45,7 +45,7 @@ class AdminTeacherModel {
       employeeNumber: json['employeeNumber']?.toString() ?? '',
 
       // API returns fullName, not teacherName
-      teacherName: json['fullName']?.toString() ?? '',
+      teacherName: json['teacherName']?.toString() ?? '',
       fullName: json['fullName']?.toString() ?? '',
 
       email: json['email']?.toString() ?? '',

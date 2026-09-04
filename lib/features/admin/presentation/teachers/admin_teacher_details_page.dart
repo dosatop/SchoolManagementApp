@@ -133,7 +133,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
     final success = await ref
         .read(adminDashboardProvider.notifier)
         .unassignTeacherFromSubject(assignmentId: subject.assignmentId);
-
+       
     if (!context.mounted) {
       return;
     }

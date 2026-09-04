@@ -1,34 +1,62 @@
+import 'package:app/core/Errors/app_exception.dart';
 import 'package:dio/dio.dart';
 
 class ApiErrorHandler {
-  static String getCode(dynamic error) {
-    if (error.type == DioExceptionType.connectionError ||
-        error.type == DioExceptionType.connectionTimeout ||
+  static AppException handle(DioException error) {
+    // ============================================================
+    // NETWORK ERRORS
+    // ============================================================
+
+    if (error.type == DioExceptionType.connectionError) {
+      return const AppException(
+        code: 'NETWORK_ERROR',
+        message: 'No internet connection.',
+      );
+    }
+
+    if (error.type == DioExceptionType.connectionTimeout ||
         error.type == DioExceptionType.receiveTimeout ||
         error.type == DioExceptionType.sendTimeout) {
-      return "NETWORK_ERROR";
+      return const AppException(
+        code: 'TIMEOUT',
+        message: 'The request timed out. Please try again.',
+      );
     }
 
-    if (error.response != null) {
-      final data = error.response.data;
+    // ============================================================
+    // SERVER RESPONSE
+    // ============================================================
 
-      if (data is Map<String, dynamic>) {
-        return data["code"] ?? "UNKNOWN_ERROR";
-      }
+    final data = error.response?.data;
+
+    if (data is Map) {
+      final code = data['code']?.toString() ?? 'UNKNOWN_ERROR';
+
+      final message =
+          data['message']?.toString() ??
+          data['error']?.toString() ??
+          'Something went wrong. Please try again.';
+
+      return AppException(
+        code: code,
+        message: message,
+      );
     }
 
-    if (error.message != null) {
-      final message = error.message.toString();
+    // ============================================================
+    // DIO MESSAGE
+    // ============================================================
 
-      if (message.contains("SocketException")) {
-        return "NO_INTERNET";
-      }
-
-      if (message.contains("timeout")) {
-        return "TIMEOUT";
-      }
+    if (error.message != null && error.message!.isNotEmpty) {
+      return AppException(
+        code: 'UNKNOWN_ERROR',
+        message: error.message!,
+      );
     }
 
-    return "UNKNOWN_ERROR";
+    return const AppException(
+      code: 'UNKNOWN_ERROR',
+      message: 'Something went wrong. Please try again.',
+    );
   }
 }

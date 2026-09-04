@@ -21,6 +21,9 @@ class AdminSubjectsPage extends ConsumerWidget {
     return Scaffold(
       backgroundColor: background,
 
+      // ================================================================
+      // APP BAR
+      // ================================================================
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
@@ -38,6 +41,7 @@ class AdminSubjectsPage extends ConsumerWidget {
                 fontWeight: FontWeight.bold,
               ),
             ),
+
             Text(
               'Manage subjects in your school',
               style: TextStyle(color: Colors.grey, fontSize: 11),
@@ -52,20 +56,24 @@ class AdminSubjectsPage extends ConsumerWidget {
             },
             icon: const Icon(Icons.refresh_rounded, color: textDark),
           ),
+
           const SizedBox(width: 8),
         ],
       ),
 
       // ================================================================
-      // ADD SUBJECT
+      // SINGLE ADD SUBJECT BUTTON
       // ================================================================
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
           context.push('/admin/$schoolId/create-subject');
         },
+
         backgroundColor: primary,
         foregroundColor: Colors.white,
+
         icon: const Icon(Icons.add_rounded),
+
         label: const Text(
           'Add Subject',
           style: TextStyle(fontWeight: FontWeight.w600),
@@ -93,6 +101,40 @@ class AdminSubjectsPage extends ConsumerWidget {
             return _emptyView();
           }
 
+          // ============================================================
+          // GENERAL SUBJECTS
+          // ============================================================
+
+          final generalSubjects = subjects
+              .where((subject) => subject.type == 1)
+              .toList();
+
+          // ============================================================
+          // DEPARTMENTAL SUBJECTS
+          // ============================================================
+
+          final departmentalSubjects = subjects
+              .where(
+                (subject) =>
+                    subject.type == 2 &&
+                    subject.departmentId != null &&
+                    subject.departmentId!.isNotEmpty,
+              )
+              .toList();
+
+          // ============================================================
+          // TRADE SUBJECTS
+          // ============================================================
+
+          final tradeSubjects = subjects
+              .where(
+                (subject) =>
+                    subject.type == 3 &&
+                    subject.tradeId != null &&
+                    subject.tradeId!.isNotEmpty,
+              )
+              .toList();
+
           return RefreshIndicator(
             color: primary,
 
@@ -103,11 +145,11 @@ class AdminSubjectsPage extends ConsumerWidget {
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
 
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 35),
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 110),
 
               children: [
                 // ======================================================
-                // HEADER
+                // PAGE HEADER
                 // ======================================================
                 const Text(
                   'School Subjects',
@@ -121,7 +163,7 @@ class AdminSubjectsPage extends ConsumerWidget {
                 const SizedBox(height: 5),
 
                 Text(
-                  'View subjects and the teachers assigned to them.',
+                  'Manage general, departmental and trade subjects.',
                   style: TextStyle(
                     color: Colors.grey.shade600,
                     fontSize: 13,
@@ -132,15 +174,450 @@ class AdminSubjectsPage extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // ======================================================
-                // SUBJECT LIST
+                // GENERAL SUBJECTS
                 // ======================================================
-                ...subjects.map(
-                  (subject) => _subjectTile(context: context, subject: subject),
-                ),
+                if (generalSubjects.isNotEmpty) ...[
+                  _sectionHeader(
+                    icon: Icons.public_rounded,
+                    title: 'General Subjects',
+                    subtitle: 'Subjects available to all students',
+                    count: generalSubjects.length,
+                    color: Colors.blue,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  ...generalSubjects.map(
+                    (subject) => _subjectTile(
+                      context: context,
+                      subject: subject,
+                      category: 'General Subject',
+                    ),
+                  ),
+
+                  const SizedBox(height: 22),
+                ],
+
+                // ======================================================
+                // DEPARTMENTAL SUBJECTS
+                // ======================================================
+                if (departmentalSubjects.isNotEmpty) ...[
+                  _sectionHeader(
+                    icon: Icons.account_tree_rounded,
+                    title: 'Departmental Subjects',
+                    subtitle: 'Subjects belonging to departments',
+                    count: departmentalSubjects.length,
+                    color: Colors.deepPurple,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  ..._buildDepartmentGroups(context, departmentalSubjects),
+
+                  const SizedBox(height: 22),
+                ],
+
+                // ======================================================
+                // TRADE SUBJECTS
+                // ======================================================
+                if (tradeSubjects.isNotEmpty) ...[
+                  _sectionHeader(
+                    icon: Icons.handyman_rounded,
+                    title: 'Trade Subjects',
+                    subtitle: 'Subjects belonging to trades',
+                    count: tradeSubjects.length,
+                    color: Colors.orange,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  ..._buildTradeGroups(context, tradeSubjects),
+                ],
               ],
             ),
           );
         },
+      ),
+    );
+  }
+
+  // ================================================================
+  // SECTION HEADER
+  // ================================================================
+
+  Widget _sectionHeader({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required int count,
+    required Color color,
+  }) {
+    return Row(
+      children: [
+        Container(
+          width: 42,
+          height: 42,
+
+          decoration: BoxDecoration(
+            color: color.withOpacity(.09),
+            borderRadius: BorderRadius.circular(12),
+          ),
+
+          child: Icon(icon, color: color, size: 21),
+        ),
+
+        const SizedBox(width: 11),
+
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+
+            children: [
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+
+                      style: const TextStyle(
+                        color: textDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(width: 8),
+
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 7,
+                      vertical: 3,
+                    ),
+
+                    decoration: BoxDecoration(
+                      color: color.withOpacity(.09),
+                      borderRadius: BorderRadius.circular(7),
+                    ),
+
+                    child: Text(
+                      '$count',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 2),
+
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ================================================================
+  // DEPARTMENT GROUPS
+  // ================================================================
+
+  List<Widget> _buildDepartmentGroups(
+    BuildContext context,
+    List<AdminSubjectModel> subjects,
+  ) {
+    final Map<String, List<AdminSubjectModel>> groups = {};
+
+    for (final subject in subjects) {
+      final departmentId = subject.departmentId;
+
+      if (departmentId == null || departmentId.isEmpty) {
+        continue;
+      }
+
+      groups.putIfAbsent(departmentId, () => []).add(subject);
+    }
+
+    final widgets = <Widget>[];
+
+    for (final entry in groups.entries) {
+      final departmentSubjects = entry.value;
+
+      final departmentName =
+          departmentSubjects.first.departmentName ?? 'Department';
+
+      widgets.add(
+        _groupCard(
+          context: context,
+          title: departmentName,
+          icon: Icons.account_tree_rounded,
+          color: Colors.deepPurple,
+          subjects: departmentSubjects,
+          label: 'Department',
+        ),
+      );
+
+      widgets.add(const SizedBox(height: 10));
+    }
+
+    return widgets;
+  }
+
+  // ================================================================
+  // TRADE GROUPS
+  // ================================================================
+
+  List<Widget> _buildTradeGroups(
+    BuildContext context,
+    List<AdminSubjectModel> subjects,
+  ) {
+    final Map<String, List<AdminSubjectModel>> groups = {};
+
+    for (final subject in subjects) {
+      // ============================================================
+      // IMPORTANT
+      // Trade subjects are grouped ONLY by tradeId.
+      // ============================================================
+
+      final tradeId = subject.tradeId;
+
+      if (tradeId == null || tradeId.isEmpty) {
+        continue;
+      }
+
+      groups.putIfAbsent(tradeId, () => []).add(subject);
+    }
+
+    final widgets = <Widget>[];
+
+    for (final entry in groups.entries) {
+      final tradeSubjects = entry.value;
+
+      final tradeName = tradeSubjects.first.tradeName ?? 'Trade';
+
+      widgets.add(
+        _groupCard(
+          context: context,
+          title: tradeName,
+          icon: Icons.handyman_rounded,
+          color: Colors.orange,
+          subjects: tradeSubjects,
+          label: 'Trade',
+        ),
+      );
+
+      widgets.add(const SizedBox(height: 10));
+    }
+
+    return widgets;
+  }
+
+  // ================================================================
+  // GROUP CARD
+  // ================================================================
+
+  Widget _groupCard({
+    required BuildContext context,
+    required String title,
+    required IconData icon,
+    required Color color,
+    required List<AdminSubjectModel> subjects,
+    required String label,
+  }) {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(17),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+
+      child: Column(
+        children: [
+          // ==========================================================
+          // GROUP HEADER
+          // ==========================================================
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 13, 14, 11),
+
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+
+                  decoration: BoxDecoration(
+                    color: color.withOpacity(.08),
+                    borderRadius: BorderRadius.circular(11),
+                  ),
+
+                  child: Icon(icon, color: color, size: 19),
+                ),
+
+                const SizedBox(width: 10),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+
+                        style: const TextStyle(
+                          color: textDark,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+
+                      const SizedBox(height: 2),
+
+                      Text(
+                        '$label • ${subjects.length} subject${subjects.length == 1 ? '' : 's'}',
+
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          Divider(height: 1, color: Colors.grey.shade200),
+
+          // ==========================================================
+          // SUBJECTS
+          // ==========================================================
+          ...subjects.map(
+            (subject) => _groupSubjectTile(context: context, subject: subject),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // GROUP SUBJECT TILE
+  // ================================================================
+
+  Widget _groupSubjectTile({
+    required BuildContext context,
+    required AdminSubjectModel subject,
+  }) {
+    return Material(
+      color: Colors.transparent,
+
+      child: InkWell(
+        onTap: () {
+          context.push('/admin/$schoolId/subjects/${subject.subjectId}');
+        },
+
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+
+          child: Row(
+            children: [
+              Container(
+                width: 35,
+                height: 35,
+
+                decoration: BoxDecoration(
+                  color: primary.withOpacity(.07),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: primary,
+                  size: 17,
+                ),
+              ),
+
+              const SizedBox(width: 10),
+
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+
+                  children: [
+                    Text(
+                      subject.subjectName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+
+                      style: const TextStyle(
+                        color: textDark,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+
+                    if (subject.code.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+
+                      Text(
+                        'Code: ${subject.code}',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 9,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              if (subject.teacherSubjects.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 4,
+                  ),
+
+                  decoration: BoxDecoration(
+                    color: Colors.green.withOpacity(.08),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+
+                  child: Text(
+                    '${subject.teacherSubjects.length} teacher${subject.teacherSubjects.length == 1 ? '' : 's'}',
+
+                    style: const TextStyle(
+                      color: Colors.green,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+
+              const SizedBox(width: 5),
+
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.grey,
+                size: 19,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -152,6 +629,7 @@ class AdminSubjectsPage extends ConsumerWidget {
   Widget _subjectTile({
     required BuildContext context,
     required AdminSubjectModel subject,
+    required String category,
   }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -166,15 +644,10 @@ class AdminSubjectsPage extends ConsumerWidget {
         color: Colors.transparent,
 
         child: InkWell(
-          // onTap: () {
-          //   // _showSubjectDetails(context, subject);
-
-          // },
           onTap: () {
-            context.push(
-              '/admin/$schoolId/subjects/${subject.subjectId}',
-            );
+            context.push('/admin/$schoolId/subjects/${subject.subjectId}');
           },
+
           borderRadius: BorderRadius.circular(17),
 
           child: Padding(
@@ -184,9 +657,6 @@ class AdminSubjectsPage extends ConsumerWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
 
               children: [
-                // ======================================================
-                // ICON
-                // ======================================================
                 Container(
                   width: 46,
                   height: 46,
@@ -201,15 +671,11 @@ class AdminSubjectsPage extends ConsumerWidget {
 
                 const SizedBox(width: 13),
 
-                // ======================================================
-                // CONTENT
-                // ======================================================
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
-                      // SUBJECT NAME
                       Text(
                         subject.subjectName,
                         maxLines: 1,
@@ -224,7 +690,6 @@ class AdminSubjectsPage extends ConsumerWidget {
 
                       const SizedBox(height: 4),
 
-                      // CODE
                       if (subject.code.isNotEmpty)
                         Text(
                           'Code: ${subject.code}',
@@ -234,11 +699,31 @@ class AdminSubjectsPage extends ConsumerWidget {
                           ),
                         ),
 
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 7),
 
-                      // ==================================================
-                      // TEACHERS
-                      // ==================================================
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 4,
+                        ),
+
+                        decoration: BoxDecoration(
+                          color: primaryLight,
+                          borderRadius: BorderRadius.circular(7),
+                        ),
+
+                        child: Text(
+                          category,
+                          style: const TextStyle(
+                            color: primary,
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 9),
+
                       if (subject.teacherSubjects.isEmpty)
                         Text(
                           'No teacher assigned',
@@ -264,11 +749,9 @@ class AdminSubjectsPage extends ConsumerWidget {
 
                 const SizedBox(width: 8),
 
-                // ======================================================
-                // CHEVRON
-                // ======================================================
                 const Padding(
                   padding: EdgeInsets.only(top: 2),
+
                   child: Icon(Icons.chevron_right_rounded, color: Colors.grey),
                 ),
               ],
@@ -294,6 +777,7 @@ class AdminSubjectsPage extends ConsumerWidget {
 
       child: Row(
         mainAxisSize: MainAxisSize.min,
+
         children: [
           const Icon(
             Icons.person_outline_rounded,
@@ -312,245 +796,6 @@ class AdminSubjectsPage extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // SUBJECT DETAILS MODAL
-  // ================================================================
-
-  void _showSubjectDetails(BuildContext context, AdminSubjectModel subject) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      backgroundColor: Colors.white,
-
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-
-      builder: (context) {
-        return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 5, 20, 25),
-
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-
-                children: [
-                  // ====================================================
-                  // HEADER
-                  // ====================================================
-                  Row(
-                    children: [
-                      Container(
-                        width: 54,
-                        height: 54,
-
-                        decoration: BoxDecoration(
-                          color: primary.withOpacity(.08),
-                          borderRadius: BorderRadius.circular(15),
-                        ),
-
-                        child: const Icon(
-                          Icons.menu_book_rounded,
-                          color: primary,
-                          size: 28,
-                        ),
-                      ),
-
-                      const SizedBox(width: 13),
-
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-
-                          children: [
-                            Text(
-                              subject.subjectName,
-                              style: const TextStyle(
-                                color: textDark,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-
-                            const SizedBox(height: 4),
-
-                            if (subject.code.isNotEmpty)
-                              Text(
-                                'Subject Code: ${subject.code}',
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ====================================================
-                  // TEACHERS
-                  // ====================================================
-                  Row(
-                    children: [
-                      const Text(
-                        'Assigned Teachers',
-                        style: TextStyle(
-                          color: textDark,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-
-                      const SizedBox(width: 8),
-
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-
-                        decoration: BoxDecoration(
-                          color: primaryLight,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-
-                        child: Text(
-                          '${subject.teacherSubjects.length}',
-                          style: const TextStyle(
-                            color: primary,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  if (subject.teacherSubjects.isEmpty)
-                    _modalEmptyText('No teachers assigned to this subject.')
-                  else
-                    ...subject.teacherSubjects.map(
-                      (teacher) => _modalTeacher(teacher),
-                    ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // ================================================================
-  // MODAL TEACHER
-  // ================================================================
-
-  Widget _modalTeacher(dynamic teacher) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-
-      padding: const EdgeInsets.all(12),
-
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FD),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-
-            decoration: BoxDecoration(
-              color: Colors.green.withOpacity(.08),
-              shape: BoxShape.circle,
-            ),
-
-            child: const Icon(
-              Icons.person_outline_rounded,
-              color: Colors.green,
-              size: 21,
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
-              children: [
-                Text(
-                  teacher.teacherName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 3),
-
-                if (teacher.email != null &&
-                    teacher.email.toString().isNotEmpty)
-                  Text(
-                    teacher.email,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
-                  ),
-
-                if (teacher.phoneNumber != null &&
-                    teacher.phoneNumber.toString().isNotEmpty) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    teacher.phoneNumber,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // MODAL EMPTY
-  // ================================================================
-
-  Widget _modalEmptyText(String text) {
-    return Container(
-      width: double.infinity,
-
-      padding: const EdgeInsets.all(14),
-
-      decoration: BoxDecoration(
-        color: const Color(0xFFF8F9FD),
-        borderRadius: BorderRadius.circular(12),
-      ),
-
-      child: Text(
-        text,
-        style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
       ),
     );
   }

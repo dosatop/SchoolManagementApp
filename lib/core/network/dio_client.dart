@@ -1,3 +1,4 @@
+import 'package:app/core/Errors/custom_exception_error.dart';
 import 'package:app/core/constants/api_constant.dart';
 import 'package:app/core/storage/storage_service.dart';
 import 'package:app/core/utils/app_logger.dart';
@@ -11,9 +12,11 @@ class DioClient {
   DioClient(this.storageService, this.onLogout) {
     dio = Dio(
       BaseOptions(
-        baseUrl: ApiConstants.baseUrl,
-        connectTimeout: const Duration(seconds: 30),
-        receiveTimeout: const Duration(seconds: 30),
+    baseUrl: ApiConstants.baseUrl,
+    connectTimeout: const Duration(seconds: 30),
+    receiveTimeout: const Duration(seconds: 60),
+    sendTimeout: const Duration(seconds: 30),
+    persistentConnection: false,
         headers: {
           ApiConstants.accept: ApiConstants.applicationJson,
           ApiConstants.contentType: ApiConstants.applicationJson,
@@ -53,34 +56,38 @@ class DioClient {
           handler.next(response);
         },
         onError: (error, handler) async {
-                  AppLogger.logger.e('''
-            ERROR
-            ${error.message}
-            ${error.requestOptions.uri}
-            Response: ${error.response?.data}
-            ''');
+          AppLogger.logger.e('''
+ERROR
+${error.message}
+${error.requestOptions.uri}
+Response: ${error.response?.data}
+''');
 
-          // No internet
-          if (error.type == DioExceptionType.connectionError ||
-              error.type == DioExceptionType.connectionTimeout ||
-              error.type == DioExceptionType.receiveTimeout) {
-            return handler.reject(
-              DioException(
-                requestOptions: error.requestOptions,
-                type: error.type,
-                error: 'NETWORK_ERROR',
-                message: 'No internet connection',
-              ),
-            );
-          }
+          // ============================================================
+          // 401
+          // ============================================================
 
-          // Token expired / invalid
           if (error.response?.statusCode == 401) {
             await onLogout();
           }
 
-          handler.next(error);
+          // ============================================================
+          // GLOBAL ERROR
+          // ============================================================
+
+          final appException = ApiErrorHandler.handle(error);
+
+          return handler.reject(
+            DioException(
+              requestOptions: error.requestOptions,
+              response: error.response,
+              type: error.type,
+              error: appException,
+            ),
+          );
         },
+
+        // Token expired / invalid
       ),
     );
   }

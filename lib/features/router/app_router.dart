@@ -1,7 +1,7 @@
 import 'package:app/features/Classes/presentation/classes_page.dart';
 import 'package:app/features/Subjects/presentation/subjects_page.dart';
 import 'package:app/features/admin/models/results/admin_result_model.dart';
-import 'package:app/features/admin/models/students/admin_class_model.dart';
+import 'package:app/features/admin/models/classes/admin_class_model.dart';
 import 'package:app/features/admin/models/students/admin_student_model.dart';
 import 'package:app/features/admin/presentation/classes/admin_class_details_page.dart';
 import 'package:app/features/admin/presentation/parents/admin_parent_details_page.dart';

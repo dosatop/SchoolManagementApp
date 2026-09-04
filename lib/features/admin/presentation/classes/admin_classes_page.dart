@@ -1,5 +1,5 @@
 import 'package:app/features/admin/models/admin_teacher_details_model.dart';
-import 'package:app/features/admin/models/students/admin_class_model.dart';
+import 'package:app/features/admin/models/classes/admin_class_model.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

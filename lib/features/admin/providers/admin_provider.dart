@@ -1,22 +1,22 @@
 import 'package:app/core/network/dio_provider.dart';
 import 'package:app/features/admin/data/admin_api.dart';
 import 'package:app/features/admin/data/admin_repository.dart';
+
 import 'package:app/features/admin/models/academic_session/current_academic_session_model.dart';
 
 import 'package:app/features/admin/models/admin_teacher_details_model.dart';
-import 'package:app/features/admin/models/admin_teacher_subject_model.dart';
-
 import 'package:app/features/admin/models/attendance/admin_attendance_model.dart';
 
 import 'package:app/features/admin/models/classes/admin_create_class_model.dart';
-import 'package:app/features/admin/models/parents/admin_parent_child_model.dart';
 
+import 'package:app/features/admin/models/parents/admin_parent_child_model.dart';
 import 'package:app/features/admin/models/parents/admin_parent_model.dart';
 
 import 'package:app/features/admin/models/results/admin_result_model.dart';
 
-import 'package:app/features/admin/models/students/admin_class_model.dart';
+import 'package:app/features/admin/models/classes/admin_class_model.dart';
 import 'package:app/features/admin/models/students/admin_create_student_model.dart';
+import 'package:app/features/admin/models/students/admin_department_model.dart';
 import 'package:app/features/admin/models/students/admin_edit_student_model.dart';
 import 'package:app/features/admin/models/students/admin_student_detail_model.dart';
 import 'package:app/features/admin/models/students/admin_student_model.dart';
@@ -24,23 +24,23 @@ import 'package:app/features/admin/models/students/admin_student_model.dart';
 import 'package:app/features/admin/models/subjects/admin_create_subject_model.dart';
 import 'package:app/features/admin/models/subjects/admin_edit_subject_model.dart';
 import 'package:app/features/admin/models/subjects/admin_subject_model.dart';
+import 'package:app/features/admin/models/subjects/admin_trade_model.dart';
 
+// ================================================================
+// DEPARTMENT MODEL
+// ================================================================
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
-// ==================================================================
-// ADMIN API
-// ==================================================================
-
-final adminApiProvider = Provider<AdminApi>((ref) {
-  return AdminApi(ref.read(dioClientProvider));
-});
 
 // ==================================================================
 // ADMIN REPOSITORY
 // ==================================================================
 
 final adminRepositoryProvider = Provider<AdminRepository>((ref) {
-  return AdminRepository(api: ref.read(adminApiProvider));
+  final dioClient = ref.read(dioClientProvider);
+  final adminApi = AdminApi(dioClient);
+
+  return AdminRepository(api: adminApi);
 });
 
 // ==================================================================
@@ -55,6 +55,20 @@ final adminStudentDetailsProvider =
       final repository = ref.read(adminRepositoryProvider);
 
       return repository.getStudentDetails(studentId: studentId);
+    });
+
+// ==================================================================
+// TEACHERS ASSIGNED TO SUBJECT
+// ==================================================================
+//
+// GET /api/admin/{subjectId}/teachers
+// ==================================================================
+
+final adminSubjectTeachersProvider = FutureProvider.autoDispose
+    .family<List<AdminSubjectTeacherModel>, String>((ref, subjectId) async {
+      final repository = ref.read(adminRepositoryProvider);
+
+      return repository.getTeachersForSubject(subjectId: subjectId);
     });
 
 // ==================================================================
@@ -95,6 +109,10 @@ final adminResultDetailsProvider =
 
       return repository.getResult(resultId: resultId);
     });
+
+// ==================================================================
+// CURRENT ACADEMIC SESSION
+// ==================================================================
 
 final currentAcademicSessionProvider =
     FutureProvider.family<CurrentAcademicSessionModel, String>((
@@ -164,28 +182,29 @@ final adminClassAttendanceProvider = FutureProvider.autoDispose
         return [];
       }
 
-      final results = await Future.wait(
-        params.studentIds.map((studentId) {
-          return repository.getStudentAttendance(
+      final results = <AdminStudentAttendanceModel>[];
+
+      for (final studentId in params.studentIds) {
+        try {
+          final attendance = await repository.getStudentAttendance(
             studentId: studentId,
             session: params.session,
             term: params.term,
           );
-        }),
-      );
+
+          results.add(attendance);
+        } catch (error) {
+          debugPrint(
+            'Failed to load attendance for student $studentId: $error',
+          );
+        }
+      }
 
       return results;
     });
 
 // ==================================================================
 // ADMIN RESULTS PARAMS
-// ==================================================================
-//
-// Used for:
-//
-// GET /api/admin/results
-//
-// Optional session and term can be supplied.
 // ==================================================================
 
 class AdminResultsParams {
@@ -210,52 +229,26 @@ class AdminResultsParams {
 }
 
 // ==================================================================
-// ADMIN RESULTS
+// ADMIN RESULTS PROVIDER
 // ==================================================================
 //
 // GET /api/admin/results
 //
-// Response:
-//
-// {
-//   "schoolId": "...",
-//   "currentSession": "2026/2027",
-//   "currentTerm": "2nd",
-//   "count": 1,
-//   "results": [
-//     {
-//       "resultId": "...",
-//       "schoolId": "...",
-//       "studentId": "...",
-//       "studentName": "Olabode Olamide",
-//       "studentNumber": "01",
-//       "classId": "...",
-//       "className": "JSS 1",
-//       "subjectId": "...",
-//       "subjectName": "Livestock Farming 2",
-//       "subjectCode": "LIV",
-//       "session": "2026/2027",
-//       "term": "2nd",
-//       "testScore": 38,
-//       "examScore": 54,
-//       "score": 92,
-//       "grade": "A",
-//       "remark": "Very Good",
-//       "createdAt": "..."
-//     }
-//   ]
-// }
+// The repository returns AdminResultsResponse.
+// The provider exposes only response.results.
 // ==================================================================
 
 final adminResultsProvider = FutureProvider.autoDispose
     .family<List<AdminResultModel>, AdminResultsParams>((ref, params) async {
       final repository = ref.read(adminRepositoryProvider);
 
-      return repository.getResultsForSchool(
+      final response = await repository.getResultsForSchool(
         schoolId: params.schoolId,
         session: params.session,
         term: params.term,
       );
+
+      return response.results;
     });
 
 // ==================================================================
@@ -269,12 +262,26 @@ class AdminDashboardData {
   final List<AdminSubjectModel> subjects;
   final List<AdminParentModel> parents;
 
+  // ================================================================
+  // TRADES
+  // ================================================================
+
+  final List<AdminTradeModel> trades;
+
+  // ================================================================
+  // DEPARTMENTS
+  // ================================================================
+
+  final List<AdminDepartmentModel> departments;
+
   const AdminDashboardData({
     required this.teachers,
     required this.students,
     required this.classes,
     required this.subjects,
     required this.parents,
+    required this.trades,
+    required this.departments,
   });
 
   // ================================================================
@@ -291,6 +298,10 @@ class AdminDashboardData {
 
   int get parentCount => parents.length;
 
+  int get tradeCount => trades.length;
+
+  int get departmentCount => departments.length;
+
   // ================================================================
   // COPY WITH
   // ================================================================
@@ -301,6 +312,8 @@ class AdminDashboardData {
     List<AdminClassModel>? classes,
     List<AdminSubjectModel>? subjects,
     List<AdminParentModel>? parents,
+    List<AdminTradeModel>? trades,
+    List<AdminDepartmentModel>? departments,
   }) {
     return AdminDashboardData(
       teachers: teachers ?? this.teachers,
@@ -308,6 +321,8 @@ class AdminDashboardData {
       classes: classes ?? this.classes,
       subjects: subjects ?? this.subjects,
       parents: parents ?? this.parents,
+      trades: trades ?? this.trades,
+      departments: departments ?? this.departments,
     );
   }
 }
@@ -320,6 +335,10 @@ final adminDashboardProvider =
     AsyncNotifierProvider<AdminDashboardNotifier, AdminDashboardData>(
       AdminDashboardNotifier.new,
     );
+
+// ==================================================================
+// ADMIN DASHBOARD NOTIFIER
+// ==================================================================
 
 class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ================================================================
@@ -339,11 +358,26 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
     final repository = ref.read(adminRepositoryProvider);
 
     final results = await Future.wait([
+      // 0
       repository.getTeachers(),
+
+      // 1
       repository.getStudents(),
+
+      // 2
       repository.getClasses(),
+
+      // 3
       repository.getAdminSubjects(),
+
+      // 4
       repository.getParents(),
+
+      // 5
+      repository.getTrades(),
+
+      // 6
+      repository.getDepartments(),
     ]);
 
     return AdminDashboardData(
@@ -352,6 +386,8 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       classes: results[2] as List<AdminClassModel>,
       subjects: results[3] as List<AdminSubjectModel>,
       parents: results[4] as List<AdminParentModel>,
+      trades: results[5] as List<AdminTradeModel>,
+      departments: results[6] as List<AdminDepartmentModel>,
     );
   }
 
@@ -414,7 +450,33 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   }
 
   // ================================================================
+  // GET TRADES FOR SCHOOL
+  // ================================================================
+
+  List<AdminTradeModel> getTradesForSchool(String schoolId) {
+    final trades = state.value?.trades ?? [];
+
+    return trades.where((trade) => trade.schoolId == schoolId).toList();
+  }
+
+  // ================================================================
+  // GET DEPARTMENTS FOR SCHOOL
+  // ================================================================
+
+  List<AdminDepartmentModel> getDepartmentsForSchool(String schoolId) {
+    final departments = state.value?.departments ?? [];
+
+    return departments
+        .where((department) => department.schoolId == schoolId)
+        .toList();
+  }
+
+  // ================================================================
   // GET PARENTS FOR SCHOOL
+  // ================================================================
+  //
+  // AdminParentModel does NOT currently expose schoolId based on
+  // your previous error, so do not filter it using parent.schoolId.
   // ================================================================
 
   List<AdminParentModel> getParentsForSchool(String schoolId) {
@@ -549,7 +611,11 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
     } catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
 
-      return null;
+      debugPrint('CREATE STUDENT ERROR: $error');
+
+      debugPrintStack(stackTrace: stackTrace);
+
+      rethrow;
     }
   }
 
@@ -731,12 +797,28 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
         classId: classId,
       );
 
+      // Reload dashboard so the new assignment appears immediately.
+      await refresh();
+
       return true;
     } catch (error, stackTrace) {
+      debugPrint('ASSIGN TEACHER ERROR: $error');
+
       state = AsyncError(error, stackTrace);
 
       return false;
     }
+  }
+  // ================================================================
+  // GET TEACHERS FOR SUBJECT
+  // ================================================================
+
+  Future<List<AdminSubjectTeacherModel>> getTeachersForSubject({
+    required String subjectId,
+  }) async {
+    final repository = ref.read(adminRepositoryProvider);
+
+    return repository.getTeachersForSubject(subjectId: subjectId);
   }
 
   // ================================================================
@@ -747,12 +829,19 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
     required String assignmentId,
   }) async {
     try {
+      debugPrint('AssignmentId: $assignmentId');
+
       final repository = ref.read(adminRepositoryProvider);
 
       await repository.unassignTeacherFromSubject(assignmentId: assignmentId);
 
+      // Reload dashboard so the assignment disappears immediately.
+      await refresh();
+
       return true;
     } catch (error, stackTrace) {
+      debugPrint('UNASSIGN TEACHER ERROR: $error');
+
       state = AsyncError(error, stackTrace);
 
       return false;
@@ -782,7 +871,13 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       if (currentState != null) {
         final updatedSubjects = currentState.subjects.map((subject) {
           if (subject.subjectId == subjectId && subject.schoolId == schoolId) {
-            return subject.copyWith(subjectName: data.name, code: data.code);
+            return subject.copyWith(
+              subjectName: updatedSubject.subjectName,
+              code: updatedSubject.code,
+              type: updatedSubject.type,
+              departmentId: updatedSubject.departmentId,
+              tradeId: updatedSubject.tradeId,
+            );
           }
 
           return subject;
@@ -793,9 +888,12 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return updatedSubject;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      debugPrint('UPDATE SUBJECT ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
-      return null;
+      // Do not convert the state to AsyncError here if this is an
+      // action initiated from an already-loaded dashboard.
+      rethrow;
     }
   }
 
@@ -933,11 +1031,6 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ------------------------------------------------
   // GET RESULTS FOR SCHOOL
   // ------------------------------------------------
-  //
-  // GET /api/admin/results
-  //
-  // Returns all results belonging to a school.
-  // ------------------------------------------------
 
   Future<List<AdminResultModel>> getResultsForSchool({
     required String schoolId,
@@ -946,18 +1039,17 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   }) async {
     final repository = ref.read(adminRepositoryProvider);
 
-    return repository.getResultsForSchool(
+    final response = await repository.getResultsForSchool(
       schoolId: schoolId,
       session: session,
       term: term,
     );
+
+    return response.results;
   }
 
   // ------------------------------------------------
   // GET SINGLE RESULT
-  // ------------------------------------------------
-  //
-  // GET /api/admin/results/:resultId
   // ------------------------------------------------
 
   Future<AdminResultModel?> getResultById({required String resultId}) async {
@@ -974,9 +1066,6 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
   // ------------------------------------------------
   // GET STUDENT RESULTS
-  // ------------------------------------------------
-  //
-  // GET /api/admin/students/:studentId/results
   // ------------------------------------------------
 
   Future<AdminResultsResponse> getStudentResults({
@@ -996,9 +1085,6 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ------------------------------------------------
   // GET CLASS RESULTS
   // ------------------------------------------------
-  //
-  // GET /api/admin/classes/:classId/results
-  // ------------------------------------------------
 
   Future<AdminResultsResponse> getClassResults({
     required String classId,
@@ -1016,9 +1102,6 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
   // ------------------------------------------------
   // GET SUBJECT RESULTS
-  // ------------------------------------------------
-  //
-  // GET /api/admin/subjects/:subjectId/results
   // ------------------------------------------------
 
   Future<AdminResultsResponse> getSubjectResults({
@@ -1040,9 +1123,6 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ------------------------------------------------
   // CREATE RESULT
   // ------------------------------------------------
-  //
-  // POST /api/admin/results
-  // ------------------------------------------------
 
   Future<AdminResultModel?> createResult({
     required String schoolId,
@@ -1055,10 +1135,8 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       final result = await repository.createResult(request);
 
-      // Refresh the result details.
       ref.invalidate(adminResultDetailsProvider(result.resultId));
 
-      // Refresh the school results list.
       ref.invalidate(
         adminResultsProvider(
           AdminResultsParams(schoolId: schoolId, session: session, term: term),
@@ -1073,85 +1151,52 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
     }
   }
 
+  // ================================================================
+  // CREATE TEST RESULT
+  // ================================================================
 
-// ================================================================
-// CREATE TEST RESULT
-// ================================================================
-//
-// POST /admin/results/test
-// ================================================================
+  Future<AdminResultModel?> createTestResult({
+    required CreateAdminResultRequest request,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
 
-Future<AdminResultModel?> createTestResult({
-  required CreateAdminResultRequest request,
-}) async {
-  try {
-    final repository = ref.read(
-      adminRepositoryProvider,
-    );
+      final result = await repository.createTestResult(request);
 
-    final result = await repository.createTestResult(
-      request,
-    );
+      ref.invalidate(adminResultDetailsProvider(result.resultId));
 
-    ref.invalidate(
-      adminResultDetailsProvider(
-        result.resultId,
-      ),
-    );
+      return result;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
 
-    return result;
-  } catch (error, stackTrace) {
-    state = AsyncError(
-      error,
-      stackTrace,
-    );
-
-    return null;
+      return null;
+    }
   }
-}
 
+  // ================================================================
+  // CREATE EXAM RESULT
+  // ================================================================
 
-// ================================================================
-// CREATE EXAM RESULT
-// ================================================================
-//
-// POST /admin/results/exam
-// ================================================================
+  Future<AdminResultModel?> createExamResult({
+    required CreateAdminResultRequest request,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
 
-Future<AdminResultModel?> createExamResult({
-  required CreateAdminResultRequest request,
-}) async {
-  try {
-    final repository = ref.read(
-      adminRepositoryProvider,
-    );
+      final result = await repository.createExamResult(request);
 
-    final result = await repository.createExamResult(
-      request,
-    );
+      ref.invalidate(adminResultDetailsProvider(result.resultId));
 
-    ref.invalidate(
-      adminResultDetailsProvider(
-        result.resultId,
-      ),
-    );
+      return result;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
 
-    return result;
-  } catch (error, stackTrace) {
-    state = AsyncError(
-      error,
-      stackTrace,
-    );
-
-    return null;
+      return null;
+    }
   }
-}
 
   // ------------------------------------------------
   // UPDATE RESULT
-  // ------------------------------------------------
-  //
-  // PUT /api/admin/results/:resultId
   // ------------------------------------------------
 
   Future<AdminResultModel?> updateResult({
@@ -1166,7 +1211,6 @@ Future<AdminResultModel?> createExamResult({
         request: request,
       );
 
-      // Refresh result details.
       ref.invalidate(adminResultDetailsProvider(resultId));
 
       return result;
@@ -1180,9 +1224,6 @@ Future<AdminResultModel?> createExamResult({
   // ------------------------------------------------
   // DELETE RESULT
   // ------------------------------------------------
-  //
-  // DELETE /api/admin/results/:resultId
-  // ------------------------------------------------
 
   Future<bool> deleteResult({required String resultId}) async {
     try {
@@ -1190,7 +1231,6 @@ Future<AdminResultModel?> createExamResult({
 
       await repository.deleteResult(resultId: resultId);
 
-      // Remove cached details.
       ref.invalidate(adminResultDetailsProvider(resultId));
 
       return true;

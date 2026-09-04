@@ -1,6 +1,5 @@
 import 'package:app/core/Dtos/auth_dtos/login_request.dart';
 import 'package:app/core/Dtos/auth_dtos/login_response.dart';
-import 'package:app/core/Errors/app_exception.dart';
 import 'package:app/core/Errors/custom_exception_error.dart';
 import 'package:app/core/network/dio_client.dart';
 import 'package:app/features/auth/models/signup_request.dart';
@@ -20,7 +19,7 @@ class AuthApi {
 
       return LoginResponse.fromJson(response.data);
     } on DioException catch (error) {
-      throw AppException(ApiErrorHandler.getCode(error));
+      throw ApiErrorHandler.handle(error);
     }
   }
 
@@ -33,7 +32,7 @@ class AuthApi {
 
       return response.data;
     } on DioException catch (error) {
-      throw AppException(ApiErrorHandler.getCode(error));
+      throw ApiErrorHandler.handle(error);
     }
   }
 
@@ -41,7 +40,7 @@ class AuthApi {
     try {
       await dioClient.dio.post('/auth/logout');
     } on DioException catch (error) {
-      throw AppException(ApiErrorHandler.getCode(error));
+      throw ApiErrorHandler.handle(error);
     }
   }
 }

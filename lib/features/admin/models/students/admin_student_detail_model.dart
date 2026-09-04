@@ -4,13 +4,37 @@ import 'package:app/features/admin/models/students/admin_student_parent_model.da
 class AdminStudentDetailModel {
   final String studentId;
   final String studentNumber;
+
   final String schoolId;
   final String schoolName;
+
   final String studentName;
   final String email;
   final String? phoneNumber;
+
   final String classId;
   final String className;
+
+  // ================================================================
+  // SCHOOL / ACADEMIC DETAILS
+  // ================================================================
+
+  final int? schoolLevel;
+  final int? schoolLevelId;
+
+  final String? departmentId;
+  final String? departmentName;
+
+  final String? tradeId;
+  final String? tradeName;
+
+  final String? tradeSubjectId;
+  final String? tradeSubjectName;
+  final String? tradeSubjectCode;
+
+  // ================================================================
+  // RELATED DATA
+  // ================================================================
 
   final List<AdminStudentParentModel> parents;
   final List<AdminStudentSubjectModel> subjects;
@@ -28,6 +52,20 @@ class AdminStudentDetailModel {
     this.phoneNumber,
     required this.classId,
     required this.className,
+
+    this.schoolLevel,
+    this.schoolLevelId,
+
+    this.departmentId,
+    this.departmentName,
+
+    this.tradeId,
+    this.tradeName,
+
+    this.tradeSubjectId,
+    this.tradeSubjectName,
+    this.tradeSubjectCode,
+
     required this.parents,
     required this.subjects,
     required this.results,
@@ -39,14 +77,41 @@ class AdminStudentDetailModel {
     return AdminStudentDetailModel(
       studentId: json['studentId']?.toString() ?? '',
       studentNumber: json['studentNumber']?.toString() ?? '',
+
       schoolId: json['schoolId']?.toString() ?? '',
       schoolName: json['schoolName']?.toString() ?? '',
+
       studentName: json['studentName']?.toString() ?? '',
       email: json['email']?.toString() ?? '',
       phoneNumber: json['phoneNumber']?.toString(),
+
       classId: json['classId']?.toString() ?? '',
       className: json['className']?.toString() ?? '',
 
+      // ============================================================
+      // SCHOOL / ACADEMIC DETAILS
+      // ============================================================
+      schoolLevel: (json['schoolLevel'] as num?)?.toInt(),
+
+      schoolLevelId: (json['schoolLevelId'] as num?)?.toInt(),
+
+      departmentId: json['departmentId']?.toString(),
+
+      departmentName: json['departmentName']?.toString(),
+
+      tradeId: json['tradeId']?.toString(),
+
+      tradeName: json['tradeName']?.toString(),
+
+      tradeSubjectId: json['tradeSubjectId']?.toString(),
+
+      tradeSubjectName: json['tradeSubjectName']?.toString(),
+
+      tradeSubjectCode: json['tradeSubjectCode']?.toString(),
+
+      // ============================================================
+      // PARENTS
+      // ============================================================
       parents: (json['parents'] as List<dynamic>? ?? [])
           .map(
             (item) => AdminStudentParentModel.fromJson(
@@ -55,6 +120,9 @@ class AdminStudentDetailModel {
           )
           .toList(),
 
+      // ============================================================
+      // SUBJECTS
+      // ============================================================
       subjects: (json['subjects'] as List<dynamic>? ?? [])
           .map(
             (item) => AdminStudentSubjectModel.fromJson(
@@ -63,6 +131,9 @@ class AdminStudentDetailModel {
           )
           .toList(),
 
+      // ============================================================
+      // RESULTS
+      // ============================================================
       results: (json['results'] as List<dynamic>? ?? [])
           .map(
             (item) => AdminStudentResultModel.fromJson(
@@ -71,6 +142,9 @@ class AdminStudentDetailModel {
           )
           .toList(),
 
+      // ============================================================
+      // ATTENDANCE
+      // ============================================================
       attendance: (json['attendance'] as List<dynamic>? ?? [])
           .map(
             (item) => AdminStudentAttendanceModel.fromJson(
@@ -79,6 +153,9 @@ class AdminStudentDetailModel {
           )
           .toList(),
 
+      // ============================================================
+      // ASSIGNMENTS
+      // ============================================================
       assignments: (json['assignments'] as List<dynamic>? ?? [])
           .map(
             (item) => AdminStudentAssignmentModel.fromJson(
@@ -122,11 +199,14 @@ class AdminStudentResultModel {
   final String id;
   final String subjectId;
   final String subjectName;
+
   final double testScore;
   final double examScore;
   final double score;
+
   final String grade;
   final String remark;
+
   final String session;
   final String term;
 
@@ -157,6 +237,7 @@ class AdminStudentResultModel {
 
       grade: json['grade']?.toString() ?? '',
       remark: json['remark']?.toString() ?? '',
+
       session: json['session']?.toString() ?? '',
       term: json['term']?.toString() ?? '',
     );
@@ -164,22 +245,12 @@ class AdminStudentResultModel {
 }
 
 // ================================================================
-// ATTENDANCE
-// ================================================================
-//
-// Your current API response has:
-//
-// "attendance": []
-//
-// Since you haven't shown the attendance object structure yet,
-// keep this flexible for now.
-
-// ================================================================
 // ASSIGNMENT
 // ================================================================
 
 class AdminStudentAssignmentModel {
   final String assignmentId;
+
   final String title;
   final String description;
   final String? attachmentUrl;
@@ -237,19 +308,15 @@ class AdminStudentAssignmentModel {
       dueDate: DateTime.tryParse(json['dueDate']?.toString() ?? ''),
 
       session: json['session']?.toString() ?? '',
-
       term: json['term']?.toString() ?? '',
 
       classId: json['classId']?.toString() ?? '',
-
       className: json['className']?.toString() ?? '',
 
       subjectId: json['subjectId']?.toString() ?? '',
-
       subjectName: json['subjectName']?.toString() ?? '',
 
       teacherId: json['teacherId']?.toString() ?? '',
-
       teacherName: json['teacherName']?.toString() ?? '',
 
       isPublished: json['isPublished'] == true,
