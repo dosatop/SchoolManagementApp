@@ -313,19 +313,38 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
           return _emptyAssignedTeachers();
         }
 
+        // Group assignments by teacher.
+        // A teacher can have multiple assignments for different classes,
+        // but should only appear once in the UI.
+        final Map<String, List<AdminSubjectTeacherModel>> groupedTeachers = {};
+
+        for (final assignment in assignedTeachers) {
+          final teacherId = assignment.teacherId.toString();
+
+          groupedTeachers.putIfAbsent(teacherId, () => []).add(assignment);
+        }
+
         return Column(
-          children: assignedTeachers.map((assignedTeacher) {
+          children: groupedTeachers.entries.map((entry) {
+            final teacherId = entry.key;
+            final assignments = entry.value;
+
+            // Find the teacher from the dashboard.
             final teacher = dashboard.teachers
-                .where((item) => item.teacherId == assignedTeacher.teacherId)
+                .where((item) => item.teacherId == teacherId)
                 .cast<AdminTeacherModel?>()
                 .firstWhere((item) => item != null, orElse: () => null);
+
+            // Use the first assignment for teacher name/email.
+            final firstAssignment = assignments.first;
 
             return _assignedTeacherCard(
               context: context,
               ref: ref,
-              assignedTeacher: assignedTeacher,
+              assignedTeacher: firstAssignment,
               teacher: teacher,
               subjectId: subjectId,
+              assignments: assignments,
             );
           }).toList(),
         );
@@ -551,6 +570,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
     required AdminSubjectTeacherModel assignedTeacher,
     required AdminTeacherModel? teacher,
     required String subjectId,
+    required List<AdminSubjectTeacherModel> assignments,
   }) {
     final teacherName =
         assignedTeacher.teacherName?.toString().trim().isNotEmpty == true
@@ -561,11 +581,35 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
         ? assignedTeacher.email.toString()
         : teacher?.email ?? '';
 
-    final classes = teacher == null
-        ? <dynamic>[]
-        : teacher.subjects
-              .where((subject) => subject.subjectId == subjectId)
-              .toList();
+    final classes = <String, String>{}; // classId -> className
+
+    // Get class names from the API assignments.
+    for (final assignment in assignments) {
+      final className = _getAssignmentClassName(assignment);
+
+      if (className != null && className.isNotEmpty) {
+        final classId = assignment.classId?.toString() ?? '';
+
+        if (classId != null && classId.isNotEmpty) {
+          classes[classId] = className;
+        }
+      }
+    }
+
+    // Fallback to dashboard teacher subjects if the API assignment
+    // doesn't contain class information.
+    if (classes.isEmpty && teacher != null) {
+      for (final subject in teacher.subjects) {
+        if (subject.subjectId == subjectId) {
+          final className = _getClassName(subject);
+          final classId = subject.classId; // adjust to your model
+
+          if (className.isNotEmpty && classId != null && classId.isNotEmpty) {
+            classes[classId] = className;
+          }
+        }
+      }
+    }
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -668,30 +712,31 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                 ),
               ),
 
-              TextButton.icon(
-                onPressed: () {
-                  _showUnassignTeacherDialog(
-                    context: context,
-                    ref: ref,
-                    assignedTeacher: assignedTeacher,
-                    teacherName: teacherName,
-                  );
-                },
-                icon: const Icon(Icons.person_remove_alt_1_rounded, size: 15),
-                label: const Text(
-                  'Unassign',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
-                ),
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.red,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 7,
-                    vertical: 5,
-                  ),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
-              ),
+              // TextButton.icon(
+              //   onPressed: () {
+              //     _showUnassignTeacherDialog(
+              //       context: context,
+              //       ref: ref,
+              //       assignedTeacher: assignedTeacher,
+              //       teacherName: teacherName,
+              //       className: assignedTeacher.className,
+              //     );
+              //   },
+              //   icon: const Icon(Icons.person_remove_alt_1_rounded, size: 15),
+              //   label: const Text(
+              //     'Unassign',
+              //     style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+              //   ),
+              //   style: TextButton.styleFrom(
+              //     foregroundColor: Colors.red,
+              //     padding: const EdgeInsets.symmetric(
+              //       horizontal: 7,
+              //       vertical: 5,
+              //     ),
+              //     minimumSize: Size.zero,
+              //     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              //   ),
+              // ),
             ],
           ),
 
@@ -711,11 +756,88 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
               ),
             )
           else
-            Wrap(
-              spacing: 7,
-              runSpacing: 7,
-              children: classes.map<Widget>((subject) {
-                return _classChip(_getClassName(subject));
+            Column(
+              children: classes.entries.map<Widget>((entry) {
+                final classId = entry.key;
+                final className = entry.value;
+
+                return Container(
+                  width: double.infinity,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 11,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.grey.shade200),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          color: primaryLight,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.class_outlined,
+                          color: primary,
+                          size: 16,
+                        ),
+                      ),
+
+                      const SizedBox(width: 9),
+
+                      Expanded(
+                        child: Text(
+                          className,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: textDark,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+
+                      TextButton.icon(
+                        onPressed: () {
+                          _showUnassignTeacherDialog(
+                            context: context,
+                            ref: ref,
+                            assignedTeacher: assignedTeacher,
+                            teacherName: teacherName,
+                            className: className,
+                          );
+                        },
+                        icon: const Icon(
+                          Icons.person_remove_alt_1_rounded,
+                          size: 14,
+                        ),
+                        label: const Text(
+                          'Unassign',
+                          style: TextStyle(
+                            fontSize: 9,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.red,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 4,
+                          ),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                    ],
+                  ),
+                );
               }).toList(),
             ),
         ],
@@ -733,7 +855,9 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
     required AdminSubjectModel subject,
   }) {
     String? selectedTeacherId;
-    String? selectedClassId;
+
+    // Multiple classes can now be selected.
+    final Set<String> selectedClassIds = {};
 
     bool isLoading = false;
 
@@ -752,9 +876,36 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                     .where((teacher) => teacher.schoolId == schoolId)
                     .toList();
 
-                final classes = dashboard.classes
+                final allClasses = dashboard.classes
                     .where((classItem) => classItem.schoolId == schoolId)
                     .toList();
+
+                final assignmentsState = ref.watch(
+                  adminSubjectTeachersProvider(subjectId),
+                );
+
+                final assignedClassIds = assignmentsState.maybeWhen(
+                  data: (assignments) {
+                    return assignments
+                        .where(
+                          (assignment) =>
+                              assignment.teacherId?.toString() ==
+                              selectedTeacherId,
+                        )
+                        .map((assignment) => assignment.classId?.toString())
+                        .whereType<String>()
+                        .toSet();
+                  },
+                  orElse: () => <String>{},
+                );
+
+                final classes = selectedTeacherId == null
+                    ? allClasses
+                    : allClasses.where((schoolClass) {
+                        return !assignedClassIds.contains(
+                          schoolClass.classId.toString(),
+                        );
+                      }).toList();
 
                 return Padding(
                   padding: EdgeInsets.only(
@@ -819,7 +970,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                     ),
                                     SizedBox(height: 3),
                                     Text(
-                                      'Assign a teacher to this subject and class',
+                                      'Assign a teacher to one or more classes',
                                       style: TextStyle(
                                         color: Colors.grey,
                                         fontSize: 11,
@@ -952,83 +1103,213 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                 : (value) {
                                     setModalState(() {
                                       selectedTeacherId = value;
+                                      selectedClassIds.clear();
                                     });
                                   },
                           ),
 
-                          const SizedBox(height: 16),
+                          const SizedBox(height: 18),
 
-                          Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Class',
-                              style: TextStyle(
-                                color: textDark,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
+                          // CLASS HEADER
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  'Classes',
+                                  style: TextStyle(
+                                    color: textDark,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
-                            ),
+
+                              if (classes.isNotEmpty)
+                                TextButton(
+                                  onPressed: isLoading
+                                      ? null
+                                      : () {
+                                          setModalState(() {
+                                            if (selectedClassIds.length ==
+                                                classes.length) {
+                                              selectedClassIds.clear();
+                                            } else {
+                                              selectedClassIds
+                                                ..clear()
+                                                ..addAll(
+                                                  classes.map(
+                                                    (item) => item.classId,
+                                                  ),
+                                                );
+                                            }
+                                          });
+                                        },
+                                  style: TextButton.styleFrom(
+                                    foregroundColor: primary,
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 4,
+                                    ),
+                                    minimumSize: Size.zero,
+                                    tapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                  ),
+                                  child: Text(
+                                    selectedClassIds.length == classes.length
+                                        ? 'Clear all'
+                                        : 'Select all',
+                                    style: const TextStyle(
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                            ],
                           ),
 
                           const SizedBox(height: 8),
 
-                          DropdownButtonFormField<String>(
-                            value:
-                                classes.any(
-                                  (schoolClass) =>
-                                      schoolClass.classId == selectedClassId,
-                                )
-                                ? selectedClassId
-                                : null,
-                            isExpanded: true,
-                            decoration: InputDecoration(
-                              hintText: 'Select class',
-                              prefixIcon: const Icon(
-                                Icons.class_outlined,
-                                color: primary,
-                              ),
-                              filled: true,
-                              fillColor: Colors.grey.shade50,
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(13),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade200,
-                                ),
-                              ),
-                              enabledBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(13),
-                                borderSide: BorderSide(
-                                  color: Colors.grey.shade200,
-                                ),
-                              ),
-                              focusedBorder: const OutlineInputBorder(
-                                borderRadius: BorderRadius.all(
-                                  Radius.circular(13),
-                                ),
-                                borderSide: BorderSide(
-                                  color: primary,
-                                  width: 1.5,
-                                ),
+                          // MULTI-SELECT CLASS LIST
+                          Container(
+                            width: double.infinity,
+                            constraints: const BoxConstraints(maxHeight: 250),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(13),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: classes.isEmpty
+                                ? Padding(
+                                    padding: const EdgeInsets.all(15),
+                                    child: Text(
+                                      'No classes available.',
+                                      style: TextStyle(
+                                        color: Colors.grey.shade500,
+                                        fontSize: 11,
+                                      ),
+                                    ),
+                                  )
+                                : ListView.separated(
+                                    shrinkWrap: true,
+                                    padding: const EdgeInsets.symmetric(
+                                      vertical: 5,
+                                    ),
+                                    itemCount: classes.length,
+                                    separatorBuilder: (_, __) {
+                                      return Divider(
+                                        height: 1,
+                                        color: Colors.grey.shade200,
+                                      );
+                                    },
+                                    itemBuilder: (context, index) {
+                                      final schoolClass = classes[index];
+
+                                      final classId = schoolClass.classId;
+
+                                      final isSelected = selectedClassIds
+                                          .contains(classId);
+
+                                      return InkWell(
+                                        onTap: isLoading
+                                            ? null
+                                            : () {
+                                                setModalState(() {
+                                                  if (isSelected) {
+                                                    selectedClassIds.remove(
+                                                      classId,
+                                                    );
+                                                  } else {
+                                                    selectedClassIds.add(
+                                                      classId,
+                                                    );
+                                                  }
+                                                });
+                                              },
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 10,
+                                            vertical: 8,
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              Checkbox(
+                                                value: isSelected,
+                                                activeColor: primary,
+                                                onChanged: isLoading
+                                                    ? null
+                                                    : (value) {
+                                                        setModalState(() {
+                                                          if (value == true) {
+                                                            selectedClassIds
+                                                                .add(classId);
+                                                          } else {
+                                                            selectedClassIds
+                                                                .remove(
+                                                                  classId,
+                                                                );
+                                                          }
+                                                        });
+                                                      },
+                                              ),
+
+                                              const SizedBox(width: 4),
+
+                                              Container(
+                                                width: 30,
+                                                height: 30,
+                                                decoration: BoxDecoration(
+                                                  color: primaryLight,
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
+                                                ),
+                                                child: const Icon(
+                                                  Icons.class_outlined,
+                                                  color: primary,
+                                                  size: 16,
+                                                ),
+                                              ),
+
+                                              const SizedBox(width: 9),
+
+                                              Expanded(
+                                                child: Text(
+                                                  _getAdminClassName(
+                                                    schoolClass,
+                                                  ),
+                                                  maxLines: 1,
+                                                  overflow:
+                                                      TextOverflow.ellipsis,
+                                                  style: const TextStyle(
+                                                    color: textDark,
+                                                    fontSize: 11,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                          ),
+
+                          const SizedBox(height: 10),
+
+                          // SELECTED COUNT
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              selectedClassIds.isEmpty
+                                  ? 'No classes selected'
+                                  : '${selectedClassIds.length} class${selectedClassIds.length == 1 ? '' : 'es'} selected',
+                              style: TextStyle(
+                                color: selectedClassIds.isEmpty
+                                    ? Colors.grey.shade500
+                                    : primary,
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
-                            items: classes.map<DropdownMenuItem<String>>((
-                              schoolClass,
-                            ) {
-                              return DropdownMenuItem<String>(
-                                value: schoolClass.classId,
-                                child: Text(
-                                  _getAdminClassName(schoolClass),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              );
-                            }).toList(),
-                            onChanged: isLoading
-                                ? null
-                                : (value) {
-                                    setModalState(() {
-                                      selectedClassId = value;
-                                    });
-                                  },
                           ),
 
                           const SizedBox(height: 25),
@@ -1080,14 +1361,13 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                             return;
                                           }
 
-                                          if (selectedClassId == null ||
-                                              selectedClassId!.isEmpty) {
+                                          if (selectedClassIds.isEmpty) {
                                             ScaffoldMessenger.of(
                                               context,
                                             ).showSnackBar(
                                               const SnackBar(
                                                 content: Text(
-                                                  'Please select a class.',
+                                                  'Please select at least one class.',
                                                 ),
                                                 backgroundColor: Colors.red,
                                               ),
@@ -1100,22 +1380,35 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                           });
 
                                           try {
-                                            final success = await ref
-                                                .read(
-                                                  adminDashboardProvider
-                                                      .notifier,
-                                                )
-                                                .assignTeacherToSubject(
-                                                  teacherId: selectedTeacherId!,
-                                                  subjectId: subjectId,
-                                                  classId: selectedClassId!,
-                                                );
+                                            bool allSuccessful = true;
+
+                                            // Assign the teacher to every
+                                            // selected class.
+                                            for (final classId
+                                                in selectedClassIds) {
+                                              final success = await ref
+                                                  .read(
+                                                    adminDashboardProvider
+                                                        .notifier,
+                                                  )
+                                                  .assignTeacherToSubject(
+                                                    teacherId:
+                                                        selectedTeacherId!,
+                                                    subjectId: subjectId,
+                                                    classId: classId,
+                                                  );
+
+                                              if (!success) {
+                                                allSuccessful = false;
+                                                break;
+                                              }
+                                            }
 
                                             if (!context.mounted) {
                                               return;
                                             }
 
-                                            if (!success) {
+                                            if (!allSuccessful) {
                                               setModalState(() {
                                                 isLoading = false;
                                               });
@@ -1125,7 +1418,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                               ).showSnackBar(
                                                 const SnackBar(
                                                   content: Text(
-                                                    'Unable to assign teacher.',
+                                                    'Some assignments could not be completed.',
                                                   ),
                                                   backgroundColor: Colors.red,
                                                 ),
@@ -1142,8 +1435,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                                 )
                                                 .refresh();
 
-                                            // Refresh the dedicated
-                                            // subject-teachers endpoint.
+                                            // Refresh dedicated endpoint.
                                             ref.invalidate(
                                               adminSubjectTeachersProvider(
                                                 subjectId,
@@ -1159,9 +1451,9 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                             ScaffoldMessenger.of(
                                               context,
                                             ).showSnackBar(
-                                              const SnackBar(
+                                              SnackBar(
                                                 content: Text(
-                                                  'Teacher assigned successfully.',
+                                                  'Teacher assigned to ${selectedClassIds.length} class${selectedClassIds.length == 1 ? '' : 'es'} successfully.',
                                                 ),
                                                 backgroundColor: Colors.green,
                                               ),
@@ -1209,9 +1501,11 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                             color: Colors.white,
                                           ),
                                         )
-                                      : const Text(
-                                          'Assign Teacher',
-                                          style: TextStyle(
+                                      : Text(
+                                          selectedClassIds.isEmpty
+                                              ? 'Assign Teacher'
+                                              : 'Assign to ${selectedClassIds.length} Class${selectedClassIds.length == 1 ? '' : 'es'}',
+                                          style: const TextStyle(
                                             fontWeight: FontWeight.w600,
                                           ),
                                         ),
@@ -1244,6 +1538,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
     required WidgetRef ref,
     required AdminSubjectTeacherModel assignedTeacher,
     required String teacherName,
+    required String className,
   }) {
     final assignmentId = _getAssignmentId(assignedTeacher);
 
@@ -1319,7 +1614,7 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
                     Text(
                       'Are you sure you want to remove '
-                      '$teacherName from this subject assignment?',
+                      '$teacherName from $className for this subject?',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Colors.grey.shade600,
@@ -2199,6 +2494,18 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
         return const SizedBox.shrink();
       },
     );
+  }
+
+  String? _getAssignmentClassName(AdminSubjectTeacherModel assignment) {
+    try {
+      final value = assignment.className;
+
+      if (value != null && value.toString().trim().isNotEmpty) {
+        return value.toString().trim();
+      }
+    } catch (_) {}
+
+    return null;
   }
 
   // ================================================================

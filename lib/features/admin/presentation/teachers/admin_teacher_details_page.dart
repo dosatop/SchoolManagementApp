@@ -24,7 +24,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
   // DELETE TEACHER
   // ================================================================
 
-  Future<void> _confirmDelete(BuildContext context, WidgetRef ref) async {
+  Future<bool> _confirmDelete(BuildContext context, WidgetRef ref) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
@@ -57,7 +57,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
     );
 
     if (confirmed != true) {
-      return;
+      return false;
     }
 
     final success = await ref
@@ -65,18 +65,20 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
         .deleteTeacher(teacherId: teacherId);
 
     if (!context.mounted) {
-      return;
+      return false;
     }
 
     if (success) {
+      ref.invalidate(adminTeacherDetailsProvider(teacherId));
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Teacher deleted successfully'),
           backgroundColor: Colors.green,
         ),
       );
-
       context.pop();
+      return success;
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -84,6 +86,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
           backgroundColor: Colors.red,
         ),
       );
+      return false;
     }
   }
 
@@ -91,7 +94,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
   // UNASSIGN SUBJECT
   // ================================================================
 
-  Future<void> _confirmUnassign(
+  Future<bool> _confirmUnassign(
     BuildContext context,
     WidgetRef ref,
     AdminTeacherSubjectModel subject,
@@ -127,15 +130,21 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
     );
 
     if (confirmed != true) {
-      return;
+      return false;
     }
+
+    debugPrint(
+      'Unassigning assignment: '
+      '${subject.assignmentId} '
+      '(${subject.name} - ${subject.className})',
+    );
 
     final success = await ref
         .read(adminDashboardProvider.notifier)
         .unassignTeacherFromSubject(assignmentId: subject.assignmentId);
-       
+
     if (!context.mounted) {
-      return;
+      return false;
     }
 
     if (success) {
@@ -147,14 +156,18 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
           backgroundColor: Colors.green,
         ),
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to remove teaching assignment.'),
-          backgroundColor: Colors.red,
-        ),
-      );
+
+      return true;
     }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Unable to remove teaching assignment.'),
+        backgroundColor: Colors.red,
+      ),
+    );
+
+    return false;
   }
 
   // ================================================================
@@ -600,20 +613,27 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
     required WidgetRef ref,
     required AdminTeacherModel teacher,
   }) {
+    // Group teaching assignments by subject.
+    final groupedSubjects = <String, List<AdminTeacherSubjectModel>>{};
+
+    for (final subject in teacher.subjects) {
+      final key = subject.subjectId;
+
+      groupedSubjects.putIfAbsent(key, () => []).add(subject);
+    }
+
     return _sectionCard(
       title: 'Teaching Assignments',
       icon: Icons.menu_book_outlined,
-
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _countBadge(teacher.subjects.length),
+          _countBadge(groupedSubjects.length),
 
           const SizedBox(width: 8),
 
           SizedBox(
             height: 34,
-
             child: ElevatedButton.icon(
               onPressed: () {
                 _showAssignSubjectSheet(
@@ -622,21 +642,16 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                   teacher: teacher,
                 );
               },
-
               style: ElevatedButton.styleFrom(
                 backgroundColor: primary,
                 foregroundColor: Colors.white,
                 elevation: 0,
-
                 padding: const EdgeInsets.symmetric(horizontal: 10),
-
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(9),
                 ),
               ),
-
               icon: const Icon(Icons.add, size: 15),
-
               label: const Text(
                 'Assign',
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
@@ -655,7 +670,6 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
 
                 SizedBox(
                   width: double.infinity,
-
                   child: OutlinedButton.icon(
                     onPressed: () {
                       _showAssignSubjectSheet(
@@ -664,17 +678,12 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                         teacher: teacher,
                       );
                     },
-
                     icon: const Icon(Icons.add, size: 17),
-
                     label: const Text('Assign Subject & Class'),
-
                     style: OutlinedButton.styleFrom(
                       foregroundColor: primary,
                       side: const BorderSide(color: primary),
-
                       padding: const EdgeInsets.symmetric(vertical: 12),
-
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(11),
                       ),
@@ -684,19 +693,1170 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
               ],
             )
           : Column(
-              children: [
-                for (int i = 0; i < teacher.subjects.length; i++) ...[
-                  _subjectCard(
+              children: groupedSubjects.entries.map((entry) {
+                final assignments = entry.value;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: _groupedSubjectCard(
                     context: context,
                     ref: ref,
-                    subject: teacher.subjects[i],
+                    teacher: teacher,
+                    assignments: assignments,
+                  ),
+                );
+              }).toList(),
+            ),
+    );
+  }
+
+  // void _showSubjectAssignmentsSheet({
+  //   required BuildContext context,
+  //   required WidgetRef ref,
+  //   required AdminTeacherModel teacher,
+  //   required List<AdminTeacherSubjectModel> assignments,
+  // }) {
+  //   final dashboard = ref.read(adminDashboardProvider).value;
+
+  //   if (dashboard == null) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(
+  //         content: Text('School data is not available.'),
+  //         backgroundColor: Colors.red,
+  //       ),
+  //     );
+  //     return;
+  //   }
+
+  //   final first = assignments.first;
+
+  //   final classes = dashboard.classes
+  //       .where((item) => item.schoolId == schoolId)
+  //       .toList();
+
+  //   if (classes.isEmpty) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(
+  //         content: Text('No classes are available in this school.'),
+  //         backgroundColor: Colors.orange,
+  //       ),
+  //     );
+  //     return;
+  //   }
+
+  //   String? selectedClassId;
+  //   bool isLoading = false;
+  //   final currentAssignments = [...assignments];
+
+  //   showModalBottomSheet(
+  //     context: context,
+  //     isScrollControlled: true,
+  //     backgroundColor: Colors.transparent,
+  //     builder: (sheetContext) {
+  //       return StatefulBuilder(
+  //         builder: (modalContext, setModalState) {
+  //           final assignedClassIds = currentAssignments
+  //               .map((item) => item.classId)
+  //               .toSet();
+
+  //           final availableClasses = classes
+  //               .where((item) => !assignedClassIds.contains(item.classId))
+  //               .toList();
+
+  //           return Padding(
+  //             padding: EdgeInsets.only(
+  //               bottom: MediaQuery.of(modalContext).viewInsets.bottom,
+  //             ),
+  //             child: Container(
+  //               constraints: BoxConstraints(
+  //                 maxHeight: MediaQuery.of(context).size.height * .82,
+  //               ),
+  //               padding: const EdgeInsets.fromLTRB(20, 12, 20, 25),
+  //               decoration: const BoxDecoration(
+  //                 color: Colors.white,
+  //                 borderRadius: BorderRadius.only(
+  //                   topLeft: Radius.circular(25),
+  //                   topRight: Radius.circular(25),
+  //                 ),
+  //               ),
+  //               child: SingleChildScrollView(
+  //                 child: Column(
+  //                   crossAxisAlignment: CrossAxisAlignment.start,
+  //                   children: [
+  //                     Center(
+  //                       child: Container(
+  //                         width: 42,
+  //                         height: 5,
+  //                         decoration: BoxDecoration(
+  //                           color: Colors.grey.shade300,
+  //                           borderRadius: BorderRadius.circular(20),
+  //                         ),
+  //                       ),
+  //                     ),
+
+  //                     const SizedBox(height: 20),
+
+  //                     // ==================================================
+  //                     // SUBJECT HEADER
+  //                     // ==================================================
+  //                     Row(
+  //                       children: [
+  //                         Container(
+  //                           width: 46,
+  //                           height: 46,
+  //                           decoration: BoxDecoration(
+  //                             color: primaryLight,
+  //                             borderRadius: BorderRadius.circular(13),
+  //                           ),
+  //                           child: Center(
+  //                             child: Text(
+  //                               first.code,
+  //                               style: const TextStyle(
+  //                                 color: primary,
+  //                                 fontSize: 11,
+  //                                 fontWeight: FontWeight.bold,
+  //                               ),
+  //                             ),
+  //                           ),
+  //                         ),
+
+  //                         const SizedBox(width: 12),
+
+  //                         Expanded(
+  //                           child: Column(
+  //                             crossAxisAlignment: CrossAxisAlignment.start,
+  //                             children: [
+  //                               Text(
+  //                                 first.name,
+  //                                 maxLines: 1,
+  //                                 overflow: TextOverflow.ellipsis,
+  //                                 style: const TextStyle(
+  //                                   color: textDark,
+  //                                   fontSize: 18,
+  //                                   fontWeight: FontWeight.bold,
+  //                                 ),
+  //                               ),
+
+  //                               const SizedBox(height: 3),
+
+  //                               Text(
+  //                                 '${currentAssignments.length} '
+  //                                 '${currentAssignments.length == 1 ? 'class' : 'classes'} assigned',
+
+  //                                 style: TextStyle(
+  //                                   color: Colors.grey.shade600,
+  //                                   fontSize: 11,
+  //                                 ),
+  //                               ),
+  //                             ],
+  //                           ),
+  //                         ),
+  //                       ],
+  //                     ),
+
+  //                     const SizedBox(height: 24),
+
+  //                     // ==================================================
+  //                     // ASSIGNED CLASSES
+  //                     // ==================================================
+  //                     const Text(
+  //                       'Assigned Classes',
+  //                       style: TextStyle(
+  //                         color: textDark,
+  //                         fontSize: 12,
+  //                         fontWeight: FontWeight.w600,
+  //                       ),
+  //                     ),
+
+  //                     const SizedBox(height: 8),
+
+  //                     if (currentAssignments.isEmpty)
+  //                       Container(
+  //                         width: double.infinity,
+  //                         padding: const EdgeInsets.all(13),
+  //                         decoration: BoxDecoration(
+  //                           color: Colors.grey.shade50,
+  //                           borderRadius: BorderRadius.circular(11),
+  //                         ),
+  //                         child: Text(
+  //                           'No classes assigned yet.',
+  //                           style: TextStyle(
+  //                             color: Colors.grey.shade600,
+  //                             fontSize: 11,
+  //                           ),
+  //                         ),
+  //                       )
+  //                     else
+  //                       ...currentAssignments.map((assignment) {
+  //                         return Container(
+  //                           margin: const EdgeInsets.only(bottom: 7),
+  //                           padding: const EdgeInsets.symmetric(
+  //                             horizontal: 10,
+  //                             vertical: 9,
+  //                           ),
+  //                           decoration: BoxDecoration(
+  //                             color: Colors.grey.shade50,
+  //                             borderRadius: BorderRadius.circular(10),
+  //                             border: Border.all(color: Colors.grey.shade200),
+  //                           ),
+  //                           child: Row(
+  //                             children: [
+  //                               Container(
+  //                                 width: 30,
+  //                                 height: 30,
+  //                                 decoration: BoxDecoration(
+  //                                   color: primaryLight,
+  //                                   borderRadius: BorderRadius.circular(8),
+  //                                 ),
+  //                                 child: const Icon(
+  //                                   Icons.class_outlined,
+  //                                   color: primary,
+  //                                   size: 16,
+  //                                 ),
+  //                               ),
+
+  //                               const SizedBox(width: 9),
+
+  //                               Expanded(
+  //                                 child: Text(
+  //                                   assignment.className.trim().isEmpty
+  //                                       ? 'No class assigned'
+  //                                       : assignment.className,
+  //                                   maxLines: 1,
+  //                                   overflow: TextOverflow.ellipsis,
+  //                                   style: const TextStyle(
+  //                                     color: textDark,
+  //                                     fontSize: 11,
+  //                                     fontWeight: FontWeight.w600,
+  //                                   ),
+  //                                 ),
+  //                               ),
+
+  //                               InkWell(
+  //                                 borderRadius: BorderRadius.circular(7),
+  //                                 onTap: isLoading
+  //                                     ? null
+  //                                     : () async {
+  //                                         final success =
+  //                                             await _confirmUnassign(
+  //                                               context,
+  //                                               ref,
+  //                                               assignment,
+  //                                             );
+
+  //                                         if (success && modalContext.mounted) {
+  //                                           setModalState(() {
+  //                                             currentAssignments.removeWhere(
+  //                                               (item) =>
+  //                                                   item.assignmentId ==
+  //                                                   assignment.assignmentId,
+  //                                             );
+  //                                           });
+  //                                         }
+  //                                       },
+  //                                 child: Padding(
+  //                                   padding: const EdgeInsets.all(5),
+  //                                   child: Icon(
+  //                                     Icons.link_off_rounded,
+  //                                     color: isLoading
+  //                                         ? Colors.grey
+  //                                         : Colors.red,
+  //                                     size: 17,
+  //                                   ),
+  //                                 ),
+  //                               ),
+  //                             ],
+  //                           ),
+  //                         );
+  //                       }),
+
+  //                     const SizedBox(height: 18),
+
+  //                     // ==================================================
+  //                     // ADD CLASS
+  //                     // ==================================================
+  //                     const Text(
+  //                       'Assign Another Class',
+  //                       style: TextStyle(
+  //                         color: textDark,
+  //                         fontSize: 12,
+  //                         fontWeight: FontWeight.w600,
+  //                       ),
+  //                     ),
+
+  //                     const SizedBox(height: 7),
+
+  //                     DropdownButtonFormField<String>(
+  //                       initialValue: selectedClassId,
+  //                       isExpanded: true,
+  //                       decoration: InputDecoration(
+  //                         hintText: availableClasses.isEmpty
+  //                             ? 'All classes are assigned'
+  //                             : 'Select class',
+  //                         prefixIcon: const Icon(
+  //                           Icons.class_outlined,
+  //                           color: primary,
+  //                         ),
+  //                         filled: true,
+  //                         fillColor: Colors.grey.shade50,
+  //                         border: OutlineInputBorder(
+  //                           borderRadius: BorderRadius.circular(12),
+  //                           borderSide: BorderSide(color: Colors.grey.shade200),
+  //                         ),
+  //                         enabledBorder: OutlineInputBorder(
+  //                           borderRadius: BorderRadius.circular(12),
+  //                           borderSide: BorderSide(color: Colors.grey.shade200),
+  //                         ),
+  //                       ),
+  //                       items: availableClasses.map((item) {
+  //                         return DropdownMenuItem<String>(
+  //                           value: item.classId,
+  //                           child: Text(
+  //                             item.className,
+  //                             overflow: TextOverflow.ellipsis,
+  //                           ),
+  //                         );
+  //                       }).toList(),
+  //                       onChanged: isLoading || availableClasses.isEmpty
+  //                           ? null
+  //                           : (value) {
+  //                               setModalState(() {
+  //                                 selectedClassId = value;
+  //                               });
+  //                             },
+  //                     ),
+
+  //                     const SizedBox(height: 20),
+
+  //                     // ==================================================
+  //                     // ACTIONS
+  //                     // ==================================================
+  //                     Row(
+  //                       children: [
+  //                         Expanded(
+  //                           child: OutlinedButton(
+  //                             onPressed: isLoading
+  //                                 ? null
+  //                                 : () {
+  //                                     Navigator.pop(sheetContext);
+  //                                   },
+  //                             style: OutlinedButton.styleFrom(
+  //                               foregroundColor: Colors.grey.shade700,
+  //                               side: BorderSide(color: Colors.grey.shade300),
+  //                               padding: const EdgeInsets.symmetric(
+  //                                 vertical: 13,
+  //                               ),
+  //                               shape: RoundedRectangleBorder(
+  //                                 borderRadius: BorderRadius.circular(11),
+  //                               ),
+  //                             ),
+  //                             child: const Text('Close'),
+  //                           ),
+  //                         ),
+
+  //                         const SizedBox(width: 12),
+
+  //                         Expanded(
+  //                           child: ElevatedButton(
+  //                             onPressed: isLoading || selectedClassId == null
+  //                                 ? null
+  //                                 : () async {
+  //                                     setModalState(() {
+  //                                       isLoading = true;
+  //                                     });
+
+  //                                     final success = await ref
+  //                                         .read(adminDashboardProvider.notifier)
+  //                                         .assignTeacherToSubject(
+  //                                           teacherId: teacherId,
+  //                                           subjectId: first.subjectId,
+  //                                           classId: selectedClassId!,
+  //                                         );
+
+  //                                     if (!context.mounted) {
+  //                                       return;
+  //                                     }
+
+  //                                     if (success) {
+  //                                       ref.invalidate(
+  //                                         adminTeacherDetailsProvider(
+  //                                           teacherId,
+  //                                         ),
+  //                                       );
+
+  //                                       Navigator.pop(sheetContext);
+
+  //                                       ScaffoldMessenger.of(
+  //                                         context,
+  //                                       ).showSnackBar(
+  //                                         const SnackBar(
+  //                                           content: Text(
+  //                                             'Class assigned successfully.',
+  //                                           ),
+  //                                           backgroundColor: Colors.green,
+  //                                         ),
+  //                                       );
+  //                                     } else {
+  //                                       setModalState(() {
+  //                                         isLoading = false;
+  //                                       });
+
+  //                                       ScaffoldMessenger.of(
+  //                                         modalContext,
+  //                                       ).showSnackBar(
+  //                                         const SnackBar(
+  //                                           content: Text(
+  //                                             'Unable to assign class.',
+  //                                           ),
+  //                                           backgroundColor: Colors.red,
+  //                                         ),
+  //                                       );
+  //                                     }
+  //                                   },
+  //                             style: ElevatedButton.styleFrom(
+  //                               backgroundColor: primary,
+  //                               foregroundColor: Colors.white,
+  //                               elevation: 0,
+  //                               disabledBackgroundColor: primary.withOpacity(
+  //                                 .4,
+  //                               ),
+  //                               padding: const EdgeInsets.symmetric(
+  //                                 vertical: 13,
+  //                               ),
+  //                               shape: RoundedRectangleBorder(
+  //                                 borderRadius: BorderRadius.circular(11),
+  //                               ),
+  //                             ),
+  //                             child: isLoading
+  //                                 ? const SizedBox(
+  //                                     width: 19,
+  //                                     height: 19,
+  //                                     child: CircularProgressIndicator(
+  //                                       strokeWidth: 2,
+  //                                       color: Colors.white,
+  //                                     ),
+  //                                   )
+  //                                 : const Text(
+  //                                     'Assign Class',
+  //                                     style: TextStyle(
+  //                                       fontWeight: FontWeight.w600,
+  //                                     ),
+  //                                   ),
+  //                           ),
+  //                         ),
+  //                       ],
+  //                     ),
+  //                   ],
+  //                 ),
+  //               ),
+  //             ),
+  //           );
+  //         },
+  //       );
+  //     },
+  //   );
+  // }
+
+  void _showSubjectAssignmentsSheet({
+    required BuildContext context,
+    required WidgetRef ref,
+    required AdminTeacherModel teacher,
+    required List<AdminTeacherSubjectModel> assignments,
+  }) {
+    final dashboard = ref.read(adminDashboardProvider).value;
+
+    if (dashboard == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('School data is not available.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final first = assignments.first;
+
+    final classes = dashboard.classes
+        .where((item) => item.schoolId == schoolId)
+        .toList();
+
+    if (classes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No classes are available in this school.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    // ---------------------------------------------------------------
+    // LOCAL SHEET STATE
+    // ---------------------------------------------------------------
+
+    String? selectedClassId;
+
+    // Used by the Assign button.
+    bool isAssigning = false;
+
+    // Contains the assignmentId currently being unassigned.
+    //
+    // We use an ID instead of a bool so only the clicked row
+    // displays the loading indicator.
+    String? loadingAssignmentId;
+
+    // Local copy of the assignments.
+    //
+    // This is important because the bottom sheet receives `assignments`
+    // as a snapshot. Invalidating the provider will refresh the page,
+    // but it will NOT automatically change this already-open sheet.
+    final currentAssignments = [...assignments];
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            // ---------------------------------------------------------
+            // CALCULATE AVAILABLE CLASSES
+            // ---------------------------------------------------------
+
+            final assignedClassIds = currentAssignments
+                .map((item) => item.classId)
+                .toSet();
+
+            final availableClasses = classes
+                .where((item) => !assignedClassIds.contains(item.classId))
+                .toList();
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom,
+              ),
+              child: Container(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.of(context).size.height * .82,
+                ),
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 25),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(25),
+                    topRight: Radius.circular(25),
+                  ),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // =================================================
+                      // HANDLE
+                      // =================================================
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // =================================================
+                      // SUBJECT HEADER
+                      // =================================================
+                      Row(
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: primaryLight,
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            child: Center(
+                              child: Text(
+                                first.code,
+                                style: const TextStyle(
+                                  color: primary,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  first.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: textDark,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 3),
+
+                                Text(
+                                  '${currentAssignments.length} '
+                                  '${currentAssignments.length == 1 ? 'class' : 'classes'} assigned',
+                                  style: TextStyle(
+                                    color: Colors.grey.shade600,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 24),
+
+                      // =================================================
+                      // ASSIGNED CLASSES
+                      // =================================================
+                      const Text(
+                        'Assigned Classes',
+                        style: TextStyle(
+                          color: textDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+
+                      const SizedBox(height: 8),
+
+                      if (currentAssignments.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(13),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(11),
+                          ),
+                          child: Text(
+                            'No classes assigned yet.',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 11,
+                            ),
+                          ),
+                        )
+                      else
+                        ...currentAssignments.map((assignment) {
+                          final isThisAssignmentLoading =
+                              loadingAssignmentId == assignment.assignmentId;
+
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 7),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 9,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade50,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.grey.shade200),
+                            ),
+                            child: Row(
+                              children: [
+                                // -------------------------------------
+                                // CLASS ICON
+                                // -------------------------------------
+                                Container(
+                                  width: 30,
+                                  height: 30,
+                                  decoration: BoxDecoration(
+                                    color: primaryLight,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Icon(
+                                    Icons.class_outlined,
+                                    color: primary,
+                                    size: 16,
+                                  ),
+                                ),
+
+                                const SizedBox(width: 9),
+
+                                // -------------------------------------
+                                // CLASS NAME
+                                // -------------------------------------
+                                Expanded(
+                                  child: Text(
+                                    assignment.className.trim().isEmpty
+                                        ? 'No class assigned'
+                                        : assignment.className,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: textDark,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+
+                                // -------------------------------------
+                                // UNASSIGN BUTTON / LOADING
+                                // -------------------------------------
+                                InkWell(
+                                  borderRadius: BorderRadius.circular(7),
+
+                                  onTap: loadingAssignmentId != null
+                                      ? null
+                                      : () async {
+                                          // Show spinner
+                                          // immediately.
+                                          setModalState(() {
+                                            loadingAssignmentId =
+                                                assignment.assignmentId;
+                                          });
+
+                                          final success =
+                                              await _confirmUnassign(
+                                                context,
+                                                ref,
+                                                assignment,
+                                              );
+
+                                          // The sheet may have
+                                          // been closed while the
+                                          // request was running.
+                                          if (!modalContext.mounted) {
+                                            return;
+                                          }
+
+                                          if (success) {
+                                            setModalState(() {
+                                              // Remove the
+                                              // assignment from
+                                              // the local list.
+                                              currentAssignments.removeWhere(
+                                                (item) =>
+                                                    item.assignmentId ==
+                                                    assignment.assignmentId,
+                                              );
+
+                                              // Clear loading.
+                                              loadingAssignmentId = null;
+
+                                              // Clear selection
+                                              // so the dropdown
+                                              // does not retain
+                                              // stale state.
+                                              selectedClassId = null;
+                                            });
+                                          } else {
+                                            // API failed.
+                                            // Stop spinner.
+                                            setModalState(() {
+                                              loadingAssignmentId = null;
+                                            });
+                                          }
+                                        },
+
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(5),
+
+                                    child: isThisAssignmentLoading
+                                        ? const SizedBox(
+                                            width: 17,
+                                            height: 17,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: primary,
+                                            ),
+                                          )
+                                        : Icon(
+                                            Icons.link_off_rounded,
+                                            color: loadingAssignmentId != null
+                                                ? Colors.grey.shade400
+                                                : Colors.red,
+                                            size: 17,
+                                          ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+
+                      const SizedBox(height: 18),
+
+                      // =================================================
+                      // ASSIGN ANOTHER CLASS
+                      // =================================================
+                      const Text(
+                        'Assign Another Class',
+                        style: TextStyle(
+                          color: textDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+
+                      const SizedBox(height: 7),
+
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedClassId,
+                        isExpanded: true,
+
+                        decoration: InputDecoration(
+                          hintText: availableClasses.isEmpty
+                              ? 'All classes are assigned'
+                              : 'Select class',
+
+                          prefixIcon: const Icon(
+                            Icons.class_outlined,
+                            color: primary,
+                          ),
+
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+                        ),
+
+                        items: availableClasses.map((item) {
+                          return DropdownMenuItem<String>(
+                            value: item.classId,
+                            child: Text(
+                              item.className,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+
+                        onChanged:
+                            isAssigning ||
+                                loadingAssignmentId != null ||
+                                availableClasses.isEmpty
+                            ? null
+                            : (value) {
+                                setModalState(() {
+                                  selectedClassId = value;
+                                });
+                              },
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // =================================================
+                      // ACTIONS
+                      // =================================================
+                      Row(
+                        children: [
+                          // ---------------------------------------------
+                          // CLOSE
+                          // ---------------------------------------------
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed:
+                                  isAssigning || loadingAssignmentId != null
+                                  ? null
+                                  : () {
+                                      Navigator.pop(sheetContext);
+                                    },
+
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.grey.shade700,
+                                side: BorderSide(color: Colors.grey.shade300),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                              ),
+
+                              child: const Text('Close'),
+                            ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          // ---------------------------------------------
+                          // ASSIGN CLASS
+                          // ---------------------------------------------
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed:
+                                  isAssigning ||
+                                      loadingAssignmentId != null ||
+                                      selectedClassId == null
+                                  ? null
+                                  : () async {
+                                      // ---------------------------------
+                                      // Validate
+                                      // ---------------------------------
+
+                                      if (selectedClassId == null) {
+                                        ScaffoldMessenger.of(
+                                          modalContext,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Please select a class.',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                        return;
+                                      }
+
+                                      // ---------------------------------
+                                      // START LOADING
+                                      // ---------------------------------
+
+                                      setModalState(() {
+                                        isAssigning = true;
+                                      });
+
+                                      // ---------------------------------
+                                      // API CALL
+                                      // ---------------------------------
+
+                                      final success = await ref
+                                          .read(adminDashboardProvider.notifier)
+                                          .assignTeacherToSubject(
+                                            teacherId: teacherId,
+                                            subjectId: first.subjectId,
+                                            classId: selectedClassId!,
+                                          );
+
+                                      // ---------------------------------
+                                      // SHEET CLOSED?
+                                      // ---------------------------------
+
+                                      if (!modalContext.mounted) {
+                                        return;
+                                      }
+
+                                      // ---------------------------------
+                                      // SUCCESS
+                                      // ---------------------------------
+
+                                      if (success) {
+                                        // Close sheet first.
+                                        Navigator.pop(sheetContext);
+
+                                        // Refresh teacher details.
+                                        ref.invalidate(
+                                          adminTeacherDetailsProvider(
+                                            teacherId,
+                                          ),
+                                        );
+
+                                        // Show success message.
+                                        if (context.mounted) {
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Class assigned successfully.',
+                                              ),
+                                              backgroundColor: Colors.green,
+                                            ),
+                                          );
+                                        }
+                                      }
+                                      // ---------------------------------
+                                      // FAILURE
+                                      // ---------------------------------
+                                      else {
+                                        setModalState(() {
+                                          isAssigning = false;
+                                        });
+
+                                        ScaffoldMessenger.of(
+                                          modalContext,
+                                        ).showSnackBar(
+                                          const SnackBar(
+                                            content: Text(
+                                              'Unable to assign class.',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    },
+
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primary,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+
+                                disabledBackgroundColor: primary.withOpacity(
+                                  .4,
+                                ),
+
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 13,
+                                ),
+
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                              ),
+
+                              child: isAssigning
+                                  ? const SizedBox(
+                                      width: 19,
+                                      height: 19,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Assign Class',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _groupedSubjectCard({
+    required BuildContext context,
+    required WidgetRef ref,
+    required AdminTeacherModel teacher,
+    required List<AdminTeacherSubjectModel> assignments,
+  }) {
+    final first = assignments.first;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: () {
+        _showSubjectAssignmentsSheet(
+          context: context,
+          ref: ref,
+          teacher: teacher,
+          assignments: assignments,
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: primaryLight,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Center(
+                child: Text(
+                  first.code,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: primary,
+                    fontSize: 9,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 10),
+
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    first.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: textDark,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
 
-                  if (i != teacher.subjects.length - 1)
-                    const SizedBox(height: 10),
+                  const SizedBox(height: 3),
+
+                  Text(
+                    '${assignments.length} '
+                    '${assignments.length == 1 ? 'class' : 'classes'} assigned',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 9),
+                  ),
                 ],
-              ],
+              ),
             ),
+
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+              decoration: BoxDecoration(
+                color: primaryLight,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '${assignments.length}',
+                style: const TextStyle(
+                  color: primary,
+                  fontSize: 9,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+
+            const SizedBox(width: 5),
+
+            Icon(
+              Icons.chevron_right_rounded,
+              color: Colors.grey.shade500,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -861,7 +2021,7 @@ class AdminTeacherDetailsPage extends ConsumerWidget {
                       const SizedBox(height: 7),
 
                       DropdownButtonFormField<String>(
-                        value: selectedSubjectId,
+                        initialValue: selectedSubjectId,
                         isExpanded: true,
 
                         decoration: InputDecoration(

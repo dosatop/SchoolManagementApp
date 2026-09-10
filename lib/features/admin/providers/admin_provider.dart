@@ -1240,4 +1240,6 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
       return false;
     }
   }
+
+  Future<Object?> assignStudentToTrade({required String studentId, required String tradeId}) async {}
 }

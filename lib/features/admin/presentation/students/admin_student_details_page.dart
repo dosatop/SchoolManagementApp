@@ -1,6 +1,7 @@
 import 'package:app/features/admin/models/students/admin_student_detail_model.dart';
 import 'package:app/features/admin/models/students/admin_student_parent_model.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
+import 'package:app/features/admin/providers/admin_student_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -221,7 +222,7 @@ class AdminStudentDetailsPage extends ConsumerWidget {
 
                   const SizedBox(height: 14),
 
-                  _academicPlacement(student),
+                  _academicPlacement(context, ref, student),
 
                   const SizedBox(height: 14),
 
@@ -496,96 +497,786 @@ class AdminStudentDetailsPage extends ConsumerWidget {
   // ================================================================
   // ACADEMIC PLACEMENT
   // ================================================================
-Widget _academicPlacement(AdminStudentDetailModel student) {
-  final className = student.className.trim();
 
-  final classType = _classType(className);
+  Widget _academicPlacement(
+    BuildContext context,
+    WidgetRef ref,
+    AdminStudentDetailModel student,
+  ) {
+    final className = student.className.trim();
+    final classType = _classType(className);
 
-  final department = student.departmentName?.trim() ?? '';
-  final trade = student.tradeName?.trim() ?? '';
-  final tradeSubject = student.tradeSubjectName?.trim() ?? '';
+    final department = student.departmentName?.trim() ?? '';
+    final trade = student.tradeName?.trim() ?? '';
+    final tradeSubject = student.tradeSubjectName?.trim() ?? '';
 
-  final hasTrade = trade.isNotEmpty;
-  final hasTradeSubject = tradeSubject.isNotEmpty;
+    final hasTrade = trade.isNotEmpty;
+    final isSenior = classType == 'Senior';
 
-  return _sectionCard(
-    title: 'Academic Placement',
-    icon: Icons.account_tree_outlined,
+    return _sectionCard(
+      title: 'Academic Placement',
+      icon: Icons.account_tree_outlined,
 
-    child: Column(
-      children: [
-        // ============================================================
-        // CLASS
-        // ============================================================
-
-        _placementCard(
-          icon: Icons.class_outlined,
-          title: 'Class',
-          value: className.isEmpty ? 'No class assigned' : className,
-          color: primary,
+      trailing: SizedBox(
+        height: 34,
+        child: ElevatedButton.icon(
+          onPressed: () {
+            _showAssignTradeSheet(context: context, ref: ref, student: student);
+          },
+          style: ElevatedButton.styleFrom(
+            backgroundColor: hasTrade ? Colors.orange.shade800 : primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 10),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(9),
+            ),
+          ),
+          icon: Icon(hasTrade ? Icons.swap_horiz_rounded : Icons.add, size: 15),
+          label: Text(
+            hasTrade ? 'Change Trade' : 'Assign Trade',
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+          ),
         ),
+      ),
 
-        const SizedBox(height: 9),
+      child: Column(
+        children: [
+          // ============================================================
+          // CLASS
+          // ============================================================
+          _placementCard(
+            icon: Icons.class_outlined,
+            title: 'Class',
+            value: className.isEmpty ? 'No class assigned' : className,
+            color: primary,
+          ),
 
-        // ============================================================
-        // CLASS CATEGORY
-        // ============================================================
+          const SizedBox(height: 9),
 
-        _placementCard(
-          icon: Icons.layers_outlined,
-          title: 'Class Category',
-          value: classType,
-          color: classType == 'Senior' ? primary : Colors.orange.shade800,
-        ),
+          // ============================================================
+          // CLASS CATEGORY
+          // ============================================================
+          _placementCard(
+            icon: Icons.layers_outlined,
+            title: 'Class Category',
+            value: classType,
+            color: classType == 'Senior' ? primary : Colors.orange.shade800,
+          ),
 
-        // ============================================================
-        // DEPARTMENT
-        // ============================================================
+          // ============================================================
+          // DEPARTMENT — SENIOR ONLY
+          // ============================================================
+          if (isSenior) ...[
+            const SizedBox(height: 9),
 
-        const SizedBox(height: 9),
+            _placementCard(
+              icon: Icons.account_tree_outlined,
+              title: 'Department',
+              value: department.isEmpty ? 'No department assigned' : department,
+              color: department.isEmpty ? Colors.grey : Colors.blue,
+            ),
+          ],
 
-        _placementCard(
-          icon: Icons.account_tree_outlined,
-          title: 'Department',
-          value: department.isEmpty
-              ? 'No department assigned'
-              : department,
-          color: department.isEmpty ? Colors.grey : Colors.blue,
-        ),
-
-        // ============================================================
-        // TRADE
-        // ============================================================
-
-        const SizedBox(height: 9),
-
-        _placementCard(
-          icon: Icons.construction_outlined,
-          title: 'Trade',
-          value: trade.isEmpty ? 'No trade assigned' : trade,
-          color: trade.isEmpty ? Colors.grey : Colors.deepOrange,
-        ),
-
-        // ============================================================
-        // TRADE SUBJECT
-        // ============================================================
-
-        if (hasTrade) ...[
+          // ============================================================
+          // TRADE
+          // ============================================================
           const SizedBox(height: 9),
 
           _placementCard(
-            icon: Icons.menu_book_outlined,
-            title: 'Trade Subject',
-            value: hasTradeSubject
-                ? tradeSubject
-                : 'No trade subject assigned',
-            color: hasTradeSubject ? Colors.purple : Colors.red,
+            icon: Icons.construction_outlined,
+            title: 'Trade',
+            value: trade.isEmpty ? 'No trade assigned' : trade,
+            color: trade.isEmpty ? Colors.grey : Colors.deepOrange,
           ),
+
+          // ============================================================
+          // TRADE SUBJECT
+          // ============================================================
+          if (hasTrade) ...[
+            const SizedBox(height: 9),
+
+            _placementCard(
+              icon: Icons.menu_book_outlined,
+              title: 'Trade Subject',
+              value: tradeSubject.isNotEmpty
+                  ? tradeSubject
+                  : 'No trade subject assigned',
+              color: tradeSubject.isNotEmpty ? Colors.purple : Colors.red,
+            ),
+          ],
         ],
-      ],
-    ),
-  );
-}
+      ),
+    );
+  }
+
+  // ================================================================
+  // ASSIGN / CHANGE / UNASSIGN TRADE
+  // ================================================================
+
+  void _showAssignTradeSheet({
+    required BuildContext context,
+    required WidgetRef ref,
+    required AdminStudentDetailModel student,
+  }) {
+    final dashboard = ref.read(adminDashboardProvider).value;
+
+    if (dashboard == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('School data is not available.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    final trades = dashboard.trades
+        .where((trade) => trade.schoolId == schoolId)
+        .toList();
+
+    final subjects = dashboard.subjects;
+
+    if (trades.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No trades are available in this school.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      return;
+    }
+
+    String? selectedTradeId = student.tradeId;
+    String? selectedTradeSubjectId = student.tradeSubjectId;
+
+    bool isLoading = false;
+
+    // Make sure the existing trade belongs to this school.
+    final hasCurrentTrade = trades.any(
+      (trade) => trade.tradeId == selectedTradeId,
+    );
+
+    if (!hasCurrentTrade) {
+      selectedTradeId = null;
+      selectedTradeSubjectId = null;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            // ============================================================
+            // FILTER SUBJECTS BY SELECTED TRADE
+            // ============================================================
+
+            final filteredSubjects = subjects.where((subject) {
+              return subject.tradeId == selectedTradeId;
+            }).toList();
+
+            // ============================================================
+            // VALID CURRENT SUBJECT
+            // ============================================================
+
+            final validTradeSubjectId =
+                filteredSubjects.any(
+                  (subject) => subject.subjectId == selectedTradeSubjectId,
+                )
+                ? selectedTradeSubjectId
+                : null;
+
+            final hasExistingTrade =
+                student.tradeId != null && student.tradeId!.trim().isNotEmpty;
+
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(modalContext).viewInsets.bottom,
+              ),
+
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 25),
+
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: Radius.circular(25),
+                    topRight: Radius.circular(25),
+                  ),
+                ),
+
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // =================================================
+                      // HANDLE
+                      // =================================================
+                      Center(
+                        child: Container(
+                          width: 42,
+                          height: 5,
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade300,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 20),
+
+                      // =================================================
+                      // HEADER
+                      // =================================================
+                      Row(
+                        children: [
+                          Container(
+                            width: 45,
+                            height: 45,
+                            decoration: BoxDecoration(
+                              color: primaryLight,
+                              borderRadius: BorderRadius.circular(13),
+                            ),
+                            child: const Icon(
+                              Icons.construction_outlined,
+                              color: primary,
+                            ),
+                          ),
+
+                          const SizedBox(width: 12),
+
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  hasExistingTrade
+                                      ? 'Change Trade'
+                                      : 'Assign Trade',
+                                  style: const TextStyle(
+                                    color: textDark,
+                                    fontSize: 19,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+
+                                const SizedBox(height: 3),
+
+                                Text(
+                                  hasExistingTrade
+                                      ? 'Change or remove the trade assigned to this student.'
+                                      : 'Assign a trade and trade subject to this student.',
+                                  style: const TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 11,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+
+                      const SizedBox(height: 25),
+
+                      // =================================================
+                      // STUDENT
+                      // =================================================
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(11),
+                          border: Border.all(color: Colors.grey.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(
+                              Icons.person_outline,
+                              color: primary,
+                              size: 19,
+                            ),
+
+                            const SizedBox(width: 9),
+
+                            Expanded(
+                              child: Text(
+                                student.studentName,
+                                style: const TextStyle(
+                                  color: textDark,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      const SizedBox(height: 18),
+
+                      // =================================================
+                      // TRADE
+                      // =================================================
+                      const Text(
+                        'Trade',
+                        style: TextStyle(
+                          color: textDark,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+
+                      const SizedBox(height: 7),
+
+                      DropdownButtonFormField<String>(
+                        initialValue: selectedTradeId,
+                        isExpanded: true,
+
+                        decoration: InputDecoration(
+                          hintText: 'Select trade',
+
+                          prefixIcon: const Icon(
+                            Icons.construction_outlined,
+                            color: primary,
+                          ),
+
+                          filled: true,
+                          fillColor: Colors.grey.shade50,
+
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(13),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(13),
+                            borderSide: BorderSide(color: Colors.grey.shade200),
+                          ),
+
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(13),
+                            borderSide: const BorderSide(
+                              color: primary,
+                              width: 1.4,
+                            ),
+                          ),
+                        ),
+
+                        items: trades.map((trade) {
+                          return DropdownMenuItem<String>(
+                            value: trade.tradeId,
+                            child: Text(
+                              trade.tradeName,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          );
+                        }).toList(),
+
+                        onChanged: isLoading
+                            ? null
+                            : (value) {
+                                setModalState(() {
+                                  selectedTradeId = value;
+
+                                  // Changing trade means the old
+                                  // trade subject is no longer valid.
+                                  selectedTradeSubjectId = null;
+                                });
+                              },
+                      ),
+
+                      // =================================================
+                      // TRADE SUBJECT
+                      // =================================================
+                      if (selectedTradeId != null) ...[
+                        const SizedBox(height: 18),
+
+                        const Text(
+                          'Trade Subject',
+                          style: TextStyle(
+                            color: textDark,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+
+                        const SizedBox(height: 7),
+
+                        DropdownButtonFormField<String>(
+                          initialValue: validTradeSubjectId,
+                          isExpanded: true,
+
+                          decoration: InputDecoration(
+                            hintText: filteredSubjects.isEmpty
+                                ? 'No subjects available for this trade'
+                                : 'Select trade subject',
+
+                            prefixIcon: const Icon(
+                              Icons.menu_book_outlined,
+                              color: primary,
+                            ),
+
+                            filled: true,
+                            fillColor: Colors.grey.shade50,
+
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(13),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(13),
+                              borderSide: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
+                            ),
+
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(13),
+                              borderSide: const BorderSide(
+                                color: primary,
+                                width: 1.4,
+                              ),
+                            ),
+                          ),
+
+                          items: filteredSubjects.map((subject) {
+                            return DropdownMenuItem<String>(
+                              value: subject.subjectId,
+                              child: Text(
+                                subject.subjectName,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList(),
+
+                          onChanged: isLoading || filteredSubjects.isEmpty
+                              ? null
+                              : (value) {
+                                  setModalState(() {
+                                    selectedTradeSubjectId = value;
+                                  });
+                                },
+                        ),
+
+                        const SizedBox(height: 7),
+
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 14,
+                              color: Colors.orange.shade700,
+                            ),
+
+                            const SizedBox(width: 6),
+
+                            Expanded(
+                              child: Text(
+                                filteredSubjects.isEmpty
+                                    ? 'No trade subjects are available for this trade.'
+                                    : 'Select the trade subject assigned to this student.',
+                                style: TextStyle(
+                                  color: Colors.orange.shade700,
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+
+                      const SizedBox(height: 25),
+
+                      // =================================================
+                      // ACTIONS
+                      // =================================================
+                      Row(
+                        children: [
+                          // ------------------------------------------------
+                          // UNASSIGN
+                          // ------------------------------------------------
+                          if (hasExistingTrade)
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: isLoading
+                                    ? null
+                                    : () async {
+                                        setModalState(() {
+                                          isLoading = true;
+                                        });
+
+                                        try {
+                                          final success = await ref
+                                              .read(
+                                                adminStudentProvider.notifier,
+                                              )
+                                              .unassignStudentFromTrade(
+                                                studentId: student.studentId,
+                                              );
+
+                                          if (!modalContext.mounted) {
+                                            return;
+                                          }
+
+                                          if (success == true) {
+                                            Navigator.pop(sheetContext);
+
+                                            ref.invalidate(
+                                              adminStudentDetailsProvider(
+                                                student.studentId,
+                                              ),
+                                            );
+
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(
+                                                context,
+                                              ).showSnackBar(
+                                                const SnackBar(
+                                                  content: Text(
+                                                    'Trade unassigned successfully.',
+                                                  ),
+                                                  backgroundColor: Colors.green,
+                                                ),
+                                              );
+                                            }
+                                          } else {
+                                            setModalState(() {
+                                              isLoading = false;
+                                            });
+
+                                            ScaffoldMessenger.of(
+                                              modalContext,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Unable to unassign trade.',
+                                                ),
+                                                backgroundColor: Colors.red,
+                                              ),
+                                            );
+                                          }
+                                        } catch (error) {
+                                          if (!modalContext.mounted) {
+                                            return;
+                                          }
+
+                                          setModalState(() {
+                                            isLoading = false;
+                                          });
+
+                                          ScaffoldMessenger.of(
+                                            modalContext,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                'Unable to unassign trade: $error',
+                                              ),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      },
+
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.red,
+                                  side: BorderSide(color: Colors.red.shade200),
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: 14,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(11),
+                                  ),
+                                ),
+
+                                icon: const Icon(
+                                  Icons.remove_circle_outline,
+                                  size: 17,
+                                ),
+
+                                label: const Text(
+                                  'Unassign',
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+
+                          if (hasExistingTrade) const SizedBox(width: 10),
+
+                          // ------------------------------------------------
+                          // CANCEL
+                          // ------------------------------------------------
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isLoading
+                                  ? null
+                                  : () {
+                                      Navigator.pop(sheetContext);
+                                    },
+
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.grey.shade700,
+                                side: BorderSide(color: Colors.grey.shade300),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                              ),
+
+                              child: const Text('Cancel'),
+                            ),
+                          ),
+
+                          const SizedBox(width: 10),
+
+                          // ------------------------------------------------
+                          // SAVE
+                          // ------------------------------------------------
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed:
+                                  isLoading ||
+                                      selectedTradeId == null ||
+                                      selectedTradeSubjectId == null
+                                  ? null
+                                  : () async {
+                                      setModalState(() {
+                                        isLoading = true;
+                                      });
+
+                                      try {
+                                        final success = await ref
+                                            .read(adminStudentProvider.notifier)
+                                            .assignStudentToTrade(
+                                              studentId: student.studentId,
+                                              tradeId: selectedTradeId!,
+                                              tradeSubjectId:
+                                                  selectedTradeSubjectId!,
+                                            );
+
+                                        if (!modalContext.mounted) {
+                                          return;
+                                        }
+
+                                        if (success != null) {
+                                          Navigator.pop(sheetContext);
+
+                                          ref.invalidate(
+                                            adminStudentDetailsProvider(
+                                              student.studentId,
+                                            ),
+                                          );
+
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  hasExistingTrade
+                                                      ? 'Trade changed successfully.'
+                                                      : 'Trade assigned successfully.',
+                                                ),
+                                                backgroundColor: Colors.green,
+                                              ),
+                                            );
+                                          }
+                                        } else {
+                                          setModalState(() {
+                                            isLoading = false;
+                                          });
+
+                                          ScaffoldMessenger.of(
+                                            modalContext,
+                                          ).showSnackBar(
+                                            const SnackBar(
+                                              content: Text(
+                                                'Unable to save trade.',
+                                              ),
+                                              backgroundColor: Colors.red,
+                                            ),
+                                          );
+                                        }
+                                      } catch (error) {
+                                        if (!modalContext.mounted) {
+                                          return;
+                                        }
+
+                                        setModalState(() {
+                                          isLoading = false;
+                                        });
+
+                                        ScaffoldMessenger.of(
+                                          modalContext,
+                                        ).showSnackBar(
+                                          SnackBar(
+                                            content: Text(
+                                              'Unable to save trade: $error',
+                                            ),
+                                            backgroundColor: Colors.red,
+                                          ),
+                                        );
+                                      }
+                                    },
+
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: primary,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+
+                                disabledBackgroundColor: primary.withOpacity(
+                                  .4,
+                                ),
+
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(11),
+                                ),
+                              ),
+
+                              child: isLoading
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : Text(
+                                      hasExistingTrade
+                                          ? 'Change Trade'
+                                          : 'Assign Trade',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
 
   Widget _placementCard({
     required IconData icon,

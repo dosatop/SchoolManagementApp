@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:app/features/admin/data/admin_api.dart';
@@ -16,27 +17,22 @@ import 'package:app/core/network/dio_provider.dart';
 final adminRepositoryProvider = Provider<AdminRepository>((ref) {
   final dioClient = ref.read(dioClientProvider);
   final adminApi = AdminApi(dioClient);
-  return AdminRepository(
-    api: adminApi,
-  );
+  return AdminRepository(api: adminApi);
 });
-
 
 // ================================================================
 // STUDENT DETAILS PROVIDER
 // ================================================================
 
-final adminStudentDetailsProvider =
-    FutureProvider.family<AdminStudentDetailModel, String>(
-  (ref, studentId) async {
-    final repository = ref.read(adminRepositoryProvider);
+final adminStudentDataProvider =
+    FutureProvider.family<AdminStudentDetailModel, String>((
+      ref,
+      studentId,
+    ) async {
+      final repository = ref.read(adminRepositoryProvider);
 
-    return repository.getStudentDetails(
-      studentId: studentId,
-    );
-  },
-);
-
+      return repository.getStudentDetails(studentId: studentId);
+    });
 
 // ================================================================
 // STUDENT PROVIDER
@@ -44,17 +40,14 @@ final adminStudentDetailsProvider =
 
 final adminStudentProvider =
     AsyncNotifierProvider<AdminStudentNotifier, List<AdminStudentModel>>(
-  AdminStudentNotifier.new,
-);
-
+      AdminStudentNotifier.new,
+    );
 
 // ================================================================
 // STUDENT NOTIFIER
 // ================================================================
 
-class AdminStudentNotifier
-    extends AsyncNotifier<List<AdminStudentModel>> {
-
+class AdminStudentNotifier extends AsyncNotifier<List<AdminStudentModel>> {
   // ================================================================
   // BUILD
   // ================================================================
@@ -63,7 +56,6 @@ class AdminStudentNotifier
   Future<List<AdminStudentModel>> build() async {
     return _loadStudents();
   }
-
 
   // ================================================================
   // LOAD STUDENTS
@@ -74,7 +66,6 @@ class AdminStudentNotifier
 
     return repository.getStudents();
   }
-
 
   // ================================================================
   // REFRESH
@@ -88,13 +79,9 @@ class AdminStudentNotifier
 
       state = AsyncData(students);
     } catch (error, stackTrace) {
-      state = AsyncError(
-        error,
-        stackTrace,
-      );
+      state = AsyncError(error, stackTrace);
     }
   }
-
 
   // ================================================================
   // GET STUDENTS
@@ -104,21 +91,13 @@ class AdminStudentNotifier
     return state.value ?? [];
   }
 
-
   // ================================================================
   // GET STUDENTS FOR SCHOOL
   // ================================================================
 
-  List<AdminStudentModel> getStudentsForSchool(
-    String schoolId,
-  ) {
-    return students
-        .where(
-          (student) => student.schoolId == schoolId,
-        )
-        .toList();
+  List<AdminStudentModel> getStudentsForSchool(String schoolId) {
+    return students.where((student) => student.schoolId == schoolId).toList();
   }
-
 
   // ================================================================
   // CREATE STUDENT
@@ -138,22 +117,15 @@ class AdminStudentNotifier
 
       final currentStudents = state.value ?? [];
 
-      state = AsyncData([
-        student,
-        ...currentStudents,
-      ]);
+      state = AsyncData([student, ...currentStudents]);
 
       return student;
     } catch (error, stackTrace) {
-      state = AsyncError(
-        error,
-        stackTrace,
-      );
+      state = AsyncError(error, stackTrace);
 
       return null;
     }
   }
-
 
   // ================================================================
   // UPDATE STUDENT
@@ -166,16 +138,14 @@ class AdminStudentNotifier
     try {
       final repository = ref.read(adminRepositoryProvider);
 
-      final updatedStudent =
-          await repository.updateStudent(
+      final updatedStudent = await repository.updateStudent(
         studentId: studentId,
         data: data,
       );
 
       final currentStudents = state.value ?? [];
 
-      final updatedStudents =
-          currentStudents.map((student) {
+      final updatedStudents = currentStudents.map((student) {
         if (student.studentId == studentId) {
           return updatedStudent;
         }
@@ -185,63 +155,43 @@ class AdminStudentNotifier
 
       state = AsyncData(updatedStudents);
 
-      ref.invalidate(
-        adminStudentDetailsProvider(studentId),
-      );
+      ref.invalidate(adminStudentDataProvider(studentId));
 
       return updatedStudent;
     } catch (error, stackTrace) {
-      state = AsyncError(
-        error,
-        stackTrace,
-      );
+      state = AsyncError(error, stackTrace);
 
       return null;
     }
   }
 
-
   // ================================================================
   // DELETE STUDENT
   // ================================================================
 
-  Future<bool> deleteStudent({
-    required String studentId,
-  }) async {
+  Future<bool> deleteStudent({required String studentId}) async {
     try {
       final repository = ref.read(adminRepositoryProvider);
 
-      await repository.deleteStudent(
-        studentId: studentId,
-      );
+      await repository.deleteStudent(studentId: studentId);
 
       final currentStudents = state.value ?? [];
 
-      final updatedStudents =
-          currentStudents
-              .where(
-                (student) =>
-                    student.studentId != studentId,
-              )
-              .toList();
+      final updatedStudents = currentStudents
+          .where((student) => student.studentId != studentId)
+          .toList();
 
       state = AsyncData(updatedStudents);
 
-      ref.invalidate(
-        adminStudentDetailsProvider(studentId),
-      );
+      ref.invalidate(adminStudentDataProvider(studentId));
 
       return true;
     } catch (error, stackTrace) {
-      state = AsyncError(
-        error,
-        stackTrace,
-      );
+      state = AsyncError(error, stackTrace);
 
       return false;
     }
   }
-
 
   // ================================================================
   // GET STUDENT BY ID
@@ -253,16 +203,55 @@ class AdminStudentNotifier
     try {
       final repository = ref.read(adminRepositoryProvider);
 
-      return await repository.getStudentDetails(
-        studentId: studentId,
-      );
+      return await repository.getStudentDetails(studentId: studentId);
     } catch (error, stackTrace) {
-      state = AsyncError(
-        error,
-        stackTrace,
-      );
+      state = AsyncError(error, stackTrace);
 
       return null;
+    }
+  }
+
+  Future<bool> assignStudentToTrade({
+    required String studentId,
+    required String tradeId,
+    required String tradeSubjectId,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.assignStudentToTrade(
+        studentId: studentId,
+        tradeId: tradeId,
+        tradeSubjectId: tradeSubjectId,
+      );
+
+      // Refresh the student's details.
+      ref.invalidate(adminStudentDataProvider(studentId));
+
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Failed to assign student to trade: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      return false;
+    }
+  }
+
+  Future<bool> unassignStudentFromTrade({required String studentId}) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.unassignStudentFromTrade(studentId: studentId);
+
+      // Refresh the student's details.
+      ref.invalidate(adminStudentDataProvider(studentId));
+
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('Failed to unassign student from trade: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      return false;
     }
   }
 }

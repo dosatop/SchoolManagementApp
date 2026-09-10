@@ -1,9 +1,13 @@
 import 'package:app/features/Classes/models/class_model.dart';
 import 'package:app/features/admin/data/admin_api.dart';
+import 'package:app/features/admin/models/academic_session/admin_academic_session_request_model.dart';
 
 import 'package:app/features/admin/models/academic_session/current_academic_session_model.dart';
+import 'package:app/features/admin/models/academic_term/academic_term_request_model.dart';
+import 'package:app/features/admin/models/academic_term/admin_academic_term_model.dart';
 
 import 'package:app/features/admin/models/admin_teacher_details_model.dart';
+import 'package:app/features/admin/models/academic_session/admin_academic_session_model.dart';
 
 import 'package:app/features/admin/models/attendance/admin_attendance_model.dart';
 import 'package:app/features/admin/models/classes/admin_assign_class_subject_request.dart';
@@ -340,9 +344,113 @@ class AdminRepository {
   // ACADEMIC SESSION
   // ================================================================
 
+  Future<AdminAcademicSessionModel> createAcademicSession({
+    required AdminAcademicSessionRequestModel data,
+  }) {
+    return api.createAcademicSession(data: data);
+  }
+
+  Future<List<AdminAcademicSessionModel>> getAcademicSessions() {
+    return api.getAcademicSessions();
+  }
+
   Future<CurrentAcademicSessionModel> getCurrentAcademicSession({
     required String schoolId,
   }) {
     return api.getCurrentAcademicSession(schoolId: schoolId);
+  }
+
+  Future<AdminAcademicSessionModel> setActiveAcademicSession({
+    required String sessionId,
+  }) {
+    return api.setActiveAcademicSession(sessionId: sessionId);
+  }
+
+  Future<AdminAcademicSessionModel> updateAcademicSession({
+    required String sessionId,
+    required AdminAcademicSessionRequestModel data,
+  }) {
+    return api.updateAcademicSession(sessionId: sessionId, data: data);
+  }
+
+  Future<void> deleteAcademicSession({required String sessionId}) {
+    return api.deleteAcademicSession(sessionId: sessionId);
+  }
+
+  // ================================================================
+  // CREATE TERM
+  // ================================================================
+
+  Future<AdminAcademicTermModel> createAcademicTerm({
+    required AdminAcademicTermRequestModel data,
+  }) async {
+    return await api.createAcademicTerm(data: data);
+  }
+
+  // ================================================================
+  // GET ALL TERMS FOR A SESSION
+  // ================================================================
+
+  Future<List<AdminAcademicTermModel>> getAcademicTerms({
+    required String academicSessionId,
+  }) async {
+    return await api.getAcademicTerms(academicSessionId: academicSessionId);
+  }
+
+  // ================================================================
+  // GET PARTICULAR TERM
+  // ================================================================
+
+  Future<AdminAcademicTermModel> getAcademicTerm({
+    required String termId,
+  }) async {
+    return await api.getAcademicTerm(termId: termId);
+  }
+
+  // ================================================================
+  // UPDATE TERM
+  // ================================================================
+
+  Future<AdminAcademicTermModel> updateAcademicTerm({
+    required String termId,
+    required AdminAcademicTermRequestModel data,
+  }) async {
+    return await api.updateAcademicTerm(termId: termId, data: data);
+  }
+
+  // ================================================================
+  // DELETE TERM
+  // ================================================================
+
+  Future<void> deleteAcademicTerm({required String termId}) async {
+    await api.deleteAcademicTerm(termId: termId);
+  }
+
+  Future<Map<String, dynamic>> assignStudentToTrade({
+    required String studentId,
+    required String tradeId,
+    required String tradeSubjectId,
+  }) {
+    return api.assignStudentToTrade(
+      studentId: studentId,
+      tradeId: tradeId,
+      tradeSubjectId: tradeSubjectId,
+    );
+  }
+
+  // Future<Map<String, dynamic>> assignStudentToTradeWithoutSubject({
+  //   required String studentId,
+  //   required String tradeId,
+  // }) {
+  //   return api.assignStudentToTradeWithoutSubject(
+  //     studentId: studentId,
+  //     tradeId: tradeId,
+  //   );
+  // }
+
+  Future<Map<String, dynamic>> unassignStudentFromTrade({
+    required String studentId,
+  }) {
+    return api.unassignStudentFromTrade(studentId: studentId);
   }
 }

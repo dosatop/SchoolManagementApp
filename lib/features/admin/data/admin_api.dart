@@ -2,10 +2,14 @@ import 'package:app/core/Errors/custom_exception_error.dart';
 import 'package:app/core/network/dio_client.dart';
 
 import 'package:app/features/Classes/models/class_model.dart';
+import 'package:app/features/admin/models/academic_session/admin_academic_session_request_model.dart';
 
 import 'package:app/features/admin/models/academic_session/current_academic_session_model.dart';
+import 'package:app/features/admin/models/academic_term/academic_term_request_model.dart';
+import 'package:app/features/admin/models/academic_term/admin_academic_term_model.dart';
 
 import 'package:app/features/admin/models/admin_teacher_details_model.dart';
+import 'package:app/features/admin/models/academic_session/admin_academic_session_model.dart';
 
 import 'package:app/features/admin/models/attendance/admin_attendance_model.dart';
 import 'package:app/features/admin/models/classes/admin_assign_class_subject_request.dart';
@@ -864,6 +868,39 @@ class AdminApi {
   // CURRENT ACADEMIC SESSION
   // ================================================================
 
+  Future<AdminAcademicSessionModel> createAcademicSession({
+    required AdminAcademicSessionRequestModel data,
+  }) async {
+    try {
+      final response = await dioClient.dio.post(
+        '/academic-sessions',
+        data: data.toJson(),
+      );
+
+      return AdminAcademicSessionModel.fromJson(
+        Map<String, dynamic>.from(response.data),
+      );
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  Future<List<AdminAcademicSessionModel>> getAcademicSessions() async {
+    try {
+      final response = await dioClient.dio.get('/academic-sessions');
+
+      return (response.data as List)
+          .map(
+            (e) => AdminAcademicSessionModel.fromJson(
+              Map<String, dynamic>.from(e),
+            ),
+          )
+          .toList();
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
   Future<CurrentAcademicSessionModel> getCurrentAcademicSession({
     required String schoolId,
   }) async {
@@ -879,5 +916,190 @@ class AdminApi {
     } on DioException catch (error) {
       throw ApiErrorHandler.handle(error);
     }
+  }
+
+  Future<AdminAcademicSessionModel> setActiveAcademicSession({
+    required String sessionId,
+  }) async {
+    try {
+      final response = await dioClient.dio.put(
+        '/academic-sessions/$sessionId/activate',
+      );
+
+      final responseData = Map<String, dynamic>.from(response.data);
+
+      final sessionData = Map<String, dynamic>.from(responseData['data']);
+
+      return AdminAcademicSessionModel.fromJson(sessionData);
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  Future<AdminAcademicSessionModel> updateAcademicSession({
+    required String sessionId,
+    required AdminAcademicSessionRequestModel data,
+  }) async {
+    try {
+      final response = await dioClient.dio.put(
+        '/academic-sessions/$sessionId',
+        data: data,
+      );
+
+      return AdminAcademicSessionModel.fromJson(
+        Map<String, dynamic>.from(response.data),
+      );
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  Future<void> deleteAcademicSession({required String sessionId}) async {
+    try {
+      await dioClient.dio.delete('/academic-sessions/$sessionId');
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  // ============================================
+  // ACADEMIC TERM
+  // ============================================
+  Future<AdminAcademicTermModel> createAcademicTerm({
+    required AdminAcademicTermRequestModel data,
+  }) async {
+    try {
+      final response = await dioClient.dio.post(
+        '/academic-terms',
+        data: data.toJson(),
+      );
+
+      return AdminAcademicTermModel.fromJson(
+        Map<String, dynamic>.from(response.data),
+      );
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  // ================================================================
+  // GET ALL TERMS FOR AN ACADEMIC SESSION
+  // ================================================================
+
+  Future<List<AdminAcademicTermModel>> getAcademicTerms({
+    required String academicSessionId,
+  }) async {
+    try {
+      final response = await dioClient.dio.get(
+        '/academic-terms/session/$academicSessionId',
+      );
+
+      final responseData = Map<String, dynamic>.from(response.data);
+
+      final data = responseData['data'];
+
+      if (data is! List) {
+        throw Exception('Invalid academic terms response.');
+      }
+
+      return data
+          .map(
+            (item) => AdminAcademicTermModel.fromJson(
+              Map<String, dynamic>.from(item),
+            ),
+          )
+          .toList();
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  // ================================================================
+  // GET PARTICULAR TERM
+  // ================================================================
+
+  Future<AdminAcademicTermModel> getAcademicTerm({
+    required String termId,
+  }) async {
+    try {
+      final response = await dioClient.dio.get('/academic-terms/$termId');
+
+      return AdminAcademicTermModel.fromJson(
+        Map<String, dynamic>.from(response.data),
+      );
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  // ================================================================
+  // UPDATE ACADEMIC TERM
+  // ================================================================
+
+  Future<AdminAcademicTermModel> updateAcademicTerm({
+    required String termId,
+    required AdminAcademicTermRequestModel data,
+  }) async {
+    try {
+      final response = await dioClient.dio.put(
+        '/academic-terms/$termId',
+        data: data.toJson(),
+      );
+
+      return AdminAcademicTermModel.fromJson(
+        Map<String, dynamic>.from(response.data),
+      );
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  // ================================================================
+  // DELETE ACADEMIC TERM
+  // ================================================================
+
+  Future<void> deleteAcademicTerm({required String termId}) async {
+    try {
+      await dioClient.dio.delete('/academic-terms/$termId');
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  Future<Map<String, dynamic>> assignStudentToTrade({
+    required String studentId,
+    required String tradeId,
+    required String tradeSubjectId,
+  }) {
+    final response = dioClient.dio.put(
+      "/admin/students/$studentId/trade",
+      data: {"tradeId": tradeId, "tradeSubjectId": tradeSubjectId},
+    );
+
+    return response
+        .then((value) => value.data as Map<String, dynamic>)
+        .catchError((error) {
+          if (error is DioException) {
+            throw ApiErrorHandler.handle(error);
+          } else {
+            throw Exception('Unexpected error: $error');
+          }
+        });
+  }
+
+  Future<Map<String, dynamic>> unassignStudentFromTrade({
+    required String studentId,
+  }) {
+    final response = dioClient.dio.delete("/admin/students/$studentId/trade");
+
+    return response
+        .then((value) => value.data as Map<String, dynamic>)
+        .catchError((error) {
+          if (error is DioException) {
+            throw ApiErrorHandler.handle(error);
+          } else {
+            throw Exception('Unexpected error: $error');
+          }
+        });
   }
 }

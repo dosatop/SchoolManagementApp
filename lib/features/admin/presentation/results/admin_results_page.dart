@@ -41,29 +41,19 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   }
 
   // ================================================================
-  // CURRENT ACADEMIC PERIOD
+  // CURRENT ACADEMIC SESSION
   // ================================================================
 
-  AsyncValue<CurrentAcademicSessionModel> get _currentPeriodState {
-    return ref.watch(
-      currentAcademicSessionProvider(schoolId),
-    );
+  AsyncValue<CurrentAcademicSessionModel> get _currentSessionState {
+    return ref.watch(currentAcademicSessionProvider(schoolId));
   }
 
   String? get _currentSession {
-    final value = _currentPeriodState.value;
+    final value = _currentSessionState.value;
 
     final session = value?.session.trim();
 
     return session != null && session.isNotEmpty ? session : null;
-  }
-
-  String? get _currentTerm {
-    final value = _currentPeriodState.value;
-
-    final term = value?.term.trim();
-
-    return term != null && term.isNotEmpty ? term : null;
   }
 
   // ================================================================
@@ -74,7 +64,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
     return AdminResultsParams(
       schoolId: schoolId,
       session: _selectedSession ?? _currentSession,
-      term: _selectedTerm ?? _currentTerm,
+      term: _selectedTerm,
     );
   }
 
@@ -119,7 +109,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
     final params = AdminResultsParams(
       schoolId: schoolId,
       session: _selectedSession ?? period.session,
-      term: _selectedTerm ?? period.term,
+      term: _selectedTerm,
     );
 
     ref.invalidate(adminResultsProvider(params));
@@ -173,10 +163,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
 
   void _editResult(AdminResultModel result) {
     context
-        .push(
-          '/admin/$schoolId/edit-result/${result.resultId}',
-          extra: result,
-        )
+        .push('/admin/$schoolId/edit-result/${result.resultId}', extra: result)
         .then((_) {
           if (mounted) {
             _refresh();
@@ -195,8 +182,8 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
         return AlertDialog(
           title: const Text('Delete Result'),
           content: Text(
-            'Are you sure you want to delete the result for '
-            '${_studentName(result)} in '
+            'Are you sure you want to delete the result '
+            'for ${_studentName(result)} in '
             '${_subjectName(result)}?\n\n'
             'This action cannot be undone.',
           ),
@@ -208,9 +195,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
               child: const Text('Cancel'),
             ),
             FilledButton(
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.red,
-              ),
+              style: FilledButton.styleFrom(backgroundColor: Colors.red),
               onPressed: () {
                 Navigator.pop(dialogContext, true);
               },
@@ -229,9 +214,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
 
     final success = await ref
         .read(adminDashboardProvider.notifier)
-        .deleteResult(
-          resultId: result.resultId,
-        );
+        .deleteResult(resultId: result.resultId);
 
     if (!mounted) {
       return;
@@ -260,16 +243,22 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   // FILTER RESULTS
   // ================================================================
 
-  List<AdminResultModel> _filteredResults(
-    List<AdminResultModel> results,
-  ) {
+  List<AdminResultModel> _filteredResults(List<AdminResultModel> results) {
     return results.where((result) {
       final studentName = _studentName(result).toLowerCase();
+
       final studentNumber = _studentNumber(result).toLowerCase();
+
       final className = _className(result).toLowerCase();
 
-      if (_selectedClass != null &&
-          _className(result) != _selectedClass) {
+      final term = result.term.trim().toLowerCase();
+
+      if (_selectedClass != null && _className(result) != _selectedClass) {
+        return false;
+      }
+
+      if (_selectedTerm != null &&
+          term != _selectedTerm!.trim().toLowerCase()) {
         return false;
       }
 
@@ -287,9 +276,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   // GROUP BY STUDENT
   // ================================================================
 
-  List<List<AdminResultModel>> _groupByStudent(
-    List<AdminResultModel> results,
-  ) {
+  List<List<AdminResultModel>> _groupByStudent(List<AdminResultModel> results) {
     final Map<String, List<AdminResultModel>> grouped = {};
 
     for (final result in results) {
@@ -343,9 +330,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final currentPeriod = ref.watch(
-      currentAcademicSessionProvider(schoolId),
-    );
+    final currentPeriod = ref.watch(currentAcademicSessionProvider(schoolId));
 
     if (currentPeriod.isLoading) {
       return _loadingPage();
@@ -359,19 +344,14 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
           backgroundColor: Colors.white,
           title: const Text(
             'Results',
-            style: TextStyle(
-              color: textDark,
-              fontWeight: FontWeight.bold,
-            ),
+            style: TextStyle(color: textDark, fontWeight: FontWeight.bold),
           ),
         ),
         body: _academicPeriodError(),
       );
     }
 
-    final resultsState = ref.watch(
-      adminResultsProvider(_params),
-    );
+    final resultsState = ref.watch(adminResultsProvider(_params));
 
     return Scaffold(
       backgroundColor: background,
@@ -379,26 +359,19 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       // ============================================================
       // APP BAR
       // ============================================================
-
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
         title: const Text(
           'Results',
-          style: TextStyle(
-            color: textDark,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: textDark, fontWeight: FontWeight.bold),
         ),
         actions: [
           IconButton(
             tooltip: 'Refresh',
             onPressed: resultsState.isLoading ? null : _refresh,
-            icon: const Icon(
-              Icons.refresh_rounded,
-              color: textDark,
-            ),
+            icon: const Icon(Icons.refresh_rounded, color: textDark),
           ),
           const SizedBox(width: 8),
         ],
@@ -407,7 +380,6 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       // ============================================================
       // ADD RESULT
       // ============================================================
-
       floatingActionButton: FloatingActionButton.extended(
         backgroundColor: primary,
         foregroundColor: Colors.white,
@@ -415,16 +387,13 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
         icon: const Icon(Icons.add_chart_rounded),
         label: const Text(
           'Add Result',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),
 
       // ============================================================
       // BODY
       // ============================================================
-
       body: SafeArea(
         child: RefreshIndicator(
           color: primary,
@@ -432,9 +401,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
           child: resultsState.when(
             loading: () {
               return const Center(
-                child: CircularProgressIndicator(
-                  color: primary,
-                ),
+                child: CircularProgressIndicator(color: primary),
               );
             },
 
@@ -454,15 +421,9 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                 slivers: [
                   SliverToBoxAdapter(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        20,
-                        22,
-                        20,
-                        10,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 10),
                       child: Column(
-                        crossAxisAlignment:
-                            CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
                             schoolName,
@@ -489,8 +450,8 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                           const SizedBox(height: 6),
 
                           Text(
-                            'View and manage student results '
-                            'for $schoolName.',
+                            'View and manage student '
+                            'results for $schoolName.',
                             style: TextStyle(
                               color: Colors.grey.shade600,
                               fontSize: 13,
@@ -512,11 +473,9 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
 
                           const SizedBox(height: 12),
 
-                          if (_hasActiveFilters)
-                            _clearFiltersButton(),
+                          if (_hasActiveFilters) _clearFiltersButton(),
 
-                          if (_hasActiveFilters)
-                            const SizedBox(height: 14),
+                          if (_hasActiveFilters) const SizedBox(height: 14),
 
                           _summary(
                             total: allResults.length,
@@ -531,37 +490,20 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                   if (students.isEmpty)
                     SliverFillRemaining(
                       hasScrollBody: false,
-                      child: _emptyState(
-                        hasResults: allResults.isNotEmpty,
-                      ),
+                      child: _emptyState(hasResults: allResults.isNotEmpty),
                     )
                   else
                     SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(
-                        20,
-                        10,
-                        20,
-                        110,
-                      ),
+                      padding: const EdgeInsets.fromLTRB(20, 10, 20, 110),
                       sliver: SliverList(
-                        delegate:
-                            SliverChildBuilderDelegate(
-                          (context, index) {
-                            final studentResults =
-                                students[index];
+                        delegate: SliverChildBuilderDelegate((context, index) {
+                          final studentResults = students[index];
 
-                            return Padding(
-                              padding:
-                                  const EdgeInsets.only(
-                                bottom: 12,
-                              ),
-                              child: _studentCard(
-                                studentResults,
-                              ),
-                            );
-                          },
-                          childCount: students.length,
-                        ),
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _studentCard(studentResults),
+                          );
+                        }, childCount: students.length),
                       ),
                     ),
                 ],
@@ -574,17 +516,13 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   }
 
   // ================================================================
-  // LOADING PAGE
+  // LOADING
   // ================================================================
 
   Widget _loadingPage() {
     return const Scaffold(
       backgroundColor: background,
-      body: Center(
-        child: CircularProgressIndicator(
-          color: primary,
-        ),
-      ),
+      body: Center(child: CircularProgressIndicator(color: primary)),
     );
   }
 
@@ -594,17 +532,13 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
 
   Widget _currentAcademicPeriodCard() {
     final session = _currentSession;
-    final term = _currentTerm;
 
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [
-            primary,
-            Color(0xFF1726B8),
-          ],
+          colors: [primary, Color(0xFF1726B8)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -630,11 +564,10 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
 
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Text(
-                  'CURRENT ACADEMIC PERIOD',
+                  'CURRENT ACADEMIC SESSION',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 8,
@@ -646,9 +579,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                 const SizedBox(height: 4),
 
                 Text(
-                  session?.isNotEmpty == true
-                      ? session!
-                      : 'Not available',
+                  session?.isNotEmpty == true ? session! : 'Not available',
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 15,
@@ -659,20 +590,15 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
             ),
           ),
 
-          Container(
-            width: 1,
-            height: 34,
-            color: Colors.white24,
-          ),
+          Container(width: 1, height: 34, color: Colors.white24),
 
           const SizedBox(width: 14),
 
           Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               const Text(
-                'TERM',
+                'STATUS',
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 8,
@@ -682,11 +608,9 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
 
               const SizedBox(height: 4),
 
-              Text(
-                term?.isNotEmpty == true
-                    ? term!
-                    : 'Not available',
-                style: const TextStyle(
+              const Text(
+                'CURRENT',
+                style: TextStyle(
                   color: Colors.white,
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
@@ -708,14 +632,8 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       controller: _searchController,
       decoration: InputDecoration(
         hintText: 'Search student, number or class...',
-        hintStyle: TextStyle(
-          color: Colors.grey.shade500,
-          fontSize: 12,
-        ),
-        prefixIcon: const Icon(
-          Icons.search_rounded,
-          color: Colors.grey,
-        ),
+        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+        prefixIcon: const Icon(Icons.search_rounded, color: Colors.grey),
         suffixIcon: _searchQuery.isNotEmpty
             ? IconButton(
                 onPressed: _searchController.clear,
@@ -730,24 +648,15 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(
-            color: Colors.grey.shade200,
-          ),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide(
-            color: Colors.grey.shade200,
-          ),
+          borderSide: BorderSide(color: Colors.grey.shade200),
         ),
         focusedBorder: const OutlineInputBorder(
-          borderRadius: BorderRadius.all(
-            Radius.circular(15),
-          ),
-          borderSide: BorderSide(
-            color: primary,
-            width: 1.4,
-          ),
+          borderRadius: BorderRadius.all(Radius.circular(15)),
+          borderSide: BorderSide(color: primary, width: 1.4),
         ),
       ),
     );
@@ -764,10 +673,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
           child: _filterCard(
             icon: Icons.calendar_month_outlined,
             title: 'Session',
-            value:
-                _selectedSession ??
-                _currentSession ??
-                'All',
+            value: _selectedSession ?? _currentSession ?? 'All',
             active: _selectedSession != null,
             onTap: _showSessionFilter,
           ),
@@ -779,10 +685,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
           child: _filterCard(
             icon: Icons.event_note_outlined,
             title: 'Term',
-            value:
-                _selectedTerm ??
-                _currentTerm ??
-                'All',
+            value: _selectedTerm ?? 'All',
             active: _selectedTerm != null,
             onTap: _showTermFilter,
           ),
@@ -816,19 +719,12 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
         borderRadius: BorderRadius.circular(14),
         onTap: onTap,
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 10,
-            vertical: 11,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 11),
           decoration: BoxDecoration(
-            color: active
-                ? primaryLight
-                : Colors.white,
+            color: active ? primaryLight : Colors.white,
             borderRadius: BorderRadius.circular(14),
             border: Border.all(
-              color: active
-                  ? primary.withOpacity(.35)
-                  : Colors.grey.shade200,
+              color: active ? primary.withOpacity(.35) : Colors.grey.shade200,
             ),
           ),
           child: Row(
@@ -837,37 +733,26 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                 width: 31,
                 height: 31,
                 decoration: BoxDecoration(
-                  color: active
-                      ? Colors.white
-                      : primaryLight,
-                  borderRadius:
-                      BorderRadius.circular(9),
+                  color: active ? Colors.white : primaryLight,
+                  borderRadius: BorderRadius.circular(9),
                 ),
-                child: Icon(
-                  icon,
-                  size: 16,
-                  color: primary,
-                ),
+                child: Icon(icon, size: 16, color: primary),
               ),
 
               const SizedBox(width: 7),
 
               Expanded(
                 child: Column(
-                  crossAxisAlignment:
-                      CrossAxisAlignment.start,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       title,
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color:
-                            Colors.grey.shade600,
+                        color: Colors.grey.shade600,
                         fontSize: 9,
-                        fontWeight:
-                            FontWeight.w500,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
 
@@ -876,13 +761,11 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                     Text(
                       value,
                       maxLines: 1,
-                      overflow:
-                          TextOverflow.ellipsis,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: textDark,
                         fontSize: 10,
-                        fontWeight:
-                            FontWeight.w700,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -906,16 +789,23 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   // ================================================================
 
   Future<void> _showSessionFilter() async {
+    final resultsState = ref.read(adminResultsProvider(_params));
+
+    final sessions =
+        resultsState.value
+            ?.map((result) => result.session.trim())
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList() ??
+        [];
+
     final current = _currentSession;
 
-    final sessions = <String>{
-      if (current != null && current.isNotEmpty)
-        current,
-      '2026/2027',
-      '2025/2026',
-      '2024/2025',
-      '2023/2024',
-    }.toList();
+    if (current != null && current.isNotEmpty && !sessions.contains(current)) {
+      sessions.insert(0, current);
+    }
+
+    sessions.sort();
 
     final selected = await _showFilterSheet(
       title: 'Select Session',
@@ -939,22 +829,24 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   // ================================================================
 
   Future<void> _showTermFilter() async {
-    final current = _currentTerm;
+    final resultsState = ref.read(adminResultsProvider(_params));
 
-    final terms = <String>{
-      if (current != null && current.isNotEmpty)
-        current,
-      '1st',
-      '2nd',
-      '3rd',
-    }.toList();
+    final terms =
+        resultsState.value
+            ?.map((result) => result.term.trim())
+            .where((value) => value.isNotEmpty)
+            .toSet()
+            .toList() ??
+        [];
+
+    terms.sort();
 
     final selected = await _showFilterSheet(
       title: 'Select Term',
       icon: Icons.event_note_outlined,
       options: terms,
       selectedValue: _selectedTerm,
-      allLabel: 'Current Term',
+      allLabel: 'All Terms',
     );
 
     if (!mounted) {
@@ -971,15 +863,12 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   // ================================================================
 
   Future<void> _showClassFilter() async {
-    final currentState = ref.read(
-      adminResultsProvider(_params),
-    );
+    final currentState = ref.read(adminResultsProvider(_params));
 
-    final classes = currentState.value
+    final classes =
+        currentState.value
             ?.map(_className)
-            .where(
-              (value) => value != 'No class',
-            )
+            .where((value) => value != 'No class')
             .toSet()
             .toList() ??
         [];
@@ -1021,15 +910,10 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       builder: (sheetContext) {
         return SafeArea(
           child: Container(
-            constraints: const BoxConstraints(
-              maxHeight: 500,
-            ),
+            constraints: const BoxConstraints(maxHeight: 500),
             decoration: const BoxDecoration(
               color: Colors.white,
-              borderRadius:
-                  BorderRadius.vertical(
-                top: Radius.circular(24),
-              ),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1041,33 +925,24 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                   height: 4,
                   decoration: BoxDecoration(
                     color: Colors.grey.shade300,
-                    borderRadius:
-                        BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
 
                 const SizedBox(height: 18),
 
                 Padding(
-                  padding:
-                      const EdgeInsets.symmetric(
-                    horizontal: 20,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Row(
                     children: [
                       Container(
                         width: 42,
                         height: 42,
-                        decoration:
-                            const BoxDecoration(
+                        decoration: const BoxDecoration(
                           color: primaryLight,
                           shape: BoxShape.circle,
                         ),
-                        child: Icon(
-                          icon,
-                          color: primary,
-                          size: 21,
-                        ),
+                        child: Icon(icon, color: primary, size: 21),
                       ),
 
                       const SizedBox(width: 12),
@@ -1078,8 +953,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                           style: const TextStyle(
                             color: textDark,
                             fontSize: 18,
-                            fontWeight:
-                                FontWeight.bold,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
                       ),
@@ -1094,35 +968,22 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                 Flexible(
                   child: ListView(
                     shrinkWrap: true,
-                    padding:
-                        const EdgeInsets.fromLTRB(
-                      12,
-                      8,
-                      12,
-                      20,
-                    ),
+                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 20),
                     children: [
                       _filterOption(
-                        sheetContext:
-                            sheetContext,
+                        sheetContext: sheetContext,
                         label: allLabel,
                         value: null,
-                        selected:
-                            selectedValue == null,
-                        icon:
-                            Icons.all_inclusive,
+                        selected: selectedValue == null,
+                        icon: Icons.all_inclusive,
                       ),
                       ...options.map((option) {
                         return _filterOption(
-                          sheetContext:
-                              sheetContext,
+                          sheetContext: sheetContext,
                           label: option,
                           value: option,
-                          selected:
-                              selectedValue ==
-                                  option,
-                          icon: Icons
-                              .check_circle_outline,
+                          selected: selectedValue == option,
+                          icon: Icons.check_circle_outline,
                         );
                       }),
                     ],
@@ -1146,43 +1007,26 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
-        color: selected
-            ? primaryLight
-            : Colors.transparent,
+        color: selected ? primaryLight : Colors.transparent,
         borderRadius: BorderRadius.circular(13),
       ),
       child: ListTile(
         onTap: () {
           Navigator.pop(sheetContext, value);
         },
-        leading: Icon(
-          icon,
-          color: selected
-              ? primary
-              : Colors.grey.shade500,
-        ),
+        leading: Icon(icon, color: selected ? primary : Colors.grey.shade500),
         title: Text(
           label,
           style: TextStyle(
-            color: selected
-                ? primary
-                : textDark,
+            color: selected ? primary : textDark,
             fontSize: 13,
-            fontWeight: selected
-                ? FontWeight.w700
-                : FontWeight.w500,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
         trailing: selected
-            ? const Icon(
-                Icons.check_rounded,
-                color: primary,
-              )
+            ? const Icon(Icons.check_rounded, color: primary)
             : null,
-        shape: RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.circular(13),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(13)),
       ),
     );
   }
@@ -1209,11 +1053,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       child: const Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.clear_all_rounded,
-            size: 16,
-            color: primary,
-          ),
+          Icon(Icons.clear_all_rounded, size: 16, color: primary),
           SizedBox(width: 5),
           Text(
             'Clear filters',
@@ -1237,9 +1077,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
     required int visible,
     required int students,
   }) {
-    final filtering =
-        _searchQuery.isNotEmpty ||
-        _hasActiveFilters;
+    final filtering = _searchQuery.isNotEmpty || _hasActiveFilters;
 
     final text = filtering
         ? '$students student(s) • '
@@ -1248,10 +1086,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
               '$total result(s)';
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 9,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
       decoration: BoxDecoration(
         color: primaryLight,
         borderRadius: BorderRadius.circular(10),
@@ -1259,11 +1094,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
-            Icons.people_outline,
-            color: primary,
-            size: 17,
-          ),
+          const Icon(Icons.people_outline, color: primary, size: 17),
           const SizedBox(width: 7),
           Text(
             text,
@@ -1282,21 +1113,18 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   // STUDENT CARD
   // ================================================================
 
-  Widget _studentCard(
-    List<AdminResultModel> studentResults,
-  ) {
+  Widget _studentCard(List<AdminResultModel> studentResults) {
     final first = studentResults.first;
 
     final studentName = _studentName(first);
-    final studentNumber =
-        _studentNumber(first);
+
+    final studentNumber = _studentNumber(first);
+
     final className = _className(first);
 
-    final totalScore =
-        studentResults.fold<num>(
+    final totalScore = studentResults.fold<num>(
       0,
-      (sum, result) =>
-          sum + _score(result),
+      (sum, result) => sum + _score(result),
     );
 
     final average = studentResults.isEmpty
@@ -1307,22 +1135,15 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
-        borderRadius:
-            BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(18),
         onTap: () {
-          _openStudentResults(
-            context,
-            studentResults,
-          );
+          _openStudentResults(context, studentResults);
         },
         child: Container(
           padding: const EdgeInsets.all(15),
           decoration: BoxDecoration(
-            borderRadius:
-                BorderRadius.circular(18),
-            border: Border.all(
-              color: Colors.grey.shade200,
-            ),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.grey.shade200),
           ),
           child: Column(
             children: [
@@ -1331,8 +1152,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                   Container(
                     width: 54,
                     height: 54,
-                    decoration:
-                        const BoxDecoration(
+                    decoration: const BoxDecoration(
                       color: primaryLight,
                       shape: BoxShape.circle,
                     ),
@@ -1342,8 +1162,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                         style: const TextStyle(
                           color: primary,
                           fontSize: 15,
-                          fontWeight:
-                              FontWeight.bold,
+                          fontWeight: FontWeight.bold,
                         ),
                       ),
                     ),
@@ -1353,21 +1172,16 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
 
                   Expanded(
                     child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment
-                              .start,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           studentName,
                           maxLines: 1,
-                          overflow:
-                              TextOverflow.ellipsis,
-                          style:
-                              const TextStyle(
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
                             color: textDark,
                             fontSize: 15,
-                            fontWeight:
-                                FontWeight.w700,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
 
@@ -1375,37 +1189,27 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
 
                         Row(
                           children: [
-                            if (studentNumber
-                                .isNotEmpty) ...[
+                            if (studentNumber.isNotEmpty) ...[
                               Icon(
-                                Icons
-                                    .badge_outlined,
+                                Icons.badge_outlined,
                                 size: 13,
-                                color: Colors
-                                    .grey.shade500,
+                                color: Colors.grey.shade500,
                               ),
-                              const SizedBox(
-                                width: 4,
-                              ),
+                              const SizedBox(width: 4),
                               Text(
                                 studentNumber,
                                 style: TextStyle(
-                                  color: Colors
-                                      .grey.shade600,
+                                  color: Colors.grey.shade600,
                                   fontSize: 10,
                                 ),
                               ),
-                              const SizedBox(
-                                width: 10,
-                              ),
+                              const SizedBox(width: 10),
                             ],
 
                             Icon(
-                              Icons
-                                  .class_outlined,
+                              Icons.class_outlined,
                               size: 13,
-                              color: Colors
-                                  .grey.shade500,
+                              color: Colors.grey.shade500,
                             ),
 
                             const SizedBox(width: 4),
@@ -1414,12 +1218,9 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                               child: Text(
                                 className,
                                 maxLines: 1,
-                                overflow:
-                                    TextOverflow
-                                        .ellipsis,
+                                overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: Colors
-                                      .grey.shade600,
+                                  color: Colors.grey.shade600,
                                   fontSize: 10,
                                 ),
                               ),
@@ -1430,35 +1231,27 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                     ),
                   ),
 
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: Colors.grey,
-                  ),
+                  const Icon(Icons.chevron_right_rounded, color: Colors.grey),
                 ],
               ),
 
               const SizedBox(height: 14),
 
               Container(
-                padding:
-                    const EdgeInsets.symmetric(
+                padding: const EdgeInsets.symmetric(
                   horizontal: 12,
                   vertical: 11,
                 ),
                 decoration: BoxDecoration(
                   color: Colors.grey.shade50,
-                  borderRadius:
-                      BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Row(
                   children: [
                     _stat(
-                      icon: Icons
-                          .menu_book_outlined,
+                      icon: Icons.menu_book_outlined,
                       label: 'Subjects',
-                      value:
-                          studentResults.length
-                              .toString(),
+                      value: studentResults.length.toString(),
                     ),
 
                     const SizedBox(width: 18),
@@ -1466,18 +1259,15 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                     Container(
                       width: 1,
                       height: 28,
-                      color:
-                          Colors.grey.shade300,
+                      color: Colors.grey.shade300,
                     ),
 
                     const SizedBox(width: 18),
 
                     _stat(
-                      icon:
-                          Icons.functions_rounded,
+                      icon: Icons.functions_rounded,
                       label: 'Average',
-                      value:
-                          _formatScore(average),
+                      value: _formatScore(average),
                     ),
 
                     const Spacer(),
@@ -1487,8 +1277,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
                       style: TextStyle(
                         color: primary,
                         fontSize: 11,
-                        fontWeight:
-                            FontWeight.w700,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -1512,22 +1301,14 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   }) {
     return Row(
       children: [
-        Icon(
-          icon,
-          color: primary,
-          size: 17,
-        ),
+        Icon(icon, color: primary, size: 17),
         const SizedBox(width: 6),
         Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               label,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 8,
-              ),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 8),
             ),
             const SizedBox(height: 2),
             Text(
@@ -1549,20 +1330,15 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   // ================================================================
 
   String _initials(String name) {
-    final parts =
-        name.trim().split(RegExp(r'\s+'));
+    final parts = name.trim().split(RegExp(r'\s+'));
 
-    if (parts.isEmpty ||
-        parts.first.isEmpty) {
+    if (parts.isEmpty || parts.first.isEmpty) {
       return 'S';
     }
 
     if (parts.length == 1) {
       return parts.first
-          .substring(
-            0,
-            parts.first.length > 1 ? 2 : 1,
-          )
+          .substring(0, parts.first.length > 1 ? 2 : 1)
           .toUpperCase();
     }
 
@@ -1587,11 +1363,8 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
   // EMPTY
   // ================================================================
 
-  Widget _emptyState({
-    required bool hasResults,
-  }) {
-    final searching =
-        _searchQuery.isNotEmpty;
+  Widget _emptyState({required bool hasResults}) {
+    final searching = _searchQuery.isNotEmpty;
 
     final filtering = _hasActiveFilters;
 
@@ -1599,14 +1372,12 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       child: Padding(
         padding: const EdgeInsets.all(30),
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
               width: 80,
               height: 80,
-              decoration:
-                  const BoxDecoration(
+              decoration: const BoxDecoration(
                 color: primaryLight,
                 shape: BoxShape.circle,
               ),
@@ -1620,9 +1391,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
             const SizedBox(height: 18),
 
             Text(
-              searching || filtering
-                  ? 'No students found'
-                  : 'No results yet',
+              searching || filtering ? 'No students found' : 'No results yet',
               style: const TextStyle(
                 color: textDark,
                 fontSize: 18,
@@ -1646,21 +1415,13 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
               ),
             ),
 
-            if (!searching &&
-                !filtering &&
-                !hasResults) ...[
+            if (!searching && !filtering && !hasResults) ...[
               const SizedBox(height: 18),
               FilledButton.icon(
                 onPressed: _createResult,
-                style:
-                    FilledButton.styleFrom(
-                  backgroundColor: primary,
-                ),
-                icon: const Icon(
-                  Icons.add_chart_rounded,
-                ),
-                label:
-                    const Text('Add Result'),
+                style: FilledButton.styleFrom(backgroundColor: primary),
+                icon: const Icon(Icons.add_chart_rounded),
+                label: const Text('Add Result'),
               ),
             ],
           ],
@@ -1678,8 +1439,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       child: Padding(
         padding: const EdgeInsets.all(30),
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(
               Icons.error_outline_rounded,
@@ -1705,20 +1465,14 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
               'loading the results for '
               '$schoolName.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             ),
 
             const SizedBox(height: 18),
 
             FilledButton(
               onPressed: _refresh,
-              style:
-                  FilledButton.styleFrom(
-                backgroundColor: primary,
-              ),
+              style: FilledButton.styleFrom(backgroundColor: primary),
               child: const Text('Retry'),
             ),
           ],
@@ -1736,8 +1490,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
       child: Padding(
         padding: const EdgeInsets.all(30),
         child: Column(
-          mainAxisAlignment:
-              MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Icon(
               Icons.calendar_month_outlined,
@@ -1748,7 +1501,7 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
             const SizedBox(height: 15),
 
             const Text(
-              'Unable to get current academic period',
+              'Unable to get current academic session',
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: textDark,
@@ -1760,29 +1513,20 @@ class _AdminResultsPageState extends ConsumerState<AdminResultsPage> {
             const SizedBox(height: 8),
 
             Text(
-              'The current session and term could '
-              'not be loaded. Please try again.',
+              'The current academic session '
+              'could not be loaded. '
+              'Please try again.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-              ),
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             ),
 
             const SizedBox(height: 18),
 
             FilledButton(
               onPressed: () {
-                ref.invalidate(
-                  currentAcademicSessionProvider(
-                    schoolId,
-                  ),
-                );
+                ref.invalidate(currentAcademicSessionProvider(schoolId));
               },
-              style:
-                  FilledButton.styleFrom(
-                backgroundColor: primary,
-              ),
+              style: FilledButton.styleFrom(backgroundColor: primary),
               child: const Text('Retry'),
             ),
           ],

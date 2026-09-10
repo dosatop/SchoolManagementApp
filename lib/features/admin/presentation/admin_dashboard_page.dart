@@ -678,6 +678,16 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
               _openRoute('/admin/$schoolId/results');
             },
           ),
+
+          _managementTile(
+            icon: Icons.calendar_month_outlined,
+            title: 'Academic Sessions',
+            subtitle: 'Manage school academic sessions',
+            color: Colors.indigo,
+            onTap: () {
+              _openRoute('/admin/$schoolId/academic-sessions');
+            },
+          ),
         ],
       ),
     );
@@ -760,6 +770,16 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
             onTap: () {
               _openRoute('/admin/$schoolId/create-subject');
+            },
+          ),
+
+          _quickActionCard(
+            icon: Icons.calendar_today_rounded,
+            title: 'Create Academic Year',
+            subtitle: 'Set up a new school academic year',
+            color: Colors.indigo,
+            onTap: () {
+              _openRoute('/admin/$schoolId/create-academic-year');
             },
           ),
         ],

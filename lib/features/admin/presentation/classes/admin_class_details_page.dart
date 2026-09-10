@@ -168,7 +168,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
           title: 'Subjects',
           icon: Icons.menu_book_outlined,
           count: schoolClass.subjects.length,
-          buttonText: 'Assign',
+          buttonText: 'Assign Subjects',
           buttonIcon: Icons.add_rounded,
           onPressed: () => _showAddSubjectModal(context),
         ),
@@ -181,7 +181,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   }
 
   Widget _buildTeachersSection() {
-    final schoolClass = widget.schoolClass;
+    // final schoolClass = widget.schoolClass;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -238,7 +238,8 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
                   final teachers = dashboard.teachers
                       .where(
                         (teacher) =>
-                            teacher.schoolId == widget.schoolClass.schoolId,
+                            teacher.schoolId == widget.schoolClass.schoolId &&
+                            teacher.classTeacher == null,
                       )
                       .toList();
 
@@ -347,14 +348,16 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: Colors.grey.shade200),
                           ),
-                          child: const Text(
-                            'No teachers are available for this school.',
+                          child: Text(
+                            dashboard.teachers.isEmpty
+                                ? 'No teachers are available in this school.'
+                                : 'All teachers in this school are already assigned to other classes.',
                             style: TextStyle(color: Colors.grey, fontSize: 12),
                           ),
                         )
                       else
                         DropdownButtonFormField<String>(
-                          value: selectedTeacherId,
+                          initialValue: selectedTeacherId,
                           isExpanded: true,
                           decoration: InputDecoration(
                             hintText: 'Select teacher',
@@ -687,7 +690,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
             style: TextButton.styleFrom(
               foregroundColor: hasClassTeacher ? red : primary,
               backgroundColor: hasClassTeacher
-                  ? red.withOpacity(.08)
+                  ? red.withValues()
                   : primaryLight,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               shape: RoundedRectangleBorder(
@@ -704,208 +707,208 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   // ATTENDANCE OVERVIEW
   // ================================================================
 
-  Widget _overviewSection(List<AdminStudentAttendanceModel> attendanceData) {
-    final records = _allRecords(attendanceData);
+  // Widget _overviewSection(List<AdminStudentAttendanceModel> attendanceData) {
+  //   final records = _allRecords(attendanceData);
 
-    final present = records
-        .where((record) => record.status.toLowerCase() == 'present')
-        .length;
+  //   final present = records
+  //       .where((record) => record.status.toLowerCase() == 'present')
+  //       .length;
 
-    final absent = records
-        .where((record) => record.status.toLowerCase() == 'absent')
-        .length;
+  //   final absent = records
+  //       .where((record) => record.status.toLowerCase() == 'absent')
+  //       .length;
 
-    final late = records
-        .where((record) => record.status.toLowerCase() == 'late')
-        .length;
+  //   final late = records
+  //       .where((record) => record.status.toLowerCase() == 'late')
+  //       .length;
 
-    final excused = records
-        .where((record) => record.status.toLowerCase() == 'excused')
-        .length;
+  //   final excused = records
+  //       .where((record) => record.status.toLowerCase() == 'excused')
+  //       .length;
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: _statCard(
-                icon: Icons.menu_book_outlined,
-                label: 'Subjects',
-                value: '${widget.schoolClass.subjects.length}',
-                color: primary,
-              ),
-            ),
+  //   return Column(
+  //     children: [
+  //       Row(
+  //         children: [
+  //           Expanded(
+  //             child: _statCard(
+  //               icon: Icons.menu_book_outlined,
+  //               label: 'Subjects',
+  //               value: '${widget.schoolClass.subjects.length}',
+  //               color: primary,
+  //             ),
+  //           ),
 
-            const SizedBox(width: 10),
+  //           const SizedBox(width: 10),
 
-            Expanded(
-              child: _statCard(
-                icon: Icons.people_outline_rounded,
-                label: 'Teachers',
-                value: '${widget.schoolClass.teachers.length}',
-                color: green,
-              ),
-            ),
+  //           Expanded(
+  //             child: _statCard(
+  //               icon: Icons.people_outline_rounded,
+  //               label: 'Teachers',
+  //               value: '${widget.schoolClass.teachers.length}',
+  //               color: green,
+  //             ),
+  //           ),
 
-            const SizedBox(width: 10),
+  //           const SizedBox(width: 10),
 
-            Expanded(
-              child: _statCard(
-                icon: Icons.event_available_outlined,
-                label: 'Records',
-                value: '${records.length}',
-                color: orange,
-              ),
-            ),
+  //           Expanded(
+  //             child: _statCard(
+  //               icon: Icons.event_available_outlined,
+  //               label: 'Records',
+  //               value: '${records.length}',
+  //               color: orange,
+  //             ),
+  //           ),
 
-            const SizedBox(width: 10),
+  //           const SizedBox(width: 10),
 
-            Expanded(
-              child: _statCard(
-                icon: Icons.assignment_outlined,
-                label: 'Results',
-                value:
-                    '${widget.schoolClass.students.fold<int>(0, (total, student) => total + student.results.length)}',
-                color: Colors.purple,
-              ),
-            ),
-          ],
-        ),
+  //           Expanded(
+  //             child: _statCard(
+  //               icon: Icons.assignment_outlined,
+  //               label: 'Results',
+  //               value:
+  //                   '${widget.schoolClass.students.fold<int>(0, (total, student) => total + student.results.length)}',
+  //               color: Colors.purple,
+  //             ),
+  //           ),
+  //         ],
+  //       ),
 
-        const SizedBox(height: 10),
+  //       const SizedBox(height: 10),
 
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(13),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.grey.shade200),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: _miniSummary(
-                  icon: Icons.check_circle_outline,
-                  label: 'Present',
-                  value: '$present',
-                  color: green,
-                ),
-              ),
+  //       Container(
+  //         width: double.infinity,
+  //         padding: const EdgeInsets.all(13),
+  //         decoration: BoxDecoration(
+  //           color: Colors.white,
+  //           borderRadius: BorderRadius.circular(14),
+  //           border: Border.all(color: Colors.grey.shade200),
+  //         ),
+  //         child: Row(
+  //           children: [
+  //             Expanded(
+  //               child: _miniSummary(
+  //                 icon: Icons.check_circle_outline,
+  //                 label: 'Present',
+  //                 value: '$present',
+  //                 color: green,
+  //               ),
+  //             ),
 
-              Container(width: 1, height: 30, color: Colors.grey.shade200),
+  //             Container(width: 1, height: 30, color: Colors.grey.shade200),
 
-              Expanded(
-                child: _miniSummary(
-                  icon: Icons.cancel_outlined,
-                  label: 'Absent',
-                  value: '$absent',
-                  color: red,
-                ),
-              ),
+  //             Expanded(
+  //               child: _miniSummary(
+  //                 icon: Icons.cancel_outlined,
+  //                 label: 'Absent',
+  //                 value: '$absent',
+  //                 color: red,
+  //               ),
+  //             ),
 
-              Container(width: 1, height: 30, color: Colors.grey.shade200),
+  //             Container(width: 1, height: 30, color: Colors.grey.shade200),
 
-              Expanded(
-                child: _miniSummary(
-                  icon: Icons.access_time_rounded,
-                  label: 'Late',
-                  value: '$late',
-                  color: orange,
-                ),
-              ),
+  //             Expanded(
+  //               child: _miniSummary(
+  //                 icon: Icons.access_time_rounded,
+  //                 label: 'Late',
+  //                 value: '$late',
+  //                 color: orange,
+  //               ),
+  //             ),
 
-              Container(width: 1, height: 30, color: Colors.grey.shade200),
+  //             Container(width: 1, height: 30, color: Colors.grey.shade200),
 
-              Expanded(
-                child: _miniSummary(
-                  icon: Icons.info_outline,
-                  label: 'Excused',
-                  value: '$excused',
-                  color: primary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
+  //             Expanded(
+  //               child: _miniSummary(
+  //                 icon: Icons.info_outline,
+  //                 label: 'Excused',
+  //                 value: '$excused',
+  //                 color: primary,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ),
+  //     ],
+  //   );
+  // }
 
-  Widget _statCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: 20),
+  // Widget _statCard({
+  //   required IconData icon,
+  //   required String label,
+  //   required String value,
+  //   required Color color,
+  // }) {
+  //   return Container(
+  //     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(14),
+  //       border: Border.all(color: Colors.grey.shade200),
+  //     ),
+  //     child: Column(
+  //       children: [
+  //         Icon(icon, color: color, size: 20),
 
-          const SizedBox(height: 7),
+  //         const SizedBox(height: 7),
 
-          Text(
-            value,
-            style: const TextStyle(
-              color: textDark,
-              fontSize: 15,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
+  //         Text(
+  //           value,
+  //           style: const TextStyle(
+  //             color: textDark,
+  //             fontSize: 15,
+  //             fontWeight: FontWeight.bold,
+  //           ),
+  //         ),
 
-          const SizedBox(height: 2),
+  //         const SizedBox(height: 2),
 
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 8),
-          ),
-        ],
-      ),
-    );
-  }
+  //         Text(
+  //           label,
+  //           maxLines: 1,
+  //           overflow: TextOverflow.ellipsis,
+  //           style: TextStyle(color: Colors.grey.shade600, fontSize: 8),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
-  Widget _miniSummary({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(icon, color: color, size: 18),
+  // Widget _miniSummary({
+  //   required IconData icon,
+  //   required String label,
+  //   required String value,
+  //   required Color color,
+  // }) {
+  //   return Row(
+  //     mainAxisAlignment: MainAxisAlignment.center,
+  //     children: [
+  //       Icon(icon, color: color, size: 18),
 
-        const SizedBox(width: 7),
+  //       const SizedBox(width: 7),
 
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              value,
-              style: const TextStyle(
-                color: textDark,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 8),
-            ),
-          ],
-        ),
-      ],
-    );
-  }
+  //       Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Text(
+  //             value,
+  //             style: const TextStyle(
+  //               color: textDark,
+  //               fontSize: 12,
+  //               fontWeight: FontWeight.bold,
+  //             ),
+  //           ),
+  //           Text(
+  //             label,
+  //             style: TextStyle(color: Colors.grey.shade600, fontSize: 8),
+  //           ),
+  //         ],
+  //       ),
+  //     ],
+  //   );
+  // }
 
   // ================================================================
   // SECTION TITLE
@@ -1676,7 +1679,8 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
     if (teachers.isEmpty) {
       return _emptyCard(
         icon: Icons.people_outline_rounded,
-        text: 'No teachers assigned to this class.',
+        text:
+            'No teachers assigned to subjects in this class. Go to the Subjects page to assign teachers.',
       );
     }
 
@@ -2717,30 +2721,30 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
         .toList();
   }
 
-  // ================================================================
-  // DATE HELPERS
-  // ================================================================
+  // // ================================================================
+  // // DATE HELPERS
+  // // ================================================================
 
-  void _initializeSelectedDate(
-    List<AdminStudentAttendanceModel> attendanceData,
-  ) {
-    final records = _allRecords(attendanceData);
+  // void _initializeSelectedDate(
+  //   List<AdminStudentAttendanceModel> attendanceData,
+  // ) {
+  //   final records = _allRecords(attendanceData);
 
-    if (records.isEmpty) {
-      return;
-    }
+  //   if (records.isEmpty) {
+  //     return;
+  //   }
 
-    final dates = _availableDates(records);
+  //   final dates = _availableDates(records);
 
-    if (dates.isEmpty) {
-      return;
-    }
+  //   if (dates.isEmpty) {
+  //     return;
+  //   }
 
-    if (_selectedDate == null ||
-        !dates.any((date) => _isSameDay(date, _selectedDate!))) {
-      _selectedDate = dates.last;
-    }
-  }
+  //   if (_selectedDate == null ||
+  //       !dates.any((date) => _isSameDay(date, _selectedDate!))) {
+  //     _selectedDate = dates.last;
+  //   }
+  // }
 
   List<DateTime> _availableDates(List<AdminAttendanceRecordModel> records) {
     final dates = <DateTime>[];
@@ -2776,21 +2780,21 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
         first.day == second.day;
   }
 
-  String _formatDate(String value) {
-    final date = _parseDate(value);
+  // String _formatDate(String value) {
+  //   final date = _parseDate(value);
 
-    if (date == null) {
-      return value;
-    }
+  //   if (date == null) {
+  //     return value;
+  //   }
 
-    final day = date.day.toString().padLeft(2, '0');
+  //   final day = date.day.toString().padLeft(2, '0');
 
-    final month = date.month.toString().padLeft(2, '0');
+  //   final month = date.month.toString().padLeft(2, '0');
 
-    final year = date.year.toString();
+  //   final year = date.year.toString();
 
-    return '$day/$month/$year';
-  }
+  //   return '$day/$month/$year';
+  // }
 
   String _formatLongDate(DateTime date) {
     const months = [
