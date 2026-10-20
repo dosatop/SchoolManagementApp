@@ -59,9 +59,9 @@ class _CreateTeacherPageState extends ConsumerState<CreateTeacherPage> {
       password: _passwordController.text,
     );
 
-    final error = await ref
-        .read(teachersProvider(widget.schoolId).notifier)
-        .createTeacher(request);
+    // final error = await ref
+    //     .read(teachersProvider(widget.schoolId).notifier)
+    //     .createTeacher(request);
 
     if (!mounted) return;
 
@@ -69,20 +69,20 @@ class _CreateTeacherPageState extends ConsumerState<CreateTeacherPage> {
       _isCreating = false;
     });
 
-    if (error == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Teacher created successfully.'),
-          backgroundColor: Colors.green,
-        ),
-      );
+    // if (error == null) {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     const SnackBar(
+    //       content: Text('Teacher created successfully.'),
+    //       backgroundColor: Colors.green,
+    //     ),
+    //   );
 
-      Navigator.pop(context, true);
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(error), backgroundColor: Colors.red),
-      );
-    }
+    //   Navigator.pop(context, true);
+    // } else {
+    //   ScaffoldMessenger.of(context).showSnackBar(
+    //     SnackBar(content: Text(error), backgroundColor: Colors.red),
+    //   );
+    // }
   }
 
   @override

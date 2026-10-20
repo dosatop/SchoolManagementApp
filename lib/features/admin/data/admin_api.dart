@@ -16,6 +16,7 @@ import 'package:app/features/admin/models/classes/admin_assign_class_subject_req
 
 import 'package:app/features/admin/models/classes/admin_create_class_model.dart';
 import 'package:app/features/admin/models/classes/admin_get_class_subjects_model.dart';
+import 'package:app/features/admin/models/parents/admin_create_parent_request_model.dart';
 import 'package:app/features/admin/models/parents/admin_parent_child_model.dart';
 
 import 'package:app/features/admin/models/parents/admin_parent_model.dart';
@@ -519,6 +520,22 @@ class AdminApi {
   // ================================================================
   // PARENTS
   // ================================================================
+Future<AdminParentDetailModel> createParent({
+  required AdminCreateParentRequestModel request,
+}) async {
+  try {
+    final response = await dioClient.dio.post(
+      '/admin/parents',
+      data: request.toJson(),
+    );
+
+    return AdminParentDetailModel.fromJson(
+      Map<String, dynamic>.from(response.data),
+    );
+  } on DioException catch (error) {
+    throw ApiErrorHandler.handle(error);
+  }
+}
 
   Future<List<AdminParentModel>> getParents() async {
     try {
@@ -588,6 +605,40 @@ class AdminApi {
       throw ApiErrorHandler.handle(error);
     }
   }
+
+  // ================================================================
+// LINK STUDENT TO PARENT
+// ================================================================
+
+Future<void> assignStudentToParent({
+  required String parentId,
+  required String studentId,
+}) async {
+  try {
+    await dioClient.dio.post(
+      '/admin/parents/$parentId/students/$studentId',
+    );
+  } on DioException catch (error) {
+    throw ApiErrorHandler.handle(error);
+  }
+}
+
+// ================================================================
+// REMOVE STUDENT FROM PARENT
+// ================================================================
+
+Future<void> removeStudentFromParent({
+  required String parentId,
+  required String studentId,
+}) async {
+  try {
+    await dioClient.dio.delete(
+      '/admin/parents/$parentId/students/$studentId',
+    );
+  } on DioException catch (error) {
+    throw ApiErrorHandler.handle(error);
+  }
+}
 
   // ================================================================
   // DEPARTMENTS
@@ -974,8 +1025,16 @@ class AdminApi {
         data: data.toJson(),
       );
 
+      final responseData = Map<String, dynamic>.from(response.data);
+
+      final termData = responseData['data'];
+
+      if (termData is! Map) {
+        throw Exception('Invalid academic term response.');
+      }
+
       return AdminAcademicTermModel.fromJson(
-        Map<String, dynamic>.from(response.data),
+        Map<String, dynamic>.from(termData),
       );
     } on DioException catch (error) {
       throw ApiErrorHandler.handle(error);
@@ -1024,8 +1083,16 @@ class AdminApi {
     try {
       final response = await dioClient.dio.get('/academic-terms/$termId');
 
+      final responseData = Map<String, dynamic>.from(response.data);
+
+      final termData = responseData['data'];
+
+      if (termData is! Map) {
+        throw Exception('Invalid academic term response.');
+      }
+
       return AdminAcademicTermModel.fromJson(
-        Map<String, dynamic>.from(response.data),
+        Map<String, dynamic>.from(termData),
       );
     } on DioException catch (error) {
       throw ApiErrorHandler.handle(error);
@@ -1046,8 +1113,16 @@ class AdminApi {
         data: data.toJson(),
       );
 
+      final responseData = Map<String, dynamic>.from(response.data);
+
+      final termData = responseData['data'];
+
+      if (termData is! Map) {
+        throw Exception('Invalid academic term response.');
+      }
+
       return AdminAcademicTermModel.fromJson(
-        Map<String, dynamic>.from(response.data),
+        Map<String, dynamic>.from(termData),
       );
     } on DioException catch (error) {
       throw ApiErrorHandler.handle(error);

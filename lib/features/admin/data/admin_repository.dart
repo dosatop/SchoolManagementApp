@@ -14,6 +14,7 @@ import 'package:app/features/admin/models/classes/admin_assign_class_subject_req
 
 import 'package:app/features/admin/models/classes/admin_create_class_model.dart';
 import 'package:app/features/admin/models/classes/admin_get_class_subjects_model.dart';
+import 'package:app/features/admin/models/parents/admin_create_parent_request_model.dart';
 
 import 'package:app/features/admin/models/parents/admin_parent_child_model.dart';
 
@@ -211,6 +212,11 @@ class AdminRepository {
   // ================================================================
   // PARENTS
   // ================================================================
+  Future<AdminParentDetailModel> createParent({
+    required AdminCreateParentRequestModel request,
+  }) {
+    return api.createParent(request: request);
+  }
 
   Future<List<AdminParentModel>> getParents() {
     return api.getParents();
@@ -230,6 +236,34 @@ class AdminRepository {
   Future<void> deleteParent({required String parentId}) {
     return api.deleteParent(parentId: parentId);
   }
+
+  // ================================================================
+// LINK STUDENT TO PARENT
+// ================================================================
+
+Future<void> assignStudentToParent({
+  required String parentId,
+  required String studentId,
+}) {
+  return api.assignStudentToParent(
+    parentId: parentId,
+    studentId: studentId,
+  );
+}
+
+// ================================================================
+// REMOVE STUDENT FROM PARENT
+// ================================================================
+
+Future<void> removeStudentFromParent({
+  required String parentId,
+  required String studentId,
+}) {
+  return api.removeStudentFromParent(
+    parentId: parentId,
+    studentId: studentId,
+  );
+}
 
   // ================================================================
   // DEPARTMENTS

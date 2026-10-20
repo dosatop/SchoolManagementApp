@@ -8,6 +8,7 @@ import 'package:app/features/admin/models/admin_teacher_details_model.dart';
 import 'package:app/features/admin/models/attendance/admin_attendance_model.dart';
 
 import 'package:app/features/admin/models/classes/admin_create_class_model.dart';
+import 'package:app/features/admin/models/parents/admin_create_parent_request_model.dart';
 
 import 'package:app/features/admin/models/parents/admin_parent_child_model.dart';
 import 'package:app/features/admin/models/parents/admin_parent_model.dart';
@@ -933,6 +934,19 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ================================================================
   // PARENT
   // ================================================================
+  Future<AdminParentDetailModel?> createParent({
+    required AdminCreateParentRequestModel request,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      return await repository.createParent(request: request);
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+
+      return null;
+    }
+  }
 
   // ------------------------------------------------
   // GET PARENT BY ID
@@ -1014,6 +1028,60 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
         );
       }
 
+      ref.invalidate(adminParentDetailsProvider(parentId));
+
+      return true;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+
+      return false;
+    }
+  }
+
+  // ================================================================
+  // ASSIGN STUDENT TO PARENT
+  // ================================================================
+
+  Future<bool> assignStudentToParent({
+    required String parentId,
+    required String studentId,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.assignStudentToParent(
+        parentId: parentId,
+        studentId: studentId,
+      );
+
+      // Refresh parent details so the newly linked student appears.
+      ref.invalidate(adminParentDetailsProvider(parentId));
+
+      return true;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+
+      return false;
+    }
+  }
+
+  // ================================================================
+  // REMOVE STUDENT FROM PARENT
+  // ================================================================
+
+  Future<bool> removeStudentFromParent({
+    required String parentId,
+    required String studentId,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.removeStudentFromParent(
+        parentId: parentId,
+        studentId: studentId,
+      );
+
+      // Refresh parent details so the student is removed from the list.
       ref.invalidate(adminParentDetailsProvider(parentId));
 
       return true;
@@ -1241,5 +1309,8 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
     }
   }
 
-  Future<Object?> assignStudentToTrade({required String studentId, required String tradeId}) async {}
+  Future<Object?> assignStudentToTrade({
+    required String studentId,
+    required String tradeId,
+  }) async {}
 }

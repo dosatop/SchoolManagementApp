@@ -55,7 +55,7 @@ class _AdminAcademicSessionDetailsPageState
   // ================================================================
 
   Future<void> _loadTerms() async {
-    if (mounted && !_isLoadingTerms) {
+    if (mounted) {
       setState(() {
         _isLoadingTerms = true;
       });
@@ -117,11 +117,21 @@ class _AdminAcademicSessionDetailsPageState
         onPressed: _isProcessing ? null : _createTerm,
         backgroundColor: primary,
         foregroundColor: Colors.white,
+        // disabledBackgroundColor: Colors.grey.shade400,
         elevation: 4,
-        icon: const Icon(Icons.add_rounded),
-        label: const Text(
-          'Add Term',
-          style: TextStyle(fontWeight: FontWeight.w600),
+        icon: _isProcessing
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Colors.white,
+                ),
+              )
+            : const Icon(Icons.add_rounded),
+        label: Text(
+          _isProcessing ? 'Processing...' : 'Add Term',
+          style: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
     );
@@ -414,8 +424,17 @@ class _AdminAcademicSessionDetailsPageState
             width: double.infinity,
             child: OutlinedButton.icon(
               onPressed: _isProcessing ? null : _editAcademicSession,
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('Edit Session'),
+              icon: _isProcessing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: primary,
+                      ),
+                    )
+                  : const Icon(Icons.edit_outlined, size: 18),
+              label: Text(_isProcessing ? 'Updating...' : 'Edit Session'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: primary,
                 disabledForegroundColor: Colors.grey,
@@ -532,7 +551,7 @@ class _AdminAcademicSessionDetailsPageState
   }
 
   // ================================================================
-  // LOADING
+  // LOADING TERMS
   // ================================================================
 
   Widget _termsLoadingState() {
@@ -924,7 +943,8 @@ class _AdminAcademicSessionDetailsPageState
     final confirmed = await _confirmDialog(
       title: 'Set Current Academic Session',
       message:
-          'Set ${academicSession.session} as the current academic session?',
+          'Set ${academicSession.session} as the current '
+          'academic session?',
       confirmText: 'Set Current',
     );
 
@@ -970,6 +990,10 @@ class _AdminAcademicSessionDetailsPageState
 
   Future<void> _createTerm() async {
     if (_isProcessing) return;
+
+    // Make sure the latest terms are available before opening
+    // the dropdown.
+    if (_isLoadingTerms) return;
 
     final result = await _showTermDialog();
 
@@ -1139,6 +1163,7 @@ class _AdminAcademicSessionDetailsPageState
         return _TermFormDialog(
           academicSession: academicSession,
           existingTerm: existingTerm,
+          existingTerms: _terms,
         );
       },
     );
@@ -1708,8 +1733,13 @@ class _SessionFormDialogState extends State<_SessionFormDialog> {
 class _TermFormDialog extends StatefulWidget {
   final AdminAcademicSessionModel academicSession;
   final AdminAcademicTermModel? existingTerm;
+  final List<AdminAcademicTermModel> existingTerms;
 
-  const _TermFormDialog({required this.academicSession, this.existingTerm});
+  const _TermFormDialog({
+    required this.academicSession,
+    required this.existingTerms,
+    this.existingTerm,
+  });
 
   @override
   State<_TermFormDialog> createState() => _TermFormDialogState();
@@ -1723,7 +1753,7 @@ class _TermFormDialogState extends State<_TermFormDialog> {
   static const Color success = Color(0xFF15803D);
   static const Color successLight = Color(0xFFEAF8EF);
 
-  late final TextEditingController termController;
+  late String? selectedTerm;
 
   late DateTime startDate;
   late DateTime endDate;
@@ -1731,25 +1761,25 @@ class _TermFormDialogState extends State<_TermFormDialog> {
 
   bool get isEditing => widget.existingTerm != null;
 
+  static const List<String> _allTerms = [
+    'First Term',
+    'Second Term',
+    'Third Term',
+  ];
+
   @override
   void initState() {
     super.initState();
 
     final term = widget.existingTerm;
 
-    termController = TextEditingController(text: term?.term ?? '');
+    selectedTerm = term?.term;
 
     startDate = term?.startDate ?? widget.academicSession.startDate;
 
     endDate = term?.endDate ?? widget.academicSession.endDate;
 
     isCurrent = term?.isCurrent ?? false;
-  }
-
-  @override
-  void dispose() {
-    termController.dispose();
-    super.dispose();
   }
 
   @override
@@ -1764,19 +1794,8 @@ class _TermFormDialogState extends State<_TermFormDialog> {
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          TextField(
-            controller: termController,
-            textCapitalization: TextCapitalization.words,
-            textInputAction: TextInputAction.done,
-            decoration: _inputDecoration(
-              label: 'Term Name',
-              hint: 'e.g. First Term',
-              icon: Icons.title_rounded,
-            ),
-          ),
-
+          _termDropdown(),
           const SizedBox(height: 18),
-
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -1788,9 +1807,7 @@ class _TermFormDialogState extends State<_TermFormDialog> {
               ),
             ),
           ),
-
           const SizedBox(height: 8),
-
           _datePickerField(
             context: context,
             label: 'Start Date',
@@ -1798,9 +1815,7 @@ class _TermFormDialogState extends State<_TermFormDialog> {
             icon: Icons.calendar_today_outlined,
             onTap: _pickStartDate,
           ),
-
           const SizedBox(height: 12),
-
           _datePickerField(
             context: context,
             label: 'End Date',
@@ -1808,13 +1823,9 @@ class _TermFormDialogState extends State<_TermFormDialog> {
             icon: Icons.event_outlined,
             onTap: _pickEndDate,
           ),
-
           const SizedBox(height: 18),
-
           _currentTermSwitch(),
-
           const SizedBox(height: 8),
-
           Align(
             alignment: Alignment.centerLeft,
             child: Text(
@@ -1832,6 +1843,86 @@ class _TermFormDialogState extends State<_TermFormDialog> {
       onConfirm: _submit,
     );
   }
+
+  // ================================================================
+  // TERM DROPDOWN
+  // ================================================================
+
+  Widget _termDropdown() {
+    final currentEditingId = widget.existingTerm?.id;
+
+    final createdTerms = widget.existingTerms
+        .where((term) => term.id != currentEditingId)
+        .map((term) => term.term.trim().toLowerCase())
+        .toSet();
+
+    final availableTerms = _allTerms.where((term) {
+      return !createdTerms.contains(term.toLowerCase());
+    }).toList();
+
+    // When editing, the currently selected term must remain
+    // available even though it already exists.
+    if (isEditing &&
+        selectedTerm != null &&
+        selectedTerm!.trim().isNotEmpty &&
+        !availableTerms.contains(selectedTerm)) {
+      availableTerms.insert(0, selectedTerm!);
+    }
+
+    return DropdownButtonFormField<String>(
+      value: selectedTerm,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: 'Term Name',
+        hintText: availableTerms.isEmpty
+            ? 'All terms have been created'
+            : 'Select term',
+        prefixIcon: const Icon(
+          Icons.view_timeline_outlined,
+          color: primary,
+          size: 19,
+        ),
+        filled: true,
+        fillColor: const Color(0xFFF9FAFD),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(13),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(13),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(13),
+          borderSide: const BorderSide(color: primary, width: 1.4),
+        ),
+      ),
+      items: availableTerms.map((term) {
+        return DropdownMenuItem<String>(
+          value: term,
+          child: Text(
+            term,
+            style: const TextStyle(
+              color: textDark,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        );
+      }).toList(),
+      onChanged: availableTerms.isEmpty
+          ? null
+          : (value) {
+              setState(() {
+                selectedTerm = value;
+              });
+            },
+    );
+  }
+
+  // ================================================================
+  // CURRENT TERM SWITCH
+  // ================================================================
 
   Widget _currentTermSwitch() {
     return Container(
@@ -1888,8 +1979,13 @@ class _TermFormDialogState extends State<_TermFormDialog> {
     );
   }
 
+  // ================================================================
+  // PICK START DATE
+  // ================================================================
+
   Future<void> _pickStartDate() async {
     final sessionStart = widget.academicSession.startDate;
+
     final sessionEnd = widget.academicSession.endDate;
 
     final picked = await showDatePicker(
@@ -1910,14 +2006,23 @@ class _TermFormDialogState extends State<_TermFormDialog> {
     });
   }
 
+  // ================================================================
+  // PICK END DATE
+  // ================================================================
+
   Future<void> _pickEndDate() async {
     final sessionStart = widget.academicSession.startDate;
+
     final sessionEnd = widget.academicSession.endDate;
+
+    final firstDate = startDate.isBefore(sessionStart)
+        ? sessionStart
+        : startDate;
 
     final picked = await showDatePicker(
       context: context,
-      initialDate: _safeInitialDate(endDate, startDate, sessionEnd),
-      firstDate: startDate.isBefore(sessionStart) ? sessionStart : startDate,
+      initialDate: _safeInitialDate(endDate, firstDate, sessionEnd),
+      firstDate: firstDate,
       lastDate: sessionEnd,
     );
 
@@ -1928,11 +2033,15 @@ class _TermFormDialogState extends State<_TermFormDialog> {
     });
   }
 
+  // ================================================================
+  // SUBMIT
+  // ================================================================
+
   void _submit() {
-    final term = termController.text.trim();
+    final term = selectedTerm?.trim() ?? '';
 
     if (term.isEmpty) {
-      _showError('Term name is required.');
+      _showError('Please select a term.');
       return;
     }
 
@@ -1942,12 +2051,73 @@ class _TermFormDialogState extends State<_TermFormDialog> {
     }
 
     if (startDate.isBefore(widget.academicSession.startDate)) {
-      _showError('Term start date must be within the academic session.');
+      _showError(
+        'Term start date must be within the '
+        'academic session.',
+      );
       return;
     }
 
     if (endDate.isAfter(widget.academicSession.endDate)) {
-      _showError('Term end date must be within the academic session.');
+      _showError(
+        'Term end date must be within the '
+        'academic session.',
+      );
+      return;
+    }
+
+    // --------------------------------------------------------------
+    // CURRENT TERM VALIDATION
+    // --------------------------------------------------------------
+
+    if (isCurrent) {
+      final anotherCurrentTerm = widget.existingTerms.any(
+        (existing) =>
+            existing.isCurrent && existing.id != widget.existingTerm?.id,
+      );
+
+      if (anotherCurrentTerm) {
+        _showError(
+          'Another term is already set as current. '
+          'Unset it before making this term current.',
+        );
+        return;
+      }
+    }
+
+    // --------------------------------------------------------------
+    // TERM DUPLICATE VALIDATION
+    // --------------------------------------------------------------
+
+    final duplicateTerm = widget.existingTerms.any(
+      (existing) =>
+          existing.id != widget.existingTerm?.id &&
+          existing.term.trim().toLowerCase() == term.toLowerCase(),
+    );
+
+    if (duplicateTerm) {
+      _showError('$term has already been created for this session.');
+      return;
+    }
+
+    // --------------------------------------------------------------
+    // TERM OVERLAP VALIDATION
+    // --------------------------------------------------------------
+
+    final overlapsExistingTerm = widget.existingTerms.any((existing) {
+      if (existing.id == widget.existingTerm?.id) {
+        return false;
+      }
+
+      final startsBeforeExistingEnds = !startDate.isAfter(existing.endDate);
+
+      final endsAfterExistingStarts = !endDate.isBefore(existing.startDate);
+
+      return startsBeforeExistingEnds && endsAfterExistingStarts;
+    });
+
+    if (overlapsExistingTerm) {
+      _showError('This term overlaps with another existing term.');
       return;
     }
 
@@ -1961,6 +2131,10 @@ class _TermFormDialogState extends State<_TermFormDialog> {
     );
   }
 
+  // ================================================================
+  // ERROR
+  // ================================================================
+
   void _showError(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1970,6 +2144,10 @@ class _TermFormDialogState extends State<_TermFormDialog> {
       ),
     );
   }
+
+  // ================================================================
+  // DATE FIELD
+  // ================================================================
 
   Widget _datePickerField({
     required BuildContext context,
@@ -2013,37 +2191,19 @@ class _TermFormDialogState extends State<_TermFormDialog> {
     );
   }
 
-  InputDecoration _inputDecoration({
-    required String label,
-    required String hint,
-    required IconData icon,
-  }) {
-    return InputDecoration(
-      labelText: label,
-      hintText: hint,
-      prefixIcon: Icon(icon, color: primary, size: 19),
-      filled: true,
-      fillColor: const Color(0xFFF9FAFD),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(13),
-        borderSide: BorderSide(color: Colors.grey.shade200),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(13),
-        borderSide: BorderSide(color: Colors.grey.shade200),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(13),
-        borderSide: const BorderSide(color: primary, width: 1.4),
-      ),
-    );
-  }
+  // ================================================================
+  // SAFE DATE
+  // ================================================================
 
   DateTime _safeInitialDate(DateTime value, DateTime first, DateTime last) {
     if (value.isBefore(first)) return first;
     if (value.isAfter(last)) return last;
     return value;
   }
+
+  // ================================================================
+  // FORMAT DATE
+  // ================================================================
 
   String _formatDate(DateTime date) {
     const months = [

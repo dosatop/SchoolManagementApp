@@ -6,10 +6,7 @@ import 'package:go_router/go_router.dart';
 class AdminParentsPage extends ConsumerWidget {
   final String schoolId;
 
-  const AdminParentsPage({
-    super.key,
-    required this.schoolId,
-  });
+  const AdminParentsPage({super.key, required this.schoolId});
 
   static const Color primary = Color(0xFF091993);
   static const Color primaryLight = Color(0xFFE9ECFF);
@@ -30,39 +27,42 @@ class AdminParentsPage extends ConsumerWidget {
 
         title: const Text(
           'Parents',
-          style: TextStyle(
-            color: textDark,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: textDark, fontWeight: FontWeight.bold),
         ),
 
         actions: [
           IconButton(
             onPressed: () {
-              ref
-                  .read(adminDashboardProvider.notifier)
-                  .refresh();
+              ref.read(adminDashboardProvider.notifier).refresh();
             },
-            icon: const Icon(
-              Icons.refresh_rounded,
-              color: textDark,
-            ),
+            icon: const Icon(Icons.refresh_rounded, color: textDark),
           ),
           const SizedBox(width: 8),
         ],
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () {
+          context.push('/admin/$schoolId/parents/create');
+        },
+
+        backgroundColor: primary,
+        foregroundColor: Colors.white,
+
+        elevation: 4,
+
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+
+        label: const Text(
+          'Create Parent',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
+      ),
 
       body: dashboardState.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(
-            color: primary,
-          ),
-        ),
+        loading: () =>
+            const Center(child: CircularProgressIndicator(color: primary)),
 
-        error: (error, stackTrace) => _errorView(
-          context,
-          ref,
-        ),
+        error: (error, stackTrace) => _errorView(context, ref),
 
         data: (dashboard) {
           final parents = dashboard.parents;
@@ -75,9 +75,7 @@ class AdminParentsPage extends ConsumerWidget {
             color: primary,
 
             onRefresh: () {
-              return ref
-                  .read(adminDashboardProvider.notifier)
-                  .refresh();
+              return ref.read(adminDashboardProvider.notifier).refresh();
             },
 
             child: ListView.builder(
@@ -85,12 +83,7 @@ class AdminParentsPage extends ConsumerWidget {
                 parent: BouncingScrollPhysics(),
               ),
 
-              padding: const EdgeInsets.fromLTRB(
-                20,
-                20,
-                20,
-                35,
-              ),
+              padding: const EdgeInsets.fromLTRB(20, 20, 20, 35),
 
               itemCount: parents.length,
 
@@ -119,20 +112,11 @@ class AdminParentsPage extends ConsumerWidget {
     required dynamic parent,
     required String schoolId,
   }) {
-    final parentName = _getString(
-      parent.fullName,
-      fallback: 'Parent',
-    );
+    final parentName = _getString(parent.fullName, fallback: 'Parent');
 
-    final email = _getString(
-      parent.email,
-      fallback: 'No email provided',
-    );
+    final email = _getString(parent.email, fallback: 'No email provided');
 
-    final phone = _getString(
-      parent.phoneNumber,
-      fallback: 'No phone number',
-    );
+    final phone = _getString(parent.phoneNumber, fallback: 'No phone number');
 
     final parentId = parent.parentId.toString();
 
@@ -142,9 +126,7 @@ class AdminParentsPage extends ConsumerWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        border: Border.all(color: Colors.grey.shade200),
       ),
 
       child: Material(
@@ -154,9 +136,7 @@ class AdminParentsPage extends ConsumerWidget {
           borderRadius: BorderRadius.circular(18),
 
           onTap: () {
-            context.push(
-              '/admin/$schoolId/parents/$parentId',
-            );
+            context.push('/admin/$schoolId/parents/$parentId');
           },
 
           child: Padding(
@@ -167,7 +147,6 @@ class AdminParentsPage extends ConsumerWidget {
                 // ==================================================
                 // AVATAR
                 // ==================================================
-
                 Container(
                   width: 52,
                   height: 52,
@@ -189,11 +168,9 @@ class AdminParentsPage extends ConsumerWidget {
                 // ==================================================
                 // DETAILS
                 // ==================================================
-
                 Expanded(
                   child: Column(
-                    crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.start,
 
                     children: [
                       Text(
@@ -224,12 +201,10 @@ class AdminParentsPage extends ConsumerWidget {
                             child: Text(
                               email,
                               maxLines: 1,
-                              overflow:
-                                  TextOverflow.ellipsis,
+                              overflow: TextOverflow.ellipsis,
 
                               style: TextStyle(
-                                color:
-                                    Colors.grey.shade600,
+                                color: Colors.grey.shade600,
                                 fontSize: 11,
                               ),
                             ),
@@ -253,12 +228,10 @@ class AdminParentsPage extends ConsumerWidget {
                             child: Text(
                               phone,
                               maxLines: 1,
-                              overflow:
-                                  TextOverflow.ellipsis,
+                              overflow: TextOverflow.ellipsis,
 
                               style: TextStyle(
-                                color:
-                                    Colors.grey.shade600,
+                                color: Colors.grey.shade600,
                                 fontSize: 11,
                               ),
                             ),
@@ -274,7 +247,6 @@ class AdminParentsPage extends ConsumerWidget {
                 // ==================================================
                 // ARROW
                 // ==================================================
-
                 Container(
                   width: 32,
                   height: 32,
@@ -360,10 +332,7 @@ class AdminParentsPage extends ConsumerWidget {
   // ERROR
   // ================================================================
 
-  Widget _errorView(
-    BuildContext context,
-    WidgetRef ref,
-  ) {
+  Widget _errorView(BuildContext context, WidgetRef ref) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(30),
@@ -393,9 +362,7 @@ class AdminParentsPage extends ConsumerWidget {
 
             ElevatedButton(
               onPressed: () {
-                ref
-                    .read(adminDashboardProvider.notifier)
-                    .refresh();
+                ref.read(adminDashboardProvider.notifier).refresh();
               },
 
               style: ElevatedButton.styleFrom(
@@ -415,10 +382,7 @@ class AdminParentsPage extends ConsumerWidget {
   // SAFE STRING
   // ================================================================
 
-  String _getString(
-    dynamic value, {
-    required String fallback,
-  }) {
+  String _getString(dynamic value, {required String fallback}) {
     if (value == null) {
       return fallback;
     }

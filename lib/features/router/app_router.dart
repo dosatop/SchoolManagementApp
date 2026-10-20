@@ -12,6 +12,7 @@ import 'package:app/features/admin/presentation/academic_years/admin_academic_se
 import 'package:app/features/admin/presentation/classes/admin_class_details_page.dart';
 import 'package:app/features/admin/presentation/classes/admin_classes_page.dart';
 import 'package:app/features/admin/presentation/classes/admin_create_class_page.dart';
+import 'package:app/features/admin/presentation/parents/admin_create_parent_page.dart';
 
 // Admin - Parents
 import 'package:app/features/admin/presentation/parents/admin_parent_details_page.dart';
@@ -109,9 +110,26 @@ import 'package:app/features/super_admin/presentation/super_admin_daashboard.dar
 
 // Syllabus
 import 'package:app/features/syllabus/presentation/syllabus_page.dart';
+import 'package:app/features/teacher/presentation/announcement/teacher_announcements_page.dart';
+import 'package:app/features/teacher/presentation/assignment/teacher_assignment_details_page.dart';
+import 'package:app/features/teacher/presentation/assignment/teacher_assignments_page.dart';
+import 'package:app/features/teacher/presentation/attendance/teacher_attendance_page.dart';
+import 'package:app/features/teacher/presentation/assignment/teacher_class_assignment_page.dart';
+import 'package:app/features/teacher/presentation/class/teacher_class_attendance_page.dart';
+import 'package:app/features/teacher/presentation/class/teacher_class_details_page.dart';
+import 'package:app/features/teacher/presentation/class/teacher_class_student_page.dart';
+import 'package:app/features/teacher/presentation/class/teacher_class_teacher_details_page.dart';
+import 'package:app/features/teacher/presentation/class/teacher_classes-page.dart';
+import 'package:app/features/teacher/presentation/assignment/teacher_create_assignment_page.dart';
+import 'package:app/features/teacher/presentation/teacher/teacher_dashboard.dart';
+import 'package:app/features/teacher/presentation/teacher_notifications_page.dart';
 
 // Teacher
-import 'package:app/features/teacher/presentation/teacher_page.dart';
+import 'package:app/features/teacher/presentation/teacher/teacher_page.dart';
+import 'package:app/features/teacher/presentation/teacher/teacher_profile_page.dart';
+import 'package:app/features/teacher/presentation/student/teacher_student_details_page.dart';
+import 'package:app/features/teacher/presentation/student/teacher_students_page.dart';
+import 'package:app/features/teacher/presentation/teacher_timetable_page.dart';
 
 // Timetable
 import 'package:app/features/timetable/models/time_table_model.dart';
@@ -179,21 +197,11 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // AUTH / ONBOARDING
       // ============================================================
+      GoRoute(path: '/', builder: (context, state) => const FirstScreen()),
 
-      GoRoute(
-        path: '/',
-        builder: (context, state) => const FirstScreen(),
-      ),
+      GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
 
-      GoRoute(
-        path: '/login',
-        builder: (context, state) => const LoginPage(),
-      ),
-
-      GoRoute(
-        path: '/signup',
-        builder: (context, state) => const SignUpPage(),
-      ),
+      GoRoute(path: '/signup', builder: (context, state) => const SignUpPage()),
 
       GoRoute(
         path: '/loginOrSignup',
@@ -203,46 +211,26 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // GENERAL / DASHBOARD
       // ============================================================
-
       GoRoute(
         path: '/dashboard',
         builder: (context, state) => const StudentDashboardPage(),
       ),
 
-      GoRoute(
-        path: '/event',
-        builder: (context, state) => EventsPage(),
-      ),
+      GoRoute(path: '/event', builder: (context, state) => EventsPage()),
 
-      GoRoute(
-        path: '/fees',
-        builder: (context, state) => FeesPage(),
-      ),
+      GoRoute(path: '/fees', builder: (context, state) => FeesPage()),
 
-      GoRoute(
-        path: '/ask',
-        builder: (context, state) => AskDoubtPage(),
-      ),
+      GoRoute(path: '/ask', builder: (context, state) => AskDoubtPage()),
 
-      GoRoute(
-        path: '/inbox',
-        builder: (context, state) => InboxPage(),
-      ),
+      GoRoute(path: '/inbox', builder: (context, state) => InboxPage()),
 
-      GoRoute(
-        path: '/syllabus',
-        builder: (context, state) => SyllabusPage(),
-      ),
+      GoRoute(path: '/syllabus', builder: (context, state) => SyllabusPage()),
 
-      GoRoute(
-        path: '/exam',
-        builder: (context, state) => ExamPage(),
-      ),
+      GoRoute(path: '/exam', builder: (context, state) => ExamPage()),
 
       // ============================================================
       // ASSIGNMENTS
       // ============================================================
-
       GoRoute(
         path: '/assignment',
         builder: (context, state) => AssignmentPage(),
@@ -253,16 +241,13 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final assignmentId = state.pathParameters['id']!;
 
-          return AssignmentViewPage(
-            assignmentId: assignmentId,
-          );
+          return AssignmentViewPage(assignmentId: assignmentId);
         },
       ),
 
       // ============================================================
       // ATTENDANCE
       // ============================================================
-
       GoRoute(
         path: '/attendance',
         builder: (context, state) => AttendancePage(),
@@ -271,27 +256,20 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // TIMETABLE
       // ============================================================
-
-      GoRoute(
-        path: '/timetable',
-        builder: (context, state) => TimeTablePage(),
-      ),
+      GoRoute(path: '/timetable', builder: (context, state) => TimeTablePage()),
 
       GoRoute(
         path: '/timetable/:id',
         builder: (context, state) {
           final lesson = state.extra as TimetableModel;
 
-          return ClassDetailsPage(
-            lesson: lesson,
-          );
+          return ClassDetailsPage(lesson: lesson);
         },
       ),
 
       // ============================================================
       // TUTOR
       // ============================================================
-
       GoRoute(
         path: '/online-tutoring',
         builder: (context, state) => const OnlineTutoringPage(),
@@ -302,16 +280,13 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final tutor = state.extra as TutorModel;
 
-          return TutorDetailsPage(
-            tutor: tutor,
-          );
+          return TutorDetailsPage(tutor: tutor);
         },
       ),
 
       // ============================================================
       // PARENT
       // ============================================================
-
       GoRoute(
         path: '/parent/dashboard',
         builder: (context, state) {
@@ -345,9 +320,7 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final studentId = state.pathParameters['studentId']!;
 
-          return ParentChildDetailsPage(
-            studentId: studentId,
-          );
+          return ParentChildDetailsPage(studentId: studentId);
         },
       ),
 
@@ -371,9 +344,7 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final studentId = state.pathParameters['studentId']!;
 
-          return ParentAttendancePage(
-            studentId: studentId,
-          );
+          return ParentAttendancePage(studentId: studentId);
         },
       ),
 
@@ -382,16 +353,13 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final studentId = state.pathParameters['studentId']!;
 
-          return ParentAssignmentsPage(
-            studentId: studentId,
-          );
+          return ParentAssignmentsPage(studentId: studentId);
         },
       ),
 
       // ============================================================
       // STUDENT
       // ============================================================
-
       GoRoute(
         path: '/student/dashboard',
         name: 'studentDashboard',
@@ -467,7 +435,6 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // STUDY
       // ============================================================
-
       GoRoute(
         path: '/online-study',
         builder: (context, state) {
@@ -480,20 +447,14 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final study = state.extra as StudyModel;
 
-          return StudyDetailsPage(
-            study: study,
-          );
+          return StudyDetailsPage(study: study);
         },
       ),
 
       // ============================================================
       // GENERAL RESULTS
       // ============================================================
-
-      GoRoute(
-        path: '/results',
-        builder: (context, state) => ResultsPage(),
-      ),
+      GoRoute(path: '/results', builder: (context, state) => ResultsPage()),
 
       GoRoute(
         path: '/results-management',
@@ -559,14 +520,160 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // ADMIN DASHBOARD
       // ============================================================
-
       GoRoute(
         path: '/admin-dashboard/:schoolId',
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminDashboardPage(
-            schoolId: schoolId,
+          return AdminDashboardPage(schoolId: schoolId);
+        },
+      ),
+
+      GoRoute(
+        path: '/teacher/dashboard',
+        builder: (context, state) => const TeacherDashboardPage(),
+      ),
+
+      GoRoute(
+        path: '/teacher/classes',
+        builder: (context, state) => const TeacherClassesPage(),
+      ),
+
+      GoRoute(
+        path: '/teacher/assignments',
+        builder: (context, state) => const TeacherAssignmentsPage(),
+      ),
+
+      GoRoute(
+        path: '/teacher/attendance',
+        builder: (context, state) => const TeacherAttendancePage(),
+      ),
+
+      GoRoute(
+        path: '/teacher/students',
+        builder: (context, state) => const TeacherStudentsPage(),
+      ),
+
+      GoRoute(
+        path: '/teacher/timetable',
+        builder: (context, state) => const TeacherTimetablePage(),
+      ),
+
+      GoRoute(
+        path: '/teacher/profile',
+        builder: (context, state) => const TeacherProfilePage(),
+      ),
+
+      GoRoute(
+        path: '/teacher/announcements',
+        builder: (context, state) => const TeacherAnnouncementsPage(),
+      ),
+
+      GoRoute(
+        path: '/teacher/notifications',
+        builder: (context, state) => const TeacherNotificationsPage(),
+      ),
+
+      GoRoute(
+        path: '/teacher/classes/details',
+        builder: (context, state) {
+          final data = state.extra as Map<String, dynamic>;
+
+          return TeacherClassDetailsPage(
+            subjectId: data['subjectId'] as String,
+            subjectName: data['subjectName'] as String,
+            classId: data['classId'] as String,
+            className: data['className'] as String,
+          );
+        },
+      ),
+      GoRoute(
+  path: '/teacher/classes/class-teacher-details',
+  builder: (context, state) {
+    final extra = state.extra as Map<String, dynamic>;
+
+    return TeacherClassTeacherDetailsPage(
+      classId: extra['classId'].toString(),
+      className: extra['className']?.toString() ?? 'Class',
+    );
+  },
+),
+
+
+      GoRoute(
+        path: '/teacher/assignments/create',
+        builder: (context, state) {
+          final data = state.extra as Map<String, dynamic>;
+
+          return TeacherCreateAssignmentPage(
+            classId: data['classId'],
+            subjectId: data['subjectId'],
+            subjectName: data['subjectName'],
+            className: data['className'],
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/teacher/assignments/details/:assignmentId',
+        builder: (context, state) {
+          final assignmentId = state.pathParameters['assignmentId']!;
+
+          return TeacherAssignmentDetailsPage(assignmentId: assignmentId);
+        },
+      ),
+
+      GoRoute(
+        path: '/teacher/classes/students',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+
+          return TeacherClassStudentsPage(
+            subjectId: extra['subjectId'] as String,
+            subjectName: extra['subjectName'] as String,
+            classId: extra['classId'] as String,
+            className: extra['className'] as String,
+          );
+        },
+      ),
+      GoRoute(
+        path: '/teacher/classes/assignments',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+
+          return TeacherClassAssignmentsPage(
+            subjectId: extra['subjectId'] as String,
+            subjectName: extra['subjectName'] as String,
+            classId: extra['classId'] as String,
+            className: extra['className'] as String,
+          );
+        },
+      ),
+
+     GoRoute(
+  path: '/teacher/students/details',
+  builder: (context, state) {
+    final extra = state.extra as Map<String, dynamic>;
+
+    return TeacherStudentDetailsPage(
+      student: extra['student'],
+      isClassTeacher: extra['isClassTeacher'] == true,
+    );
+  },
+),
+
+
+
+      GoRoute(
+        path: '/teacher/classes/attendance',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
+
+          return TeacherClassAttendancePage(
+            subjectId: extra['subjectId'] as String,
+            subjectName: extra['subjectName'] as String,
+            classId: extra['classId'] as String,
+            className: extra['className'] as String,
           );
         },
       ),
@@ -574,7 +681,6 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // ADMIN - TEACHERS
       // ============================================================
-
       GoRoute(
         path: '/:schoolId/teachers',
         builder: (context, state) {
@@ -582,10 +688,7 @@ GoRouter appRouter(Ref ref) {
 
           final schoolName = state.extra as String? ?? 'School';
 
-          return TeachersPage(
-            schoolId: schoolId,
-            schoolName: schoolName,
-          );
+          return TeachersPage(schoolId: schoolId, schoolName: schoolName);
         },
       ),
 
@@ -596,10 +699,7 @@ GoRouter appRouter(Ref ref) {
 
           final schoolName = state.extra as String? ?? 'your School';
 
-          return AdminTeachersPage(
-            schoolId: schoolId,
-            schoolName: schoolName,
-          );
+          return AdminTeachersPage(schoolId: schoolId, schoolName: schoolName);
         },
       ),
 
@@ -608,9 +708,7 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminCreateTeacherPage(
-            schoolId: schoolId,
-          );
+          return AdminCreateTeacherPage(schoolId: schoolId);
         },
       ),
 
@@ -635,27 +733,20 @@ GoRouter appRouter(Ref ref) {
 
           final teacherId = state.pathParameters['teacherId']!;
 
-          return AdminEditTeacherPage(
-            schoolId: schoolId,
-            teacherId: teacherId,
-          );
+          return AdminEditTeacherPage(schoolId: schoolId, teacherId: teacherId);
         },
       ),
 
       // ============================================================
       // ADMIN - STUDENTS
       // ============================================================
-
       GoRoute(
         path: '/admin/:schoolId/students',
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
           final schoolName = state.extra as String? ?? 'My School';
 
-          return AdminStudentsPage(
-            schoolId: schoolId,
-            schoolName: schoolName,
-          );
+          return AdminStudentsPage(schoolId: schoolId, schoolName: schoolName);
         },
       ),
 
@@ -664,9 +755,7 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminCreateStudentPage(
-            schoolId: schoolId,
-          );
+          return AdminCreateStudentPage(schoolId: schoolId);
         },
       ),
 
@@ -690,25 +779,19 @@ GoRouter appRouter(Ref ref) {
 
           final student = state.extra as AdminStudentModel;
 
-          return AdminEditStudentPage(
-            schoolId: schoolId,
-            student: student,
-          );
+          return AdminEditStudentPage(schoolId: schoolId, student: student);
         },
       ),
 
       // ============================================================
       // ADMIN - CLASSES
       // ============================================================
-
       GoRoute(
         path: '/admin/:schoolId/classes',
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminClassesPage(
-            schoolId: schoolId,
-          );
+          return AdminClassesPage(schoolId: schoolId);
         },
       ),
 
@@ -717,9 +800,7 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminCreateClassPage(
-            schoolId: schoolId,
-          );
+          return AdminCreateClassPage(schoolId: schoolId);
         },
       ),
 
@@ -728,24 +809,19 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final schoolClass = state.extra as AdminClassModel;
 
-          return AdminClassDetailsPage(
-            schoolClass: schoolClass,
-          );
+          return AdminClassDetailsPage(schoolClass: schoolClass);
         },
       ),
 
       // ============================================================
       // ADMIN - SUBJECTS
       // ============================================================
-
       GoRoute(
         path: '/admin/:schoolId/subjects',
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminSubjectsPage(
-            schoolId: schoolId,
-          );
+          return AdminSubjectsPage(schoolId: schoolId);
         },
       ),
 
@@ -754,9 +830,7 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminCreateSubjectPage(
-            schoolId: schoolId,
-          );
+          return AdminCreateSubjectPage(schoolId: schoolId);
         },
       ),
 
@@ -773,15 +847,21 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // ADMIN - PARENTS
       // ============================================================
+      GoRoute(
+        path: '/admin/:schoolId/parents/create',
+        builder: (context, state) {
+          return AdminCreateParentPage(
+            schoolId: state.pathParameters['schoolId']!,
+          );
+        },
+      ),
 
       GoRoute(
         path: '/admin/:schoolId/parents',
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminParentsPage(
-            schoolId: schoolId,
-          );
+          return AdminParentsPage(schoolId: schoolId);
         },
       ),
 
@@ -800,7 +880,6 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // ADMIN - ACADEMIC SESSIONS
       // ============================================================
-
       GoRoute(
         path: '/admin/:schoolId/academic-sessions',
         builder: (context, state) {
@@ -816,16 +895,12 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // ADMIN - RESULTS
       // ============================================================
-
       GoRoute(
         path: '/admin/:schoolId/results',
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminResultsPage(
-            schoolId: schoolId,
-            schoolName: 'School',
-          );
+          return AdminResultsPage(schoolId: schoolId, schoolName: 'School');
         },
       ),
 
@@ -835,9 +910,7 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 
-          return AdminCreateResultPage(
-            schoolId: schoolId,
-          );
+          return AdminCreateResultPage(schoolId: schoolId);
         },
       ),
 
@@ -862,8 +935,7 @@ GoRouter appRouter(Ref ref) {
 
           final extra = state.extra as Map<String, dynamic>;
 
-          final results =
-              (extra['results'] as List).cast<AdminResultModel>();
+          final results = (extra['results'] as List).cast<AdminResultModel>();
 
           return AdminResultDetailsPage(
             schoolId: schoolId,
@@ -881,7 +953,6 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // ADMIN - SCHOOL SUBJECTS
       // ============================================================
-
       GoRoute(
         path: '//schools/:schoolId/subjects',
         builder: (context, state) {
@@ -889,10 +960,7 @@ GoRouter appRouter(Ref ref) {
 
           final schoolName = state.extra as String? ?? 'School';
 
-          return SubjectsPage(
-            schoolId: schoolId,
-            schoolName: schoolName,
-          );
+          return SubjectsPage(schoolId: schoolId, schoolName: schoolName);
         },
       ),
 
@@ -903,17 +971,13 @@ GoRouter appRouter(Ref ref) {
 
           final schoolName = state.extra as String? ?? 'School';
 
-          return SubjectsPage(
-            schoolId: schoolId,
-            schoolName: schoolName,
-          );
+          return SubjectsPage(schoolId: schoolId, schoolName: schoolName);
         },
       ),
 
       // ============================================================
       // SUPER ADMIN
       // ============================================================
-
       GoRoute(
         path: '/super-admin',
         builder: (context, state) => const SuperAdminDashboardPage(),
@@ -946,9 +1010,7 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           final school = state.extra as SchoolModel;
 
-          return SchoolManagementPage(
-            school: school,
-          );
+          return SchoolManagementPage(school: school);
         },
       ),
 
@@ -959,10 +1021,7 @@ GoRouter appRouter(Ref ref) {
 
           final schoolName = state.extra as String? ?? 'School';
 
-          return SchoolAdminsPage(
-            schoolId: schoolId,
-            schoolName: schoolName,
-          );
+          return SchoolAdminsPage(schoolId: schoolId, schoolName: schoolName);
         },
       ),
 
