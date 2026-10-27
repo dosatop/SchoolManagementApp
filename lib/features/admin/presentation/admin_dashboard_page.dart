@@ -1,9 +1,5 @@
-import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:app/features/admin/providers/admin_provider.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -205,6 +201,8 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   // ================================================================
 
   Future<void> _refreshDashboard() async {
+    if (isRefreshing) return;
+
     if (mounted) {
       setState(() {
         isRefreshing = true;
@@ -488,7 +486,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             const SizedBox(height: 5),
 
             Text(
-              'A visual overview of your school population and academic structure.',
+              'Tap a card to manage that part of your school.',
 
               style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
             ),
@@ -498,21 +496,15 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             if (dashboardState.isLoading && dashboard == null)
               _statisticsShimmer()
             else if (dashboardState.hasError && dashboard == null)
-              _errorCard(message: 'Unable to load school statistics.')
-            else
-              _statisticsChart(
-                students: dashboard?.studentCount ?? 0,
+              _errorCard(
+                message: _errorMessage(dashboardState.error),
+              )
+            else ...[
+              if (dashboard != null && dashboard.failedSections.isNotEmpty)
+                _warningBanner(dashboard.failedSections),
 
-                teachers: dashboard?.teacherCount ?? 0,
-
-                classes: dashboard?.classCount ?? 0,
-
-                subjects: dashboard?.subjectCount ?? 0,
-
-                parents: dashboard?.parentCount ?? 0,
-              ),
-
-            const SizedBox(height: 28),
+              _statsGrid(dashboard),
+            ],
 
             _dashboardSummaryCard(),
           ],
@@ -866,21 +858,15 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
               children: [
                 _profileItem(Icons.person_outline, 'Full Name', adminName),
 
-                _profileDivider(),
+                if (email.isNotEmpty) ...[
+                  _profileDivider(),
+                  _profileItem(Icons.email_outlined, 'Email', email),
+                ],
 
-                _profileItem(
-                  Icons.email_outlined,
-                  'Email',
-                  email.isEmpty ? 'Not provided' : email,
-                ),
-
-                _profileDivider(),
-
-                _profileItem(
-                  Icons.phone_outlined,
-                  'Phone',
-                  phone.isEmpty ? 'Not provided' : phone,
-                ),
+                if (phone.isNotEmpty) ...[
+                  _profileDivider(),
+                  _profileItem(Icons.phone_outlined, 'Phone', phone),
+                ],
 
                 _profileDivider(),
 
@@ -1017,142 +1003,199 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   }
 
   // ================================================================
-  // STATISTICS CHART
+  // STATISTICS GRID
   // ================================================================
+  // Exact counts, each card opens its management page.
 
-  Widget _statisticsChart({
-    required int students,
-    required int teachers,
-    required int classes,
-    required int subjects,
-    required int parents,
-  }) {
-    final values = [students, teachers, classes, subjects, parents];
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(14, 20, 14, 18),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(22),
-        border: Border.all(color: Colors.grey.shade200),
+  Widget _statsGrid(dynamic dashboard) {
+    final stats = [
+      (
+        icon: Icons.groups_outlined,
+        label: 'Students',
+        value: dashboard?.studentCount ?? 0,
+        color: Colors.purple,
+        route: '/admin/$schoolId/students',
       ),
+      (
+        icon: Icons.person_outline_rounded,
+        label: 'Teachers',
+        value: dashboard?.teacherCount ?? 0,
+        color: Colors.green,
+        route: '/admin/$schoolId/teachers',
+      ),
+      (
+        icon: Icons.class_outlined,
+        label: 'Classes',
+        value: dashboard?.classCount ?? 0,
+        color: Colors.orange,
+        route: '/admin/$schoolId/classes',
+      ),
+      (
+        icon: Icons.menu_book_outlined,
+        label: 'Subjects',
+        value: dashboard?.subjectCount ?? 0,
+        color: primary,
+        route: '/admin/$schoolId/subjects',
+      ),
+      (
+        icon: Icons.family_restroom_outlined,
+        label: 'Parents',
+        value: dashboard?.parentCount ?? 0,
+        color: Colors.teal,
+        route: '/admin/$schoolId/parents',
+      ),
+      (
+        icon: Icons.account_tree_outlined,
+        label: 'Departments',
+        value: dashboard?.departmentCount ?? 0,
+        color: Colors.indigo,
+        route: null,
+      ),
+    ];
 
-      child: Column(
-        children: [
-          SizedBox(
-            height: 300,
-            width: double.infinity,
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      itemCount: stats.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.55,
+      ),
+      itemBuilder: (context, i) {
+        final s = stats[i];
+        return _statCard(
+          icon: s.icon,
+          label: s.label,
+          value: s.value as int,
+          color: s.color,
+          onTap: s.route == null ? null : () => _openRoute(s.route!),
+        );
+      },
+    );
+  }
 
-            child: CustomPaint(
-              painter: _RadarChartPainter(
-                values: values.map((v) => v.toDouble()).toList(),
-
-                maxValue: _calculateMaxValue(values),
-
-                color: primary,
-              ),
-            ),
+  Widget _statCard({
+    required IconData icon,
+    required String label,
+    required int value,
+    required Color color,
+    VoidCallback? onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.grey.shade200),
           ),
-
-          const SizedBox(height: 12),
-
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 14,
-            runSpacing: 10,
-
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              _chartLegend(
-                color: Colors.purple,
-                label: 'Students',
-                value: students,
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: .1),
+                      borderRadius: BorderRadius.circular(11),
+                    ),
+                    child: Icon(icon, color: color, size: 20),
+                  ),
+                  const Spacer(),
+                  if (onTap != null)
+                    Icon(
+                      Icons.arrow_forward_ios_rounded,
+                      size: 13,
+                      color: Colors.grey.shade400,
+                    ),
+                ],
               ),
-
-              _chartLegend(
-                color: Colors.green,
-                label: 'Teachers',
-                value: teachers,
-              ),
-
-              _chartLegend(
-                color: Colors.orange,
-                label: 'Classes',
-                value: classes,
-              ),
-
-              _chartLegend(color: primary, label: 'Subjects', value: subjects),
-
-              _chartLegend(
-                color: Colors.teal,
-                label: 'Parents',
-                value: parents,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '$value',
+                    style: const TextStyle(
+                      color: textDark,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      height: 1,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // PARTIAL LOAD WARNING
+  // ================================================================
+
+  Widget _warningBanner(List<String> failed) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(14, 10, 6, 10),
+      decoration: BoxDecoration(
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.orange.shade100),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.orange.shade700,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Couldn\'t load ${failed.join(', ')}. Those counts may show 0.',
+              style: TextStyle(color: Colors.orange.shade900, fontSize: 12),
+            ),
+          ),
+          TextButton(
+            onPressed: isRefreshing ? null : _refreshDashboard,
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.orange.shade900,
+              visualDensity: VisualDensity.compact,
+            ),
+            child: const Text('Retry'),
           ),
         ],
       ),
     );
   }
 
-  // ================================================================
-  // CALCULATE CHART MAX
-  // ================================================================
-
-  double _calculateMaxValue(List<int> values) {
-    final highest = values.isEmpty ? 1 : values.reduce((a, b) => a > b ? a : b);
-
-    if (highest <= 0) {
-      return 10;
+  String _errorMessage(Object? error) {
+    final text = error?.toString() ?? '';
+    if (text.contains('401') || text.contains('403')) {
+      return 'Your session has expired. Please log out and sign in again.';
     }
-
-    final padded = highest * 1.2;
-
-    return padded < 10 ? 10 : padded;
-  }
-
-  // ================================================================
-  // CHART LEGEND
-  // ================================================================
-
-  Widget _chartLegend({
-    required Color color,
-    required String label,
-    required int value,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-
-      children: [
-        Container(
-          width: 9,
-          height: 9,
-
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        ),
-
-        const SizedBox(width: 6),
-
-        Text(
-          label,
-
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-        ),
-
-        const SizedBox(width: 4),
-
-        Text(
-          '$value',
-
-          style: const TextStyle(
-            color: textDark,
-            fontSize: 11,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ],
-    );
+    return 'Unable to load school statistics.';
   }
 
   // ================================================================
@@ -1188,9 +1231,18 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
           const SizedBox(height: 12),
 
-          ElevatedButton(
-            onPressed: _refreshDashboard,
-            child: const Text('Retry'),
+          ElevatedButton.icon(
+            onPressed: isRefreshing ? null : _refreshDashboard,
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text('Retry'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: primary,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
           ),
         ],
       ),
@@ -1204,7 +1256,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   Widget _statisticsShimmer() {
     return Container(
       width: double.infinity,
-      height: 350,
+      height: 260,
 
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1449,6 +1501,8 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     }
 
     context.push(route, extra: schoolName).then((_) {
+      // Counts can change after creating/editing records, so refresh
+      // quietly (old numbers stay on screen while it loads).
       if (mounted) {
         _refreshDashboard();
       }
@@ -1494,178 +1548,16 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
       return;
     }
 
-    await ref.read(authProvider.notifier).logout();
+    try {
+      await ref.read(authProvider.notifier).logout();
+    } catch (_) {
+      // A failing logout endpoint must not block going to login.
+    }
 
     if (!mounted) {
       return;
     }
 
     context.go('/login');
-  }
-}
-
-// ==================================================================
-// RADAR / POLYGON CHART PAINTER
-// ==================================================================
-// Uses log scaling so small counts (subjects, classes) stay visible
-// next to large ones (students, parents) instead of collapsing
-// into the centre. Exact numbers are shown in the legend.
-
-class _RadarChartPainter extends CustomPainter {
-  final List<double> values;
-  final double maxValue;
-  final Color color;
-
-  _RadarChartPainter({
-    required this.values,
-    required this.maxValue,
-    required this.color,
-  });
-
-  static const int _sides = 5;
-
-  double _normalize(double value) {
-    if (maxValue <= 0 || value <= 0) {
-      return 0;
-    }
-
-    final scaled = math.log(1 + value) / math.log(1 + maxValue);
-
-    return scaled.clamp(0.0, 1.0);
-  }
-
-  Offset _pointAt(Offset center, int index, double distance) {
-    final angle = -math.pi / 2 + (index * (2 * math.pi) / _sides);
-
-    return Offset(
-      center.dx + math.cos(angle) * distance,
-      center.dy + math.sin(angle) * distance,
-    );
-  }
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (values.length != _sides) {
-      return;
-    }
-
-    final center = Offset(size.width / 2, size.height / 2);
-
-    final radius = math.min(size.width, size.height) * .32;
-
-    // ---------------- Grid ----------------
-
-    final gridPaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xFFE5E7EF);
-
-    for (int level = 1; level <= 5; level++) {
-      final levelRadius = radius * level / 5;
-
-      final path = Path();
-
-      for (int i = 0; i < _sides; i++) {
-        final point = _pointAt(center, i, levelRadius);
-
-        if (i == 0) {
-          path.moveTo(point.dx, point.dy);
-        } else {
-          path.lineTo(point.dx, point.dy);
-        }
-      }
-
-      path.close();
-
-      canvas.drawPath(path, gridPaint);
-    }
-
-    for (int i = 0; i < _sides; i++) {
-      canvas.drawLine(center, _pointAt(center, i, radius), gridPaint);
-    }
-
-    // ---------------- Data polygon ----------------
-
-    final dataPoints = <Offset>[
-      for (int i = 0; i < _sides; i++)
-        _pointAt(center, i, radius * _normalize(values[i])),
-    ];
-
-    final dataPath = Path()..addPolygon(dataPoints, true);
-
-    canvas.drawPath(
-      dataPath,
-      Paint()
-        ..style = PaintingStyle.fill
-        ..color = color.withValues(alpha: .13),
-    );
-
-    canvas.drawPath(
-      dataPath,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.5
-        ..strokeJoin = StrokeJoin.round
-        ..color = color,
-    );
-
-    final pointPaint = Paint()..color = color;
-    final innerPaint = Paint()..color = Colors.white;
-
-    for (final point in dataPoints) {
-      canvas.drawCircle(point, 4.5, pointPaint);
-      canvas.drawCircle(point, 2, innerPaint);
-    }
-
-    // ---------------- Labels ----------------
-
-    const labels = ['Students', 'Teachers', 'Classes', 'Subjects', 'Parents'];
-
-    const labelColors = [
-      Colors.purple,
-      Colors.green,
-      Colors.orange,
-      Color(0xFF091993),
-      Colors.teal,
-    ];
-
-    for (int i = 0; i < _sides; i++) {
-      final point = _pointAt(center, i, radius + 35);
-
-      final textPainter = TextPainter(
-        text: TextSpan(
-          text: labels[i],
-
-          style: TextStyle(
-            color: labelColors[i],
-            fontSize: 11,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-
-        textDirection: TextDirection.ltr,
-      )..layout();
-
-      double dx = point.dx - textPainter.width / 2;
-
-      double dy = point.dy - textPainter.height / 2;
-
-      if (i == 0) {
-        dy -= 4;
-      }
-
-      if (i == 1 || i == 2) {
-        dx += i == 1 ? 4 : -4;
-      }
-
-      textPainter.paint(canvas, Offset(dx, dy));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _RadarChartPainter oldDelegate) {
-    return !listEquals(oldDelegate.values, values) ||
-        oldDelegate.maxValue != maxValue ||
-        oldDelegate.color != color;
   }
 }

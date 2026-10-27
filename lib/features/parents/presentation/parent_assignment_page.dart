@@ -1,203 +1,128 @@
-import 'package:app/features/parents/parent_preovider.dart';
+import 'package:app/features/parents/parent_provider.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shimmer/shimmer.dart';
 
-class ParentAssignmentsPage extends ConsumerWidget {
-  final String studentId;
+// ==================================================================
+// PARENT: CHILD ASSIGNMENTS (current term, read-only)
+// ==================================================================
 
+enum _Filter { pending, overdue, submitted, all }
+
+class ParentAssignmentsPage extends ConsumerStatefulWidget {
   const ParentAssignmentsPage({
     super.key,
     required this.studentId,
+    this.header,
   });
 
-  static const Color primary = Color(0xFF091993);
-  static const Color background = Color(0xFFF7F7F7);
-  static const Color textDark = Color(0xFF2F313D);
+  final String studentId;
+
+  /// Optional widget above the content (the dashboard passes a child
+  /// switcher when this page is shown as a tab).
+  final Widget? header;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final childAsync = ref.watch(parentChildProvider(studentId));
+  ConsumerState<ParentAssignmentsPage> createState() =>
+      _ParentAssignmentsPageState();
+}
 
-    return Scaffold(
-      backgroundColor: background,
-      appBar: AppBar(
-        backgroundColor: background,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: textDark,
-            size: 20,
-          ),
-        ),
-        title: const Text(
-          'Assignments',
-          style: TextStyle(
-            color: textDark,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: childAsync.when(
-        loading: () => _shimmer(),
-        error: (error, stack) => _errorState(ref),
-        data: (child) => RefreshIndicator(
-          color: primary,
-          onRefresh: () async {
-            ref.invalidate(parentChildProvider(studentId));
-            await ref.read(parentChildProvider(studentId).future);
-          },
-          child: ListView(
-            physics: const BouncingScrollPhysics(
-              parent: AlwaysScrollableScrollPhysics(),
-            ),
-            padding: const EdgeInsets.fromLTRB(20, 15, 20, 30),
-            children: [
-              _studentHeader(
-                child.fullName,
-                child.className,
-                child.studentNumber,
-              ),
+class _ParentAssignmentsPageState extends ConsumerState<ParentAssignmentsPage> {
+  _Filter _filter = _Filter.pending;
 
-              const SizedBox(height: 22),
+  ParentChildTermParams get _params => ParentChildTermParams(widget.studentId);
 
-              _sectionTitle(
-                'Assignments',
-                'Track your child\'s assignments and deadlines',
-              ),
-
-              const SizedBox(height: 14),
-
-              _assignmentCard(
-                title: 'Mathematics Assignment',
-                subject: 'Mathematics',
-                description:
-                    'Complete exercises on algebraic expressions and equations.',
-                dueDate: 'Aug 14, 2026',
-                status: 'Due Today',
-                color: Colors.red,
-                icon: Icons.calculate_outlined,
-              ),
-
-              _assignmentCard(
-                title: 'Basic Science Project',
-                subject: 'Basic Science',
-                description:
-                    'Prepare a short report on the human respiratory system.',
-                dueDate: 'Aug 18, 2026',
-                status: 'Upcoming',
-                color: Colors.orange,
-                icon: Icons.science_outlined,
-              ),
-
-              _assignmentCard(
-                title: 'English Language Essay',
-                subject: 'English Language',
-                description:
-                    'Write an essay about the importance of education.',
-                dueDate: 'Aug 20, 2026',
-                status: 'Upcoming',
-                color: primary,
-                icon: Icons.menu_book_outlined,
-              ),
-
-              _assignmentCard(
-                title: 'Computer Studies',
-                subject: 'Computer Studies',
-                description:
-                    'Research and explain five uses of computers in education.',
-                dueDate: 'Aug 22, 2026',
-                status: 'Upcoming',
-                color: Colors.green,
-                icon: Icons.computer_outlined,
-              ),
-
-              const SizedBox(height: 20),
-
-              _informationCard(),
-            ],
-          ),
-        ),
-      ),
-    );
+  Future<void> _refresh() async {
+    ref.invalidate(parentChildAssignmentsProvider(_params));
+    await sSafe(ref.read(parentChildAssignmentsProvider(_params).future));
   }
 
-  // ============================================================
-  // STUDENT HEADER
-  // ============================================================
+  @override
+  Widget build(BuildContext context) {
+    final childAsync = ref.watch(parentChildProvider(widget.studentId));
+    final async = ref.watch(parentChildAssignmentsProvider(_params));
 
-  Widget _studentHeader(
-    String name,
-    String className,
-    String studentNumber,
-  ) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
+    final all = sList(async.valueOrNull, ['assignments']);
+    final submitted = all.where(_isSubmitted).toList();
+    final pending = all.where((a) => !_isSubmitted(a)).toList();
+    final overdue = pending.where(_isOverdue).toList();
+
+    final visible = switch (_filter) {
+      _Filter.pending => pending,
+      _Filter.overdue => overdue,
+      _Filter.submitted => submitted,
+      _Filter.all => all,
+    };
+
+    final sorted = [...visible]..sort(_byDue);
+
+    return Scaffold(
+      backgroundColor: StudentColors.background,
+      appBar: studentAppBar(
+        'Assignments',
+        subtitle: childAsync.valueOrNull?.fullName,
       ),
-      child: Row(
+      body: Column(
         children: [
+          if (widget.header != null) widget.header!,
           Container(
-            width: 55,
-            height: 55,
-            decoration: BoxDecoration(
-              color: primary.withOpacity(.09),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: const Icon(
-              Icons.person_outline_rounded,
-              color: primary,
-              size: 29,
+            color: Colors.white,
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  _chip('To do', pending.length, _Filter.pending),
+                  _chip('Overdue', overdue.length, _Filter.overdue),
+                  _chip('Submitted', submitted.length, _Filter.submitted),
+                  _chip('All', all.length, _Filter.all),
+                ],
+              ),
             ),
           ),
-
-          const SizedBox(width: 14),
-
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
+            child: RefreshIndicator(
+              color: StudentColors.primary,
+              onRefresh: _refresh,
+              child: () {
+                if (async.isLoading && !async.hasValue) {
+                  return const StudentLoadingView();
+                }
+
+                if (async.hasError && !async.hasValue) {
+                  return StudentErrorView(
+                    error: async.error!,
+                    onRetry: _refresh,
+                    title: 'Unable to load assignments',
+                  );
+                }
+
+                if (sorted.isEmpty) {
+                  return StudentEmptyView(
+                    icon: _filter == _Filter.pending
+                        ? Icons.task_alt_rounded
+                        : Icons.assignment_outlined,
+                    title: switch (_filter) {
+                      _Filter.pending => 'All caught up',
+                      _Filter.overdue => 'Nothing overdue',
+                      _Filter.submitted => 'Nothing submitted yet',
+                      _Filter.all => 'No assignments this term',
+                    },
+                    message: 'Assignments from the teachers will show here.',
+                  );
+                }
+
+                return ListView.separated(
+                  physics: const AlwaysScrollableScrollPhysics(
+                    parent: BouncingScrollPhysics(),
                   ),
-                ),
-
-                const SizedBox(height: 5),
-
-                Text(
-                  '$className  •  $studentNumber',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 12,
-                  ),
-                ),
-
-                const SizedBox(height: 3),
-
-                const Text(
-                  '2025/2026 Academic Session',
-                  style: TextStyle(
-                    color: Colors.grey,
-                    fontSize: 11,
-                  ),
-                ),
-              ],
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 30),
+                  itemCount: sorted.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, i) => _card(sorted[i]),
+                );
+              }(),
             ),
           ),
         ],
@@ -205,325 +130,281 @@ class ParentAssignmentsPage extends ConsumerWidget {
     );
   }
 
-  // ============================================================
-  // ASSIGNMENT CARD
-  // ============================================================
+  Widget _chip(String label, int count, _Filter value) {
+    final selected = _filter == value;
 
-  Widget _assignmentCard({
-    required String title,
-    required String subject,
-    required String description,
-    required String dueDate,
-    required String status,
-    required Color color,
-    required IconData icon,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: ChoiceChip(
+        selected: selected,
+        onSelected: (_) => setState(() => _filter = value),
+        showCheckmark: false,
+        selectedColor: StudentColors.primary,
+        backgroundColor: Colors.white,
+        side: BorderSide(
+          color: selected ? StudentColors.primary : Colors.grey.shade300,
+        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+        label: Text(
+          '$label · $count',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: selected ? Colors.white : Colors.grey.shade700,
+          ),
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    );
+  }
+
+  Widget _card(dynamic item) {
+    final title = sStr(item, ['title']) ?? 'Assignment';
+    final subject = sStr(item, ['subjectName']);
+    final teacher = sStr(item, ['teacherName']);
+    final due = sLocal(item, ['dueDate']);
+    final sub = item is Map ? item['submission'] : null;
+    final score = sNum(sub, ['score']);
+    final status = _isSubmitted(item)
+        ? (sub is Map && sub['isGraded'] == true ? 'Graded' : 'Submitted')
+        : (_isOverdue(item) ? 'Overdue' : 'Pending');
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: () => _showDetails(item),
+        child: Container(
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                width: 45,
-                height: 45,
-                decoration: BoxDecoration(
-                  color: color.withOpacity(.09),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  icon,
-                  color: color,
-                  size: 23,
-                ),
-              ),
-
-              const SizedBox(width: 12),
-
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
                       title,
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: textDark,
+                        color: StudentColors.textDark,
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-
-                    const SizedBox(height: 4),
-
+                  ),
+                  const SizedBox(width: 8),
+                  StatusChip(status),
+                ],
+              ),
+              if (subject != null || teacher != null) ...[
+                const SizedBox(height: 6),
+                Text(
+                  [
+                    if (subject != null) subject,
+                    if (teacher != null) teacher,
+                  ].join(' · '),
+                  style: const TextStyle(
+                    color: StudentColors.primary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(
+                    Icons.event_outlined,
+                    size: 15,
+                    color: Colors.grey.shade500,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    due == null ? 'No due date' : 'Due ${sPrettyDate(due)}',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                  const Spacer(),
+                  if (score != null)
                     Text(
-                      subject,
+                      'Score ${score % 1 == 0 ? score.toInt() : score.toStringAsFixed(1)}',
                       style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 11,
+                        color: Colors.green.shade700,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ],
-                ),
+                ],
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 9,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: color.withOpacity(.09),
-                  borderRadius: BorderRadius.circular(9),
-                ),
-                child: Text(
-                  status,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 10,
-                    fontWeight: FontWeight.bold,
+  void _showDetails(dynamic item) {
+    final title = sStr(item, ['title']) ?? 'Assignment';
+    final description = sStr(item, ['description']);
+    final attachment = sStr(item, ['attachmentUrl']);
+    final due = sLocal(item, ['dueDate']);
+    final sub = item is Map ? item['submission'] : null;
+    final submittedAt = sLocal(sub, ['submittedAt']);
+    final answer = sStr(sub, ['submissionText']);
+    final feedback = sStr(sub, ['feedback']);
+    final score = sNum(sub, ['score']);
+
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => DraggableScrollableSheet(
+        initialChildSize: .65,
+        minChildSize: .4,
+        maxChildSize: .92,
+        expand: false,
+        builder: (context, controller) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: controller,
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
               ),
-            ],
-          ),
-
-          const SizedBox(height: 15),
-
-          Text(
-            description,
-            style: TextStyle(
-              color: Colors.grey.shade700,
-              fontSize: 12,
-              height: 1.45,
-            ),
-          ),
-
-          const SizedBox(height: 14),
-
-          Divider(
-            height: 1,
-            color: Colors.grey.shade200,
-          ),
-
-          const SizedBox(height: 12),
-
-          Row(
-            children: [
-              Icon(
-                Icons.calendar_today_outlined,
-                size: 15,
-                color: Colors.grey.shade500,
-              ),
-
-              const SizedBox(width: 6),
-
+              const SizedBox(height: 18),
               Text(
-                'Due $dueDate',
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-
-              const Spacer(),
-
-              const Icon(
-                Icons.chevron_right_rounded,
-                color: Colors.grey,
-                size: 20,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // INFORMATION
-  // ============================================================
-
-  Widget _informationCard() {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: primary.withOpacity(.05),
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(
-          color: primary.withOpacity(.10),
-        ),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(
-            Icons.info_outline_rounded,
-            color: primary,
-            size: 22,
-          ),
-
-          const SizedBox(width: 10),
-
-          Expanded(
-            child: Text(
-              'Assignment information is provided by the school. '
-              'Please check regularly for new assignments and deadlines.',
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 11,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // SECTION TITLE
-  // ============================================================
-
-  Widget _sectionTitle(
-    String title,
-    String subtitle,
-  ) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: textDark,
-            fontSize: 21,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-
-        const SizedBox(height: 3),
-
-        Text(
-          subtitle,
-          style: TextStyle(
-            color: Colors.grey.shade600,
-            fontSize: 12,
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // SHIMMER
-  // ============================================================
-
-  Widget _shimmer() {
-    return Shimmer.fromColors(
-      baseColor: Colors.grey.shade300,
-      highlightColor: Colors.grey.shade100,
-      child: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 15, 20, 30),
-        children: [
-          Container(
-            height: 90,
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-            ),
-          ),
-
-          const SizedBox(height: 22),
-
-          Container(
-            width: 150,
-            height: 22,
-            color: Colors.white,
-          ),
-
-          const SizedBox(height: 14),
-
-          ...List.generate(
-            4,
-            (index) => Container(
-              height: 160,
-              margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(18),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ============================================================
-  // ERROR
-  // ============================================================
-
-  Widget _errorState(WidgetRef ref) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(25),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline_rounded,
-              color: Colors.red.shade400,
-              size: 55,
-            ),
-
-            const SizedBox(height: 15),
-
-            const Text(
-              'Unable to Load Student',
-              style: TextStyle(
-                color: textDark,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'We could not load this student information.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 12,
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextButton(
-              onPressed: () {
-                ref.invalidate(parentChildProvider(studentId));
-              },
-              child: const Text(
-                'Try Again',
-                style: TextStyle(
-                  color: primary,
+                title,
+                style: const TextStyle(
+                  color: StudentColors.textDark,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 6),
+              Text(
+                due == null ? 'No due date' : 'Due ${sPrettyDate(due)}',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+              ),
+              if (description != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  description,
+                  style: TextStyle(
+                    color: Colors.grey.shade800,
+                    fontSize: 14,
+                    height: 1.5,
+                  ),
+                ),
+              ],
+              if (attachment != null) ...[
+                const SizedBox(height: 12),
+                SelectableText(
+                  attachment,
+                  style: const TextStyle(
+                    color: StudentColors.primary,
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+              Divider(color: Colors.grey.shade200, height: 1),
+              const SizedBox(height: 16),
+              if (sub is! Map)
+                Row(
+                  children: [
+                    Icon(
+                      Icons.hourglass_empty_rounded,
+                      color: Colors.orange.shade700,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Not submitted yet',
+                      style: TextStyle(
+                        color: Colors.orange.shade800,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                )
+              else ...[
+                Row(
+                  children: [
+                    Icon(
+                      Icons.check_circle_rounded,
+                      color: Colors.green.shade600,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        submittedAt == null
+                            ? 'Submitted'
+                            : 'Submitted ${sPrettyDate(submittedAt)}',
+                        style: TextStyle(
+                          color: Colors.green.shade700,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (score != null) StatusChip('Score ${score.toStringAsFixed(0)}'),
+                  ],
+                ),
+                if (answer != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: StudentColors.background,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Text(answer, style: const TextStyle(height: 1.5)),
+                  ),
+                ],
+                if (feedback != null) ...[
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Teacher feedback',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(feedback, style: const TextStyle(height: 1.5)),
+                ],
+              ],
+            ],
+          ),
         ),
       ),
     );
+  }
+
+  bool _isSubmitted(dynamic a) => a is Map && a['submission'] is Map;
+
+  bool _isOverdue(dynamic a) {
+    final due = sLocal(a, ['dueDate']);
+    return due != null && due.isBefore(DateTime.now()) && !_isSubmitted(a);
+  }
+
+  int _byDue(dynamic a, dynamic b) {
+    final da = sLocal(a, ['dueDate']);
+    final db = sLocal(b, ['dueDate']);
+    if (da == null && db == null) return 0;
+    if (da == null) return 1;
+    if (db == null) return -1;
+    return da.compareTo(db);
   }
 }

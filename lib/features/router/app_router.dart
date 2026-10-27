@@ -66,6 +66,7 @@ import 'package:app/features/parents/presentation/parent_child_result_page.dart'
 import 'package:app/features/parents/presentation/parent_children_page.dart';
 import 'package:app/features/parents/presentation/parent_dashboard_page.dart';
 import 'package:app/features/parents/presentation/parent_fees_page.dart';
+import 'package:app/features/parents/presentation/parent_profile_page.dart';
 
 // Results
 import 'package:app/features/results/models/student_result_model.dart';
@@ -346,6 +347,16 @@ GoRouter appRouter(Ref ref) {
         builder: (context, state) {
           return const ParentDashboardPage();
         },
+      ),
+
+      GoRoute(
+        path: '/parent/child/:studentId/results',
+        builder: (_, s) =>
+            ParentChildResultsPage(studentId: s.pathParameters['studentId']!),
+      ),
+      GoRoute(
+        path: '/parent/profile',
+        builder: (_, __) => const ParentProfilePage(),
       ),
 
       GoRoute(

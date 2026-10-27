@@ -275,6 +275,14 @@ class AdminDashboardData {
 
   final List<AdminDepartmentModel> departments;
 
+  // ================================================================
+  // WARNINGS
+  // ================================================================
+  // Sections that failed to load (e.g. ['parents']). The rest of the
+  // dashboard still shows; the page displays a small warning.
+
+  final List<String> failedSections;
+
   const AdminDashboardData({
     required this.teachers,
     required this.students,
@@ -283,6 +291,7 @@ class AdminDashboardData {
     required this.parents,
     required this.trades,
     required this.departments,
+    this.failedSections = const [],
   });
 
   // ================================================================
@@ -315,6 +324,7 @@ class AdminDashboardData {
     List<AdminParentModel>? parents,
     List<AdminTradeModel>? trades,
     List<AdminDepartmentModel>? departments,
+    List<String>? failedSections,
   }) {
     return AdminDashboardData(
       teachers: teachers ?? this.teachers,
@@ -324,6 +334,7 @@ class AdminDashboardData {
       parents: parents ?? this.parents,
       trades: trades ?? this.trades,
       departments: departments ?? this.departments,
+      failedSections: failedSections ?? this.failedSections,
     );
   }
 }
@@ -357,39 +368,47 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
   Future<AdminDashboardData> _loadDashboard() async {
     final repository = ref.read(adminRepositoryProvider);
+    final failed = <String>[];
 
-    final results = await Future.wait([
-      // 0
-      repository.getTeachers(),
+    // Each section loads independently. If one endpoint fails, that
+    // section is empty and listed in failedSections instead of
+    // failing the whole dashboard.
+    Future<List<T>> safe<T>(String name, Future<List<T>> future) async {
+      try {
+        return await future;
+      } catch (error) {
+        debugPrint('ADMIN DASHBOARD: failed to load $name: $error');
+        failed.add(name);
+        return <T>[];
+      }
+    }
 
-      // 1
-      repository.getStudents(),
+    final teachersF = safe('teachers', repository.getTeachers());
+    final studentsF = safe('students', repository.getStudents());
+    final classesF = safe('classes', repository.getClasses());
+    final subjectsF = safe('subjects', repository.getAdminSubjects());
+    final parentsF = safe('parents', repository.getParents());
+    final tradesF = safe('trades', repository.getTrades());
+    final departmentsF = safe('departments', repository.getDepartments());
 
-      // 2
-      repository.getClasses(),
-
-      // 3
-      repository.getAdminSubjects(),
-
-      // 4
-      repository.getParents(),
-
-      // 5
-      repository.getTrades(),
-
-      // 6
-      repository.getDepartments(),
-    ]);
-
-    return AdminDashboardData(
-      teachers: results[0] as List<AdminTeacherModel>,
-      students: results[1] as List<AdminStudentModel>,
-      classes: results[2] as List<AdminClassModel>,
-      subjects: results[3] as List<AdminSubjectModel>,
-      parents: results[4] as List<AdminParentModel>,
-      trades: results[5] as List<AdminTradeModel>,
-      departments: results[6] as List<AdminDepartmentModel>,
+    final data = AdminDashboardData(
+      teachers: await teachersF,
+      students: await studentsF,
+      classes: await classesF,
+      subjects: await subjectsF,
+      parents: await parentsF,
+      trades: await tradesF,
+      departments: await departmentsF,
+      failedSections: failed,
     );
+
+    // Every section failed: almost always a session / network problem,
+    // so surface it as a real error.
+    if (failed.length == 7) {
+      throw Exception('Unable to load the dashboard. Pull down to retry.');
+    }
+
+    return data;
   }
 
   // ================================================================
@@ -397,15 +416,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ================================================================
 
   Future<void> refresh() async {
-    state = const AsyncLoading();
+    // Keep the current numbers visible while reloading.
+    state = const AsyncLoading<AdminDashboardData>().copyWithPrevious(state);
 
-    try {
-      final dashboard = await _loadDashboard();
-
-      state = AsyncData(dashboard);
-    } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-    }
+    state = await AsyncValue.guard(_loadDashboard);
   }
 
   // ================================================================
@@ -506,7 +520,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return teacher;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -546,7 +563,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return updatedTeacher;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -578,7 +598,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return false;
     }
@@ -610,10 +633,9 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return student;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
-
-      debugPrint('CREATE STUDENT ERROR: $error');
-
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
       debugPrintStack(stackTrace: stackTrace);
 
       rethrow;
@@ -654,7 +676,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return updatedStudent;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -686,7 +711,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return false;
     }
@@ -720,7 +748,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return schoolClass;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -752,7 +783,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return subject;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -774,7 +808,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
         subjectId: subjectId,
       );
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -803,9 +840,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error, stackTrace) {
-      debugPrint('ASSIGN TEACHER ERROR: $error');
-
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return false;
     }
@@ -841,9 +879,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error, stackTrace) {
-      debugPrint('UNASSIGN TEACHER ERROR: $error');
-
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return false;
     }
@@ -925,7 +964,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return false;
     }
@@ -942,7 +984,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return await repository.createParent(request: request);
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -960,7 +1005,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return await repository.getParentDetails(parentId: parentId);
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -1000,7 +1048,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return updatedParent;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -1032,7 +1083,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return false;
     }
@@ -1059,7 +1113,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return false;
     }
@@ -1086,7 +1143,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return false;
     }
@@ -1126,7 +1186,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return await repository.getResult(resultId: resultId);
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -1213,7 +1276,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return result;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -1235,7 +1301,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return result;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -1257,7 +1326,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return result;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -1283,7 +1355,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return result;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return null;
     }
@@ -1303,14 +1378,21 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
       return true;
     } catch (error, stackTrace) {
-      state = AsyncError(error, stackTrace);
+      // Don't replace the loaded dashboard with an error screen
+      // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
 
       return false;
     }
   }
 
+  // TODO: not implemented yet (no repository method). Returns null.
   Future<Object?> assignStudentToTrade({
     required String studentId,
     required String tradeId,
-  }) async {}
+  }) async {
+    debugPrint('assignStudentToTrade is not implemented yet.');
+    return null;
+  }
 }

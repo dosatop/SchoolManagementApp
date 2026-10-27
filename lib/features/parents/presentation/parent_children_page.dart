@@ -1,4 +1,4 @@
-import 'package:app/features/parents/parent_preovider.dart';
+import 'package:app/features/parents/parent_provider.dart';
 import 'package:app/features/parents/models/parent_child_model.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

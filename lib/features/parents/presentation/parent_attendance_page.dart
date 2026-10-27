@@ -1,523 +1,179 @@
-import 'package:app/features/parents/parent_preovider.dart';
+import 'package:app/features/parents/parent_provider.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+// ==================================================================
+// PARENT: CHILD ATTENDANCE (current term)
+// ==================================================================
+
 class ParentAttendancePage extends ConsumerWidget {
+  const ParentAttendancePage({
+    super.key,
+    required this.studentId,
+    this.header,
+  });
+
   final String studentId;
 
-  const ParentAttendancePage({super.key, required this.studentId});
-
-  static const Color primary = Color(0xFF091993);
-  static const Color background = Color(0xFFF7F7F7);
-  static const Color textDark = Color(0xFF2F313D);
+  /// Optional widget above the content (the dashboard passes a child
+  /// switcher when this page is shown as a tab).
+  final Widget? header;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final params = ParentChildTermParams(studentId);
+
     final childAsync = ref.watch(parentChildProvider(studentId));
+    final async = ref.watch(parentChildAttendanceProvider(params));
+
+    final data = async.valueOrNull;
+    final summary = data is Map ? data['summary'] : null;
+    final records = _parse(sList(data, ['records', 'attendance']));
+    final term = sStr(data, ['term']);
+
+    Future<void> refresh() async {
+      ref.invalidate(parentChildAttendanceProvider(params));
+      await sSafe(ref.read(parentChildAttendanceProvider(params).future));
+    }
 
     return Scaffold(
-      backgroundColor: background,
-
-      appBar: AppBar(
-        backgroundColor: background,
-        elevation: 0,
-        surfaceTintColor: Colors.transparent,
-
-        leading: IconButton(
-          onPressed: () => Navigator.pop(context),
-          icon: const Icon(
-            Icons.arrow_back_ios_new_rounded,
-            color: textDark,
-            size: 20,
-          ),
-        ),
-
-        title: const Text(
-          'Attendance',
-          style: TextStyle(
-            color: textDark,
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+      backgroundColor: StudentColors.background,
+      appBar: studentAppBar(
+        'Attendance',
+        subtitle: [
+          if (childAsync.valueOrNull != null) childAsync.value!.fullName,
+          if (term != null) term,
+        ].join(' · '),
       ),
+      body: _withHeader(header, RefreshIndicator(
+        color: StudentColors.primary,
+        onRefresh: refresh,
+        child: () {
+          if (async.isLoading && !async.hasValue) {
+            return const StudentLoadingView();
+          }
 
-      body: childAsync.when(
-        loading: () =>
-            const Center(child: CircularProgressIndicator(color: primary)),
+          if (async.hasError && !async.hasValue) {
+            return StudentErrorView(
+              error: async.error!,
+              onRetry: refresh,
+              title: 'Unable to load attendance',
+            );
+          }
 
-        error: (error, stackTrace) =>
-            _errorState(context, error.toString(), ref),
+          if (records.isEmpty) {
+            return const StudentEmptyView(
+              icon: Icons.fact_check_outlined,
+              title: 'No attendance yet',
+              message:
+                  'Attendance will show here once the teachers mark it this term.',
+            );
+          }
 
-        data: (child) {
-          return RefreshIndicator(
-            color: primary,
+          final present = sNum(summary, ['present'])?.toInt() ??
+              _count(records, 'present');
+          final absent =
+              sNum(summary, ['absent'])?.toInt() ?? _count(records, 'absent');
+          final late =
+              sNum(summary, ['late'])?.toInt() ?? _count(records, 'late');
+          final excused = sNum(summary, ['excused'])?.toInt() ??
+              _count(records, 'excused');
 
-            onRefresh: () async {
-              ref.invalidate(parentChildProvider(studentId));
+          final counted = present + absent + late;
+          final rate = sNum(summary, ['attendancePercentage'])?.toDouble() ??
+              (counted == 0 ? null : (present + late) / counted * 100);
 
-              await ref.read(parentChildProvider(studentId).future);
-            },
+          final byDay = <DateTime, List<_Record>>{};
+          for (final r in records) {
+            byDay.putIfAbsent(r.day, () => []).add(r);
+          }
+          final days = byDay.keys.toList()..sort((a, b) => b.compareTo(a));
 
-            child: ListView(
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
+            children: [
+              StudentSummaryCard(
+                label: 'Attendance rate',
+                value: rate == null ? '—' : '${rate.toStringAsFixed(0)}%',
+                caption:
+                    '${_message(rate)} · ${days.length} day${days.length == 1 ? '' : 's'} recorded',
+                progress: rate == null ? null : rate / 100,
+                icon: Icons.fact_check_outlined,
+                footer: Row(
+                  children: [
+                    SummaryStat('Present', '$present'),
+                    SummaryStat('Absent', '$absent'),
+                    SummaryStat('Late', '$late'),
+                    SummaryStat('Excused', '$excused'),
+                  ],
+                ),
               ),
 
-              padding: const EdgeInsets.fromLTRB(20, 15, 20, 30),
-
-              children: [
-                // ========================================================
-                // STUDENT HEADER
-                // ========================================================
-                _studentHeader(
-                  name: child.fullName,
-                  studentNumber: child.studentNumber,
-                  className: child.className,
-                ),
-
-                const SizedBox(height: 20),
-
-                // ========================================================
-                // SUMMARY
-                // ========================================================
-                _sectionTitle(
-                  'Attendance Summary',
-                  'Current attendance performance',
-                ),
-
-                const SizedBox(height: 12),
-
-                _summaryCard(name: child.fullName),
-
-                const SizedBox(height: 25),
-
-                // ========================================================
-                // STATS
-                // ========================================================
-                GridView.count(
-                  crossAxisCount: 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.4,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  children: [
-                    _statCard(
-                      icon: Icons.check_circle_outline_rounded,
-                      value: '46',
-                      title: 'Present',
-                      color: Colors.green,
-                    ),
-
-                    _statCard(
-                      icon: Icons.cancel_outlined,
-                      value: '2',
-                      title: 'Absent',
-                      color: Colors.red,
-                    ),
-
-                    _statCard(
-                      icon: Icons.access_time_rounded,
-                      value: '1',
-                      title: 'Late',
-                      color: Colors.orange,
-                    ),
-
-                    _statCard(
-                      icon: Icons.calendar_month_outlined,
-                      value: '49',
-                      title: 'School Days',
-                      color: primary,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 28),
-
-                // ========================================================
-                // MONTHLY ATTENDANCE
-                // ========================================================
-                _sectionTitle(
-                  'Monthly Attendance',
-                  'Attendance performance by month',
-                ),
-
+              if (absent > 0) ...[
                 const SizedBox(height: 14),
-
-                _monthlyCard(
-                  month: 'January 2026',
-                  percentage: '96%',
-                  present: '20',
-                  absent: '1',
-                  color: Colors.green,
-                ),
-
-                _monthlyCard(
-                  month: 'February 2026',
-                  percentage: '94%',
-                  present: '18',
-                  absent: '1',
-                  color: Colors.green,
-                ),
-
-                _monthlyCard(
-                  month: 'March 2026',
-                  percentage: '92%',
-                  present: '16',
-                  absent: '2',
-                  color: Colors.orange,
-                ),
-
-                _monthlyCard(
-                  month: 'April 2026',
-                  percentage: '95%',
-                  present: '19',
-                  absent: '1',
-                  color: Colors.green,
-                ),
-
-                const SizedBox(height: 28),
-
-                // ========================================================
-                // RECENT ATTENDANCE
-                // ========================================================
-                _sectionTitle('Recent Attendance', 'Latest attendance records'),
-
-                const SizedBox(height: 14),
-
-                _attendanceRecord(
-                  date: 'Friday, Aug 14, 2026',
-                  status: 'Present',
-                  icon: Icons.check_circle_rounded,
-                  color: Colors.green,
-                ),
-
-                _attendanceRecord(
-                  date: 'Thursday, Aug 13, 2026',
-                  status: 'Present',
-                  icon: Icons.check_circle_rounded,
-                  color: Colors.green,
-                ),
-
-                _attendanceRecord(
-                  date: 'Wednesday, Aug 12, 2026',
-                  status: 'Late',
-                  icon: Icons.access_time_filled_rounded,
-                  color: Colors.orange,
-                ),
-
-                _attendanceRecord(
-                  date: 'Tuesday, Aug 11, 2026',
-                  status: 'Present',
-                  icon: Icons.check_circle_rounded,
-                  color: Colors.green,
-                ),
-
-                _attendanceRecord(
-                  date: 'Monday, Aug 10, 2026',
-                  status: 'Absent',
-                  icon: Icons.cancel_rounded,
-                  color: Colors.red,
-                ),
-
-                _attendanceRecord(
-                  date: 'Friday, Aug 7, 2026',
-                  status: 'Present',
-                  icon: Icons.check_circle_rounded,
-                  color: Colors.green,
-                ),
-
-                _attendanceRecord(
-                  date: 'Thursday, Aug 6, 2026',
-                  status: 'Present',
-                  icon: Icons.check_circle_rounded,
-                  color: Colors.green,
-                ),
-
-                const SizedBox(height: 25),
-
-                // ========================================================
-                // INFORMATION
-                // ========================================================
-                _informationCard(),
-
-                const SizedBox(height: 20),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  // ==============================================================
-  // STUDENT HEADER
-  // ==============================================================
-
-  Widget _studentHeader({
-    required String name,
-    required String studentNumber,
-    required String className,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 55,
-            height: 55,
-            decoration: BoxDecoration(
-              color: primary.withOpacity(.09),
-              borderRadius: BorderRadius.circular(15),
-            ),
-            child: const Icon(
-              Icons.person_outline_rounded,
-              color: primary,
-              size: 29,
-            ),
-          ),
-
-          const SizedBox(width: 14),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 5),
-
-                Text(
-                  '$className  •  $studentNumber',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: Colors.grey, fontSize: 12),
-                ),
-
-                const SizedBox(height: 3),
-
-                const Text(
-                  '2025/2026 Academic Session',
-                  style: TextStyle(color: Colors.grey, fontSize: 11),
+                _notice(
+                  '$absent absence${absent == 1 ? '' : 's'} this term. '
+                  'Contact the school if any of these look wrong.',
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
-  // ==============================================================
-  // SUMMARY CARD
-  // ==============================================================
+              const SizedBox(height: 24),
 
-  Widget _summaryCard({required String name}) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [primary, Color(0xFF1729B8)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withOpacity(.18),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 85,
-            height: 85,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                SizedBox(
-                  width: 78,
-                  height: 78,
-                  child: CircularProgressIndicator(
-                    value: .92,
-                    strokeWidth: 8,
-                    backgroundColor: Colors.white.withOpacity(.15),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                      Colors.white,
-                    ),
-                  ),
+              const Text(
+                'History',
+                style: TextStyle(
+                  color: StudentColors.textDark,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
+              ),
 
-                const Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '92%',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Text(
-                      'Attendance',
-                      style: TextStyle(color: Colors.white70, fontSize: 9),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
+              const SizedBox(height: 12),
 
-          const SizedBox(width: 18),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Good Attendance',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                Text(
-                  '$name has attended most school days this academic session.',
-                  maxLines: 3,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 12,
-                    height: 1.4,
-                  ),
-                ),
-
+              for (final day in days) ...[
+                _dayCard(day, byDay[day]!),
                 const SizedBox(height: 10),
-
-                const Row(
-                  children: [
-                    Icon(
-                      Icons.trending_up_rounded,
-                      color: Colors.white,
-                      size: 17,
-                    ),
-
-                    SizedBox(width: 5),
-
-                    Text(
-                      'Above school target',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
               ],
-            ),
-          ),
-        ],
-      ),
+            ],
+          );
+        }(),
+      )),
     );
   }
 
-  // ==============================================================
-  // STAT CARD
-  // ==============================================================
-
-  Widget _statCard({
-    required IconData icon,
-    required String value,
-    required String title,
-    required Color color,
-  }) {
+  Widget _notice(String text) {
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: Colors.grey.shade200),
+        color: Colors.orange.shade50,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.orange.shade100),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: color.withOpacity(.09),
-              borderRadius: BorderRadius.circular(11),
+          Icon(Icons.info_outline_rounded, color: Colors.orange.shade700),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: Colors.orange.shade900, fontSize: 12),
             ),
-            child: Icon(icon, color: color, size: 21),
-          ),
-
-          const Spacer(),
-
-          Text(
-            value,
-            style: const TextStyle(
-              color: textDark,
-              fontSize: 21,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 3),
-
-          Text(
-            title,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
           ),
         ],
       ),
     );
   }
 
-  // ==============================================================
-  // MONTHLY CARD
-  // ==============================================================
-
-  Widget _monthlyCard({
-    required String month,
-    required String percentage,
-    required String present,
-    required String absent,
-    required Color color,
-  }) {
-    final percentageValue = double.parse(percentage.replaceAll('%', '')) / 100;
-
+  Widget _dayCard(DateTime day, List<_Record> records) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
@@ -525,38 +181,50 @@ class ParentAttendancePage extends ConsumerWidget {
           Row(
             children: [
               Container(
-                width: 42,
-                height: 42,
+                width: 46,
+                height: 50,
                 decoration: BoxDecoration(
-                  color: color.withOpacity(.09),
+                  color: StudentColors.primaryLight,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(
-                  Icons.calendar_month_outlined,
-                  color: color,
-                  size: 21,
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      sMonths[day.month - 1].toUpperCase(),
+                      style: const TextStyle(
+                        color: StudentColors.primary,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '${day.day}',
+                      style: const TextStyle(
+                        color: StudentColors.primary,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        height: 1.1,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-
               const SizedBox(width: 12),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      month,
+                      sDayLabel(day),
                       style: const TextStyle(
-                        color: textDark,
+                        color: StudentColors.textDark,
                         fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-
-                    const SizedBox(height: 4),
-
                     Text(
-                      '$present present  •  $absent absent',
+                      sWeekday(day),
                       style: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 11,
@@ -565,223 +233,101 @@ class ParentAttendancePage extends ConsumerWidget {
                   ],
                 ),
               ),
-
-              Text(
-                percentage,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              if (records.length == 1) StatusChip(records.first.status),
             ],
           ),
-
-          const SizedBox(height: 12),
-
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: percentageValue,
-              minHeight: 7,
-              backgroundColor: Colors.grey.shade100,
-              valueColor: AlwaysStoppedAnimation<Color>(color),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==============================================================
-  // ATTENDANCE RECORD
-  // ==============================================================
-
-  Widget _attendanceRecord({
-    required String date,
-    required String status,
-    required IconData icon,
-    required Color color,
-  }) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 43,
-            height: 43,
-            decoration: BoxDecoration(
-              color: color.withOpacity(.09),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 22),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  date,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  '2025/2026 Academic Session',
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: color.withOpacity(.09),
-              borderRadius: BorderRadius.circular(9),
-            ),
-            child: Text(
-              status,
-              style: TextStyle(
-                color: color,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==============================================================
-  // INFORMATION
-  // ==============================================================
-
-  Widget _informationCard() {
-    return Container(
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: primary.withOpacity(.05),
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: primary.withOpacity(.10)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.info_outline_rounded, color: primary, size: 22),
-
-          const SizedBox(width: 10),
-
-          Expanded(
-            child: Text(
-              'Attendance records are updated by the school. '
-              'If you notice an incorrect attendance record, '
-              'please contact the school administration.',
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 11,
-                height: 1.5,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ==============================================================
-  // SECTION TITLE
-  // ==============================================================
-
-  Widget _sectionTitle(String title, String subtitle) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            color: textDark,
-            fontSize: 21,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-
-        const SizedBox(height: 3),
-
-        Text(
-          subtitle,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-        ),
-      ],
-    );
-  }
-
-  // ==============================================================
-  // ERROR STATE
-  // ==============================================================
-
-  Widget _errorState(BuildContext context, String error, WidgetRef ref) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(25),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.error_outline_rounded,
-              color: Colors.red.shade400,
-              size: 60,
-            ),
-
-            const SizedBox(height: 15),
-
-            const Text(
-              'Unable to Load Student',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: textDark,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
+          if (records.length > 1 || records.first.remarks != null) ...[
             const SizedBox(height: 8),
-
-            Text(
-              error,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-            ),
-
-            const SizedBox(height: 15),
-
-            TextButton(
-              onPressed: () {
-                ref.invalidate(parentChildProvider(studentId));
-              },
-              child: const Text(
-                'Try Again',
-                style: TextStyle(color: primary, fontWeight: FontWeight.bold),
+            for (final r in records)
+              Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 58),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (records.length > 1)
+                            Text(
+                              r.subject ?? 'Class attendance',
+                              style: const TextStyle(
+                                color: StudentColors.textDark,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          if (r.remarks != null)
+                            Text(
+                              r.remarks!,
+                              style: TextStyle(
+                                color: Colors.grey.shade600,
+                                fontSize: 11,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    if (records.length > 1) StatusChip(r.status),
+                  ],
+                ),
               ),
-            ),
           ],
-        ),
+        ],
       ),
     );
   }
+
+  List<_Record> _parse(List<dynamic> raw) {
+    final result = <_Record>[];
+
+    for (final item in raw) {
+      final day = sDay(item, ['attendanceDate', 'date']);
+      final status = sStr(item, ['status']);
+      if (day == null || status == null) continue;
+
+      result.add(
+        _Record(
+          day: day,
+          status: status[0].toUpperCase() + status.substring(1).toLowerCase(),
+          subject: sStr(item, ['subjectName']),
+          remarks: sStr(item, ['remarks']),
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  int _count(List<_Record> records, String status) =>
+      records.where((r) => r.status.toLowerCase() == status).length;
+
+  String _message(double? rate) {
+    if (rate == null) return 'No school days counted yet';
+    if (rate >= 90) return 'Excellent';
+    if (rate >= 75) return 'Good';
+    if (rate >= 60) return 'Fair';
+    return 'Needs attention';
+  }
+}
+
+/// Puts an optional [header] (e.g. a child switcher) above [body].
+Widget _withHeader(Widget? header, Widget body) {
+  if (header == null) return body;
+  return Column(children: [header, Expanded(child: body)]);
+}
+
+class _Record {
+  const _Record({
+    required this.day,
+    required this.status,
+    this.subject,
+    this.remarks,
+  });
+
+  final DateTime day;
+  final String status;
+  final String? subject;
+  final String? remarks;
 }
