@@ -714,17 +714,26 @@ GoRouter appRouter(Ref ref) {
         },
       ),
 
-      GoRoute(
-        path: '/teacher/students/details',
-        builder: (context, state) {
-          final extra = state.extra as Map<String, dynamic>;
+      // GoRoute(
+      //   path: '/teacher/students/details',
+      //   builder: (context, state) {
+      //     final extra = state.extra as Map<String, dynamic>;
 
-          return TeacherStudentDetailsPage(
-            student: extra['student'],
-            isClassTeacher: extra['isClassTeacher'] == true,
-          );
-        },
-      ),
+      //     return TeacherStudentDetailsPage(
+      //       student: extra['student'],
+      //       isClassTeacher: extra['isClassTeacher'] == true,
+      //     );
+      //   },
+      // ),
+
+      // router
+GoRoute(
+  path: '/teacher/students/:studentId',
+  builder: (_, s) => TeacherStudentDetailsPage(
+    student: s.extra ?? s.pathParameters['studentId'],
+    isClassTeacher: false,
+  ),
+),
 
       GoRoute(
         path: '/teacher/classes/attendance',

@@ -3,8 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+// ==================================================================
+// ATTENDANCE PAGE (subject or class)
+// ==================================================================
+// • Subject teacher: pass subjectId + subjectName. Records are saved
+//   with that SubjectId.
+// • Class teacher:   pass subjectId: null. Records are saved with
+//   SubjectId = null (class attendance), and only class-level records
+//   are shown.
+
 class TeacherClassAttendancePage extends ConsumerStatefulWidget {
-  final String subjectId;
+  /// Null or empty = class attendance (class teacher).
+  final String? subjectId;
   final String subjectName;
   final String classId;
   final String className;
@@ -16,6 +26,8 @@ class TeacherClassAttendancePage extends ConsumerStatefulWidget {
     required this.classId,
     required this.className,
   });
+
+  bool get isClassAttendance => subjectId == null || subjectId!.trim().isEmpty;
 
   @override
   ConsumerState<TeacherClassAttendancePage> createState() =>
@@ -69,7 +81,7 @@ class _TeacherClassAttendancePageState
 
     _historyParams = TeacherClassAttendanceParams(
       classId: widget.classId,
-      subjectId: widget.subjectId,
+      subjectId: _paramsSubjectId,
       date: null,
     );
 
@@ -85,9 +97,32 @@ class _TeacherClassAttendancePageState
   TeacherClassAttendanceParams _buildParams() {
     return TeacherClassAttendanceParams(
       classId: widget.classId,
-      subjectId: widget.subjectId,
+      subjectId: _paramsSubjectId,
       date: _apiDate(_selectedDate),
     );
+  }
+
+  /// '' for class attendance (the params class needs a String).
+  String get _paramsSubjectId =>
+      widget.isClassAttendance ? '' : widget.subjectId!.trim();
+
+  /// Keeps the two attendance types apart:
+  /// • class attendance  → only records with no subject
+  /// • subject attendance → only records for this subject
+  /// so a class teacher's marks never show up as a subject teacher's
+  /// "saved" marks, and the other way round.
+  List<dynamic> _scoped(List<dynamic> records) {
+    const emptyGuid = '00000000-0000-0000-0000-000000000000';
+
+    return records.where((r) {
+      final raw = _getString(r, ['subjectId']);
+      final recordSubject =
+          (raw == null || raw == emptyGuid) ? null : raw.toLowerCase();
+
+      if (widget.isClassAttendance) return recordSubject == null;
+
+      return recordSubject == widget.subjectId!.trim().toLowerCase();
+    }).toList();
   }
 
   // ================================================================
@@ -110,7 +145,7 @@ class _TeacherClassAttendancePageState
     final students = _extractList(studentsAsync.valueOrNull, 'students');
 
     final saved = _savedStatuses(
-      _extractList(attendanceAsync.valueOrNull, 'attendance'),
+      _scoped(_extractList(attendanceAsync.valueOrNull, 'attendance')),
     );
 
     final isMark = _view == _PageView.mark;
@@ -145,7 +180,9 @@ class _TeacherClassAttendancePageState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                widget.subjectName,
+                widget.isClassAttendance
+                    ? 'Class attendance'
+                    : widget.subjectName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
@@ -154,7 +191,9 @@ class _TeacherClassAttendancePageState
                 ),
               ),
               Text(
-                widget.className,
+                widget.isClassAttendance
+                    ? '${widget.className} · Class teacher'
+                    : widget.className,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
@@ -720,7 +759,7 @@ class _TeacherClassAttendancePageState
     }
 
     final records = _parseHistory(
-      _extractList(historyAsync.valueOrNull, 'attendance'),
+      _scoped(_extractList(historyAsync.valueOrNull, 'attendance')),
     );
 
     if (records.isEmpty) {
@@ -748,7 +787,8 @@ class _TeacherClassAttendancePageState
             ),
             const SizedBox(height: 6),
             Text(
-              'Once you mark attendance for ${widget.subjectName}, '
+              'Once you mark attendance for '
+              '${widget.isClassAttendance ? widget.className : widget.subjectName}, '
               'every day and every student will show up here.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
@@ -1676,7 +1716,7 @@ class _TeacherClassAttendancePageState
 
     final payload = {
       'classId': widget.classId,
-      'subjectId': widget.subjectId,
+      'subjectId': widget.isClassAttendance ? null : widget.subjectId,
       'date': _apiDateUtc(_selectedDate),
       'records': records,
     };
@@ -1724,8 +1764,9 @@ class _TeacherClassAttendancePageState
   // ================================================================
   // SEND TO API
   // ================================================================
-  // Uses teachersProvider.createBulkAttendance with this page's
-  // subjectId, so records are saved as subject attendance.
+  // Uses teachersProvider.createBulkAttendance. With a subjectId the
+  // records are subject attendance; without one they are class
+  // attendance (the backend checks the teacher is the class teacher).
   // Throws on failure so the page shows the error snackbar.
 
   Future<void> _sendToApi(Map<String, dynamic> payload) async {
@@ -1737,7 +1778,8 @@ class _TeacherClassAttendancePageState
         .read(teachersProvider.notifier)
         .createBulkAttendance(
           classId: widget.classId,
-          subjectId: widget.subjectId,
+          // null = class attendance (SubjectId = null on the server)
+          subjectId: payload['subjectId'] as String?,
           attendanceDate: payload['date'] as String, // 2026-10-26T00:00:00Z
           students: students,
         );
