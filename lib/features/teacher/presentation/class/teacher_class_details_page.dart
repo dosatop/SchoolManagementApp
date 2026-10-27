@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class TeacherClassDetailsPage extends ConsumerWidget {
+class TeacherClassDetailsPage extends ConsumerStatefulWidget {
   const TeacherClassDetailsPage({
     super.key,
     required this.subjectId,
@@ -18,37 +18,109 @@ class TeacherClassDetailsPage extends ConsumerWidget {
   final String classId;
   final String className;
 
+  @override
+  ConsumerState<TeacherClassDetailsPage> createState() =>
+      _TeacherClassDetailsPageState();
+}
+
+class _TeacherClassDetailsPageState
+    extends ConsumerState<TeacherClassDetailsPage> {
   static const Color primary = Color(0xFF091993);
-  static const Color primaryLight = Color(0xFFE9ECFF);
   static const Color background = Color(0xFFF6F7FB);
   static const Color textDark = Color(0xFF20232E);
 
+  // ================================================================
+  // PROVIDER PARAMS
+  // ================================================================
+  // Created once and reused for watch / invalidate / refresh.
+  // A new params object on every build makes a family provider treat
+  // it as a new key (endless loading, repeated API calls) unless the
+  // params class overrides == and hashCode. Reusing one instance
+  // avoids that either way, and guarantees refresh hits the same
+  // provider the page is watching.
+
+  late final TeacherAssignmentsParams _assignmentsParams;
+  late final TeacherClassAttendanceParams _attendanceParams;
+
+  String get subjectId => widget.subjectId;
+  String get subjectName => widget.subjectName;
+  String get classId => widget.classId;
+  String get className => widget.className;
+
+  Map<String, String> get _routeExtra => {
+    'subjectId': subjectId,
+    'subjectName': subjectName,
+    'classId': classId,
+    'className': className,
+  };
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // ==============================================================
-    // STUDENTS
-    // ==============================================================
+  void initState() {
+    super.initState();
 
-    final studentsAsync = ref.watch(teacherStudentsProvider(classId));
-
-    // ==============================================================
-    // ASSIGNMENTS
-    // ==============================================================
-
-    final assignmentsAsync = ref.watch(
-      teacherClassAssignmentsProvider(
-        TeacherAssignmentsParams(classId: classId, subjectId: subjectId),
-      ),
+    _assignmentsParams = TeacherAssignmentsParams(
+      classId: widget.classId,
+      subjectId: widget.subjectId,
     );
 
-    // ==============================================================
-    // ATTENDANCE
-    // ==============================================================
+    _attendanceParams = TeacherClassAttendanceParams(
+      classId: widget.classId,
+      subjectId: widget.subjectId,
+    );
+  }
+
+  // ================================================================
+  // REFRESH
+  // ================================================================
+
+  void _invalidateAll() {
+    ref.invalidate(teacherStudentsProvider(classId));
+    ref.invalidate(teacherClassAssignmentsProvider(_assignmentsParams));
+    ref.invalidate(teacherClassAttendanceProvider(_attendanceParams));
+  }
+
+  Future<void> _refreshAll() async {
+    _invalidateAll();
+
+    // Wait for all three, but don't let one failure break the others.
+    // Errors are shown as '—' in the stat cards.
+    await Future.wait([
+      ref
+          .read(teacherStudentsProvider(classId).future)
+          .then((_) {}, onError: (_) {}),
+      ref
+          .read(teacherClassAssignmentsProvider(_assignmentsParams).future)
+          .then((_) {}, onError: (_) {}),
+      ref
+          .read(teacherClassAttendanceProvider(_attendanceParams).future)
+          .then((_) {}, onError: (_) {}),
+    ]);
+  }
+
+  // Push a sub-page and refresh the stats when the teacher comes back,
+  // so new assignments / attendance show up immediately.
+  void _openAndRefresh(String route) {
+    context.push(route, extra: _routeExtra).then((_) {
+      if (mounted) {
+        _invalidateAll();
+      }
+    });
+  }
+
+  // ================================================================
+  // BUILD
+  // ================================================================
+
+  @override
+  Widget build(BuildContext context) {
+    final studentsAsync = ref.watch(teacherStudentsProvider(classId));
+
+    final assignmentsAsync = ref.watch(
+      teacherClassAssignmentsProvider(_assignmentsParams),
+    );
 
     final attendanceAsync = ref.watch(
-      teacherClassAttendanceProvider(
-        TeacherClassAttendanceParams(classId: classId, subjectId: subjectId),
-      ),
+      teacherClassAttendanceProvider(_attendanceParams),
     );
 
     final studentCount = _extractStudentCount(studentsAsync.valueOrNull);
@@ -86,27 +158,7 @@ class TeacherClassDetailsPage extends ConsumerWidget {
         actions: [
           IconButton(
             tooltip: 'Refresh',
-            onPressed: () {
-              ref.invalidate(teacherStudentsProvider(classId));
-
-              ref.invalidate(
-                teacherClassAssignmentsProvider(
-                  TeacherAssignmentsParams(
-                    classId: classId,
-                    subjectId: subjectId,
-                  ),
-                ),
-              );
-
-              ref.invalidate(
-                teacherClassAttendanceProvider(
-                  TeacherClassAttendanceParams(
-                    classId: classId,
-                    subjectId: subjectId,
-                  ),
-                ),
-              );
-            },
+            onPressed: _invalidateAll,
             icon: const Icon(Icons.refresh_rounded, color: textDark),
           ),
         ],
@@ -115,27 +167,7 @@ class TeacherClassDetailsPage extends ConsumerWidget {
       body: RefreshIndicator(
         color: primary,
 
-        onRefresh: () async {
-          await Future.wait([
-            ref.refresh(teacherStudentsProvider(classId).future),
-            ref.refresh(
-              teacherClassAssignmentsProvider(
-                TeacherAssignmentsParams(
-                  classId: classId,
-                  subjectId: subjectId,
-                ),
-              ).future,
-            ),
-            ref.refresh(
-              teacherClassAttendanceProvider(
-                TeacherClassAttendanceParams(
-                  classId: classId,
-                  subjectId: subjectId,
-                ),
-              ).future,
-            ),
-          ]);
-        },
+        onRefresh: _refreshAll,
 
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -165,7 +197,7 @@ class TeacherClassDetailsPage extends ConsumerWidget {
             // ==========================================================
             // CREATE ASSIGNMENT
             // ==========================================================
-            _createAssignmentButton(context),
+            _createAssignmentButton(),
 
             const SizedBox(height: 25),
 
@@ -184,79 +216,35 @@ class TeacherClassDetailsPage extends ConsumerWidget {
             const SizedBox(height: 12),
 
             _managementTile(
-              context,
               icon: Icons.groups_outlined,
               title: 'Students',
               subtitle: 'View students in this class',
               color: Colors.purple,
-              onTap: () {
-                context.push(
-                  '/teacher/classes/students',
-                  extra: {
-                    'subjectId': subjectId,
-                    'subjectName': subjectName,
-                    'classId': classId,
-                    'className': className,
-                  },
-                );
-              },
+              onTap: () => _openAndRefresh('/teacher/classes/students'),
             ),
 
             _managementTile(
-              context,
               icon: Icons.assignment_outlined,
               title: 'Assignments',
               subtitle: 'View and manage assignments',
               color: Colors.orange,
-              onTap: () {
-                context.push(
-                  '/teacher/classes/assignments',
-                  extra: {
-                    'subjectId': subjectId,
-                    'subjectName': subjectName,
-                    'classId': classId,
-                    'className': className,
-                  },
-                );
-              },
+              onTap: () => _openAndRefresh('/teacher/classes/assignments'),
             ),
 
             _managementTile(
-              context,
               icon: Icons.fact_check_outlined,
               title: 'Attendance',
               subtitle: 'Take and view attendance',
               color: Colors.green,
-              onTap: () {
-                context.push(
-                  '/teacher/classes/attendance',
-                  extra: {
-                    'subjectId': subjectId,
-                    'subjectName': subjectName,
-                    'classId': classId,
-                    'className': className,
-                  },
-                );
-              },
+              onTap: () => _openAndRefresh('/teacher/classes/attendance'),
             ),
 
             _managementTile(
-              context,
               icon: Icons.calendar_month_outlined,
               title: 'Timetable',
               subtitle: 'View class timetable',
               color: Colors.blue,
-              onTap: () {
-                context.push(
-                  '/teacher/classes/timetable',
-                  extra: {
-                    'subjectId': subjectId,
-                    'subjectName': subjectName,
-                    'classId': classId,
-                    'className': className,
-                  },
-                );
-              },
+              onTap: () => _openAndRefresh('/teacher/classes/timetable'),
             ),
           ],
         ),
@@ -281,7 +269,7 @@ class TeacherClassDetailsPage extends ConsumerWidget {
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(.18),
+            color: primary.withValues(alpha: .18),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -293,7 +281,7 @@ class TeacherClassDetailsPage extends ConsumerWidget {
             width: 60,
             height: 60,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.15),
+              color: Colors.white.withValues(alpha: .15),
               borderRadius: BorderRadius.circular(17),
             ),
             child: const Icon(
@@ -424,7 +412,7 @@ class TeacherClassDetailsPage extends ConsumerWidget {
             width: 38,
             height: 38,
             decoration: BoxDecoration(
-              color: color.withOpacity(.09),
+              color: color.withValues(alpha: .09),
               borderRadius: BorderRadius.circular(11),
             ),
             child: Icon(icon, color: color, size: 19),
@@ -458,22 +446,12 @@ class TeacherClassDetailsPage extends ConsumerWidget {
   // CREATE ASSIGNMENT
   // ================================================================
 
-  Widget _createAssignmentButton(BuildContext context) {
+  Widget _createAssignmentButton() {
     return SizedBox(
       width: double.infinity,
       height: 54,
       child: ElevatedButton.icon(
-        onPressed: () {
-          context.push(
-            '/teacher/assignments/create',
-            extra: {
-              'subjectId': subjectId,
-              'subjectName': subjectName,
-              'classId': classId,
-              'className': className,
-            },
-          );
-        },
+        onPressed: () => _openAndRefresh('/teacher/assignments/create'),
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
           foregroundColor: Colors.white,
@@ -495,8 +473,7 @@ class TeacherClassDetailsPage extends ConsumerWidget {
   // MANAGEMENT TILE
   // ================================================================
 
-  Widget _managementTile(
-    BuildContext context, {
+  Widget _managementTile({
     required IconData icon,
     required String title,
     required String subtitle,
@@ -523,7 +500,7 @@ class TeacherClassDetailsPage extends ConsumerWidget {
                   width: 46,
                   height: 46,
                   decoration: BoxDecoration(
-                    color: color.withOpacity(.09),
+                    color: color.withValues(alpha: .09),
                     borderRadius: BorderRadius.circular(13),
                   ),
                   child: Icon(icon, color: color, size: 21),
@@ -677,15 +654,11 @@ class TeacherClassDetailsPage extends ConsumerWidget {
       return null;
     }
 
-    // If the API directly returns a list of
-    // attendance records, calculate the percentage.
     if (data is List) {
       return _calculateAttendancePercentage(data);
     }
 
     if (data is Map) {
-      // First check if the API already provides
-      // a calculated percentage.
       final directPercentage = _extractNumber(data, [
         'attendancePercentage',
         'attendanceRate',
@@ -697,7 +670,6 @@ class TeacherClassDetailsPage extends ConsumerWidget {
         return directPercentage.clamp(0, 100).toDouble();
       }
 
-      // Check common summary structures.
       final summary = data['summary'];
 
       if (summary is Map) {
@@ -729,7 +701,6 @@ class TeacherClassDetailsPage extends ConsumerWidget {
         }
       }
 
-      // Check attendance list.
       final attendance = data['attendance'];
 
       if (attendance is List) {
@@ -757,10 +728,12 @@ class TeacherClassDetailsPage extends ConsumerWidget {
   // ================================================================
   // CALCULATE ATTENDANCE FROM RECORDS
   // ================================================================
+  // No records yet -> null (shows '—') instead of a misleading 0%.
+  // Late counts as attended.
 
   double? _calculateAttendancePercentage(List records) {
     if (records.isEmpty) {
-      return 0;
+      return null;
     }
 
     int present = 0;
@@ -779,7 +752,10 @@ class TeacherClassDetailsPage extends ConsumerWidget {
 
       total++;
 
-      if (status == 'present' || status == 'p' || status == 'attended') {
+      if (status == 'present' ||
+          status == 'late' ||
+          status == 'p' ||
+          status == 'attended') {
         present++;
       }
     }

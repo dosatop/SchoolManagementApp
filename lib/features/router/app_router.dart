@@ -79,7 +79,6 @@ import 'package:app/features/results/presentation/result_upload_page.dart';
 import 'package:app/features/results/presentation/results_page.dart';
 
 // Student
-import 'package:app/features/students/presentation/create_student_page.dart';
 import 'package:app/features/students/presentation/student_assignments_page.dart';
 import 'package:app/features/students/presentation/student_attendance_page.dart';
 import 'package:app/features/students/presentation/student_dashboard_page.dart.dart';
@@ -89,7 +88,6 @@ import 'package:app/features/students/presentation/student_online_tutor_page.dar
 import 'package:app/features/students/presentation/student_results_page.dart';
 import 'package:app/features/students/presentation/student_subjects_page.dart';
 import 'package:app/features/students/presentation/student_timetable_page.dart';
-import 'package:app/features/students/presentation/students_page.dart';
 
 // Onboarding
 import 'package:app/features/onboarding/first_screen.dart';
@@ -141,12 +139,72 @@ import 'package:app/features/tutor/models/tutor_model.dart';
 import 'package:app/features/tutor/presentation/online_tutoring_page.dart';
 import 'package:app/features/tutor/presentation/tutor_details_page.dart';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+// ==================================================================
+// ROLE ROUTING
+// ==================================================================
+
+/// Pages anyone can open without logging in.
+const _publicRoutes = {'/', '/login', '/signup', '/loginOrSignup'};
+
+/// Where each role lands after login.
+String _homeFor(String? role, String? schoolId) {
+  switch (role) {
+    case 'SuperAdmin':
+      return '/super-admin';
+    case 'Admin':
+      return (schoolId != null && schoolId.isNotEmpty)
+          ? '/admin-dashboard/$schoolId'
+          : '/loginOrSignup';
+    case 'Teacher':
+      return '/teacher/dashboard';
+    case 'Parent':
+      return '/parent/dashboard';
+    case 'Student':
+      return '/student/dashboard';
+    default:
+      return '/loginOrSignup';
+  }
+}
+
+/// Route prefixes reserved for one role. Opening another role's area
+/// (e.g. a teacher token on /student/...) sends the user to their own
+/// home instead of hitting the API with the wrong token (403).
+const _roleAreas = {
+  '/student/': 'Student',
+  '/teacher/': 'Teacher',
+  '/parent/': 'Parent',
+  '/super-admin': 'SuperAdmin',
+};
+
+bool _allowed(String location, String? role) {
+  // SuperAdmin can go anywhere.
+  if (role == 'SuperAdmin') return true;
+
+  for (final entry in _roleAreas.entries) {
+    if (location.startsWith(entry.key)) return entry.value == role;
+  }
+
+  // Admin areas.
+  if (location.startsWith('/admin')) return role == 'Admin';
+
+  return true;
+}
+
 GoRouter appRouter(Ref ref) {
+  // Re-run the redirect whenever auth changes (login, logout, token
+  // expiry), so the user is moved to the right place automatically.
+  final authChanges = ValueNotifier<int>(0);
+
+  ref.listen(authProvider, (_, __) => authChanges.value++);
+  ref.onDispose(authChanges.dispose);
+
   return GoRouter(
     initialLocation: '/',
+    refreshListenable: authChanges,
     redirect: (context, state) {
       final authState = ref.read(authProvider);
 
@@ -155,39 +213,35 @@ GoRouter appRouter(Ref ref) {
       }
 
       final auth = authState.value;
-
       final isAuthenticated = auth?.isAuthenticated ?? false;
-
       final role = auth?.role;
+      final schoolId = auth?.user?.schoolId;
 
       final location = state.matchedLocation;
+      final isPublic = _publicRoutes.contains(location);
 
-      final isAuthPage = location == '/loginOrSignup';
-
+      // ------------------------------------------------------------
+      // NOT LOGGED IN -> only public pages
+      // ------------------------------------------------------------
       if (!isAuthenticated) {
-        if (isAuthPage || location == '/') {
-          return null;
-        }
-
-        return '/loginOrSignup';
+        return isPublic ? null : '/loginOrSignup';
       }
 
-      // Super Admin
-      if (role == 'SuperAdmin') {
-        if (isAuthPage || location == '/') {
-          return '/super-admin';
-        }
+      final home = _homeFor(role, schoolId);
+
+      // ------------------------------------------------------------
+      // LOGGED IN -> skip onboarding/login, go to the role's home
+      // (old '/dashboard' links included)
+      // ------------------------------------------------------------
+      if (isPublic || location == '/dashboard') {
+        return home == location ? null : home;
       }
 
-      // Normal Admin
-      if (role == 'Admin') {
-        if (isAuthPage || location == '/') {
-          return '/dashboard';
-        }
-      }
-
-      if (isAuthPage || location == '/') {
-        return '/dashboard';
+      // ------------------------------------------------------------
+      // WRONG ROLE AREA -> back to the role's own home
+      // ------------------------------------------------------------
+      if (!_allowed(location, role)) {
+        return home;
       }
 
       return null;
@@ -588,17 +642,16 @@ GoRouter appRouter(Ref ref) {
         },
       ),
       GoRoute(
-  path: '/teacher/classes/class-teacher-details',
-  builder: (context, state) {
-    final extra = state.extra as Map<String, dynamic>;
+        path: '/teacher/classes/class-teacher-details',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
 
-    return TeacherClassTeacherDetailsPage(
-      classId: extra['classId'].toString(),
-      className: extra['className']?.toString() ?? 'Class',
-    );
-  },
-),
-
+          return TeacherClassTeacherDetailsPage(
+            classId: extra['classId'].toString(),
+            className: extra['className']?.toString() ?? 'Class',
+          );
+        },
+      ),
 
       GoRoute(
         path: '/teacher/assignments/create',
@@ -650,19 +703,17 @@ GoRouter appRouter(Ref ref) {
         },
       ),
 
-     GoRoute(
-  path: '/teacher/students/details',
-  builder: (context, state) {
-    final extra = state.extra as Map<String, dynamic>;
+      GoRoute(
+        path: '/teacher/students/details',
+        builder: (context, state) {
+          final extra = state.extra as Map<String, dynamic>;
 
-    return TeacherStudentDetailsPage(
-      student: extra['student'],
-      isClassTeacher: extra['isClassTeacher'] == true,
-    );
-  },
-),
-
-
+          return TeacherStudentDetailsPage(
+            student: extra['student'],
+            isClassTeacher: extra['isClassTeacher'] == true,
+          );
+        },
+      ),
 
       GoRoute(
         path: '/teacher/classes/attendance',
@@ -953,17 +1004,6 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       // ADMIN - SCHOOL SUBJECTS
       // ============================================================
-      GoRoute(
-        path: '//schools/:schoolId/subjects',
-        builder: (context, state) {
-          final schoolId = state.pathParameters['schoolId']!;
-
-          final schoolName = state.extra as String? ?? 'School';
-
-          return SubjectsPage(schoolId: schoolId, schoolName: schoolName);
-        },
-      ),
-
       GoRoute(
         path: '/schools/:schoolId/subjects',
         builder: (context, state) {

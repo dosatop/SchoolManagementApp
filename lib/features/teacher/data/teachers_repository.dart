@@ -272,11 +272,13 @@ class TeacherRepository {
 
   Future<dynamic> createBulkAttendance({
   required String classId,
+   String? subjectId,
   required String attendanceDate,
   required List<Map<String, dynamic>> students,
 }) {
   return api.createBulkAttendance(
     classId: classId,
+    subjectId: subjectId,
     attendanceDate: attendanceDate,
     students: students,
   );

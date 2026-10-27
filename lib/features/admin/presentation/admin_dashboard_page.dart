@@ -3,7 +3,9 @@ import 'dart:math' as math;
 
 import 'package:app/features/admin/providers/admin_provider.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -36,6 +38,9 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   // ================================================================
   // AUTHENTICATED ADMIN DETAILS
   // ================================================================
+  // These use ref.read so they are safe to call from callbacks.
+  // build() watches authProvider, so the widget still rebuilds
+  // whenever auth state changes and these always return fresh values.
 
   String get schoolId {
     final user = ref.read(authProvider).value?.user;
@@ -68,6 +73,24 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   }
 
   // ================================================================
+  // GREETING
+  // ================================================================
+
+  String get _greeting {
+    final hour = DateTime.now().hour;
+
+    if (hour < 12) {
+      return 'Good morning';
+    }
+
+    if (hour < 17) {
+      return 'Good afternoon';
+    }
+
+    return 'Good evening';
+  }
+
+  // ================================================================
   // BACK HANDLER
   // ================================================================
 
@@ -87,17 +110,17 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
     // --------------------------------------------------------------
     // User is already on Dashboard.
-    // Check whether this is the second back press.
+    // Second press within the window exits the app.
     // --------------------------------------------------------------
 
     final now = DateTime.now();
 
     if (_lastBackPressed != null &&
         now.difference(_lastBackPressed!) <= _exitDelay) {
-      // Allow the route/app to pop.
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      // Exit the app instead of popping the (root) route.
+      await SystemNavigator.pop();
 
       return;
     }
@@ -109,18 +132,6 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     _lastBackPressed = now;
 
     _showExitPill();
-
-    // Clear the timer after the allowed duration.
-    Future.delayed(_exitDelay, () {
-      if (!mounted) {
-        return;
-      }
-
-      if (_lastBackPressed != null &&
-          DateTime.now().difference(_lastBackPressed!) > _exitDelay) {
-        _lastBackPressed = null;
-      }
-    });
   }
 
   // ================================================================
@@ -135,9 +146,9 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     messenger.showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
-        duration: const Duration(seconds: 2),
+        duration: _exitDelay,
 
-        margin: EdgeInsets.only(left: 80, right: 80, bottom: 5),
+        margin: const EdgeInsets.only(left: 80, right: 80, bottom: 5),
 
         padding: EdgeInsets.zero,
 
@@ -149,12 +160,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 11),
 
           decoration: BoxDecoration(
-            color: const Color(0xFF20232E),
+            color: textDark,
             borderRadius: BorderRadius.circular(100),
 
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(.18),
+                color: Colors.black.withValues(alpha: .18),
                 blurRadius: 16,
                 offset: const Offset(0, 6),
               ),
@@ -217,6 +228,9 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
   @override
   Widget build(BuildContext context) {
+    // Watch auth so the page rebuilds when user/school details change.
+    ref.watch(authProvider);
+
     final dashboardState = ref.watch(adminDashboardProvider);
     final dashboard = dashboardState.value;
 
@@ -297,14 +311,6 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                     : _refreshDashboard,
 
                 icon: const Icon(Icons.refresh_rounded, color: textDark),
-              ),
-
-            if (_currentIndex == 3)
-              IconButton(
-                tooltip: 'Logout',
-                onPressed: _logout,
-
-                icon: const Icon(Icons.logout_rounded, color: Colors.red),
               ),
 
             const SizedBox(width: 8),
@@ -411,8 +417,10 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
   // ================================================================
   // DASHBOARD TAB
   // ================================================================
+  // TODO: replace `dynamic` with your dashboard model type
+  // (e.g. AsyncValue<AdminDashboard>, AdminDashboard?) for compile-time checks.
 
-  Widget _dashboardTab(AsyncValue dashboardState, dynamic dashboard) {
+  Widget _dashboardTab(AsyncValue<dynamic> dashboardState, dynamic dashboard) {
     return RefreshIndicator(
       color: primary,
 
@@ -430,7 +438,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
           children: [
             Text(
-              'Good morning, $adminName 👋',
+              '$_greeting, $adminName 👋',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
 
@@ -674,6 +682,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             title: 'Results',
             subtitle: 'View and manage student results',
             color: Colors.blue,
+
             onTap: () {
               _openRoute('/admin/$schoolId/results');
             },
@@ -684,6 +693,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             title: 'Academic Sessions',
             subtitle: 'Manage school academic sessions',
             color: Colors.indigo,
+
             onTap: () {
               _openRoute('/admin/$schoolId/academic-sessions');
             },
@@ -778,6 +788,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             title: 'Create Academic Year',
             subtitle: 'Set up a new school academic year',
             color: Colors.indigo,
+
             onTap: () {
               _openRoute('/admin/$schoolId/create-academic-year');
             },
@@ -938,7 +949,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(.20),
+            color: primary.withValues(alpha: .20),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
@@ -990,7 +1001,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             height: 65,
 
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.12),
+              color: Colors.white.withValues(alpha: .12),
               shape: BoxShape.circle,
             ),
 
@@ -1016,6 +1027,8 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     required int subjects,
     required int parents,
   }) {
+    final values = [students, teachers, classes, subjects, parents];
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 20, 14, 18),
@@ -1034,21 +1047,9 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
             child: CustomPaint(
               painter: _RadarChartPainter(
-                values: [
-                  students.toDouble(),
-                  teachers.toDouble(),
-                  classes.toDouble(),
-                  subjects.toDouble(),
-                  parents.toDouble(),
-                ],
+                values: values.map((v) => v.toDouble()).toList(),
 
-                maxValue: _calculateMaxValue([
-                  students,
-                  teachers,
-                  classes,
-                  subjects,
-                  parents,
-                ]),
+                maxValue: _calculateMaxValue(values),
 
                 color: primary,
               ),
@@ -1253,7 +1254,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
               height: 44,
 
               decoration: BoxDecoration(
-                color: color.withOpacity(.09),
+                color: color.withValues(alpha: .09),
                 borderRadius: BorderRadius.circular(12),
               ),
 
@@ -1328,7 +1329,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
               height: 46,
 
               decoration: BoxDecoration(
-                color: color.withOpacity(.09),
+                color: color.withValues(alpha: .09),
                 borderRadius: BorderRadius.circular(13),
               ),
 
@@ -1360,7 +1361,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
               height: 32,
 
               decoration: BoxDecoration(
-                color: color.withOpacity(.07),
+                color: color.withValues(alpha: .07),
                 shape: BoxShape.circle,
               ),
 
@@ -1506,6 +1507,9 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 // ==================================================================
 // RADAR / POLYGON CHART PAINTER
 // ==================================================================
+// Uses log scaling so small counts (subjects, classes) stay visible
+// next to large ones (students, parents) instead of collapsing
+// into the centre. Exact numbers are shown in the legend.
 
 class _RadarChartPainter extends CustomPainter {
   final List<double> values;
@@ -1518,9 +1522,30 @@ class _RadarChartPainter extends CustomPainter {
     required this.color,
   });
 
+  static const int _sides = 5;
+
+  double _normalize(double value) {
+    if (maxValue <= 0 || value <= 0) {
+      return 0;
+    }
+
+    final scaled = math.log(1 + value) / math.log(1 + maxValue);
+
+    return scaled.clamp(0.0, 1.0);
+  }
+
+  Offset _pointAt(Offset center, int index, double distance) {
+    final angle = -math.pi / 2 + (index * (2 * math.pi) / _sides);
+
+    return Offset(
+      center.dx + math.cos(angle) * distance,
+      center.dy + math.sin(angle) * distance,
+    );
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
-    if (values.length != 5) {
+    if (values.length != _sides) {
       return;
     }
 
@@ -1528,9 +1553,7 @@ class _RadarChartPainter extends CustomPainter {
 
     final radius = math.min(size.width, size.height) * .32;
 
-    const sides = 5;
-
-    final angleStep = (2 * math.pi) / sides;
+    // ---------------- Grid ----------------
 
     final gridPaint = Paint()
       ..style = PaintingStyle.stroke
@@ -1542,14 +1565,8 @@ class _RadarChartPainter extends CustomPainter {
 
       final path = Path();
 
-      for (int i = 0; i < sides; i++) {
-        final angle = -math.pi / 2 + (i * angleStep);
-
-        final point = Offset(
-          center.dx + math.cos(angle) * levelRadius,
-
-          center.dy + math.sin(angle) * levelRadius,
-        );
+      for (int i = 0; i < _sides; i++) {
+        final point = _pointAt(center, i, levelRadius);
 
         if (i == 0) {
           path.moveTo(point.dx, point.dy);
@@ -1563,82 +1580,44 @@ class _RadarChartPainter extends CustomPainter {
       canvas.drawPath(path, gridPaint);
     }
 
-    for (int i = 0; i < sides; i++) {
-      final angle = -math.pi / 2 + (i * angleStep);
-
-      final point = Offset(
-        center.dx + math.cos(angle) * radius,
-
-        center.dy + math.sin(angle) * radius,
-      );
-
-      canvas.drawLine(center, point, gridPaint);
+    for (int i = 0; i < _sides; i++) {
+      canvas.drawLine(center, _pointAt(center, i, radius), gridPaint);
     }
 
-    final dataPath = Path();
+    // ---------------- Data polygon ----------------
 
-    for (int i = 0; i < sides; i++) {
-      final normalized = maxValue <= 0
-          ? 0
-          : (values[i] / maxValue).clamp(0.0, 1.0);
+    final dataPoints = <Offset>[
+      for (int i = 0; i < _sides; i++)
+        _pointAt(center, i, radius * _normalize(values[i])),
+    ];
 
-      final pointRadius = radius * normalized;
+    final dataPath = Path()..addPolygon(dataPoints, true);
 
-      final angle = -math.pi / 2 + (i * angleStep);
+    canvas.drawPath(
+      dataPath,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = color.withValues(alpha: .13),
+    );
 
-      final point = Offset(
-        center.dx + math.cos(angle) * pointRadius,
+    canvas.drawPath(
+      dataPath,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.5
+        ..strokeJoin = StrokeJoin.round
+        ..color = color,
+    );
 
-        center.dy + math.sin(angle) * pointRadius,
-      );
+    final pointPaint = Paint()..color = color;
+    final innerPaint = Paint()..color = Colors.white;
 
-      if (i == 0) {
-        dataPath.moveTo(point.dx, point.dy);
-      } else {
-        dataPath.lineTo(point.dx, point.dy);
-      }
-    }
-
-    dataPath.close();
-
-    final fillPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = color.withOpacity(.13);
-
-    canvas.drawPath(dataPath, fillPaint);
-
-    final strokePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.5
-      ..color = color;
-
-    canvas.drawPath(dataPath, strokePaint);
-
-    final pointPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = color;
-
-    for (int i = 0; i < sides; i++) {
-      final normalized = maxValue <= 0
-          ? 0
-          : (values[i] / maxValue).clamp(0.0, 1.0);
-
-      final pointRadius = radius * normalized;
-
-      final angle = -math.pi / 2 + (i * angleStep);
-
-      final point = Offset(
-        center.dx + math.cos(angle) * pointRadius,
-
-        center.dy + math.sin(angle) * pointRadius,
-      );
-
+    for (final point in dataPoints) {
       canvas.drawCircle(point, 4.5, pointPaint);
-
-      final innerPaint = Paint()..color = Colors.white;
-
       canvas.drawCircle(point, 2, innerPaint);
     }
+
+    // ---------------- Labels ----------------
 
     const labels = ['Students', 'Teachers', 'Classes', 'Subjects', 'Parents'];
 
@@ -1650,16 +1629,8 @@ class _RadarChartPainter extends CustomPainter {
       Colors.teal,
     ];
 
-    for (int i = 0; i < sides; i++) {
-      final angle = -math.pi / 2 + (i * angleStep);
-
-      final labelRadius = radius + 35;
-
-      final point = Offset(
-        center.dx + math.cos(angle) * labelRadius,
-
-        center.dy + math.sin(angle) * labelRadius,
-      );
+    for (int i = 0; i < _sides; i++) {
+      final point = _pointAt(center, i, radius + 35);
 
       final textPainter = TextPainter(
         text: TextSpan(
@@ -1673,9 +1644,7 @@ class _RadarChartPainter extends CustomPainter {
         ),
 
         textDirection: TextDirection.ltr,
-      );
-
-      textPainter.layout();
+      )..layout();
 
       double dx = point.dx - textPainter.width / 2;
 
@@ -1695,7 +1664,7 @@ class _RadarChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _RadarChartPainter oldDelegate) {
-    return oldDelegate.values != values ||
+    return !listEquals(oldDelegate.values, values) ||
         oldDelegate.maxValue != maxValue ||
         oldDelegate.color != color;
   }

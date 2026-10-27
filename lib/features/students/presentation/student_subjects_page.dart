@@ -1,145 +1,168 @@
+import 'package:app/features/students/presentation/widgets/student_common.dart';
+import 'package:app/features/students/provider/students_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class StudentSubjectsPage extends StatelessWidget {
+class StudentSubjectsPage extends ConsumerWidget {
   const StudentSubjectsPage({super.key});
 
-  static const Color primary = Color(0xFF091993);
-  static const Color background = Color(0xFFF7F7F7);
-  static const Color textDark = Color(0xFF2F313D);
-
   @override
-  Widget build(BuildContext context) {
-    final subjects = [
-      {
-        'name': 'Mathematics',
-        'code': 'MTH101',
-        'teacher': 'Mr. Adewale',
-        'color': Colors.blue,
-        'icon': Icons.calculate_outlined,
-      },
-      {
-        'name': 'English Language',
-        'code': 'ENG101',
-        'teacher': 'Mrs. Johnson',
-        'color': Colors.purple,
-        'icon': Icons.menu_book_outlined,
-      },
-      {
-        'name': 'Basic Science',
-        'code': 'BSC101',
-        'teacher': 'Mr. Daniel',
-        'color': Colors.green,
-        'icon': Icons.science_outlined,
-      },
-      {
-        'name': 'Social Studies',
-        'code': 'SST101',
-        'teacher': 'Mrs. Grace',
-        'color': Colors.orange,
-        'icon': Icons.public_outlined,
-      },
-      {
-        'name': 'Computer Studies',
-        'code': 'CMP101',
-        'teacher': 'Mr. Samuel',
-        'color': Colors.teal,
-        'icon': Icons.computer_outlined,
-      },
-      {
-        'name': 'Civic Education',
-        'code': 'CVE101',
-        'teacher': 'Mrs. Esther',
-        'color': Colors.red,
-        'icon': Icons.people_outline,
-      },
-    ];
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(studentSubjectsProvider);
+    final subjects = sList(async.valueOrNull, ['subjects']);
+
+    Future<void> refresh() async {
+      ref.invalidate(studentSubjectsProvider);
+      await sSafe(ref.read(studentSubjectsProvider.future));
+    }
 
     return Scaffold(
-      backgroundColor: background,
-      appBar: AppBar(
-        backgroundColor: background,
-        elevation: 0,
-        foregroundColor: textDark,
-        title: const Text(
-          'Subjects',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+      backgroundColor: StudentColors.background,
+      appBar: studentAppBar(
+        'My Subjects',
+        subtitle: async.hasValue
+            ? '${subjects.length} subject${subjects.length == 1 ? '' : 's'}'
+            : null,
       ),
-      body: ListView.builder(
-        padding: const EdgeInsets.all(20),
-        itemCount: subjects.length,
-        itemBuilder: (context, index) {
-          final subject = subjects[index];
-          final color = subject['color'] as Color;
+      body: RefreshIndicator(
+        color: StudentColors.primary,
+        onRefresh: refresh,
+        child: () {
+          if (async.isLoading && !async.hasValue) {
+            return const StudentLoadingView();
+          }
 
-          return Container(
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(18),
-              border: Border.all(color: Colors.grey.shade200),
+          if (async.hasError && !async.hasValue) {
+            return StudentErrorView(
+              error: async.error!,
+              onRetry: refresh,
+              title: 'Unable to load subjects',
+            );
+          }
+
+          if (subjects.isEmpty) {
+            return const StudentEmptyView(
+              icon: Icons.menu_book_outlined,
+              title: 'No subjects yet',
+              message: 'Subjects added to your class will show up here.',
+            );
+          }
+
+          return ListView.separated(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
-            child: Row(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 30),
+            itemCount: subjects.length,
+            separatorBuilder: (_, __) => const SizedBox(height: 10),
+            itemBuilder: (context, index) => _subjectCard(
+              subjects[index],
+              StudentColors.accents[index % StudentColors.accents.length],
+            ),
+          );
+        }(),
+      ),
+    );
+  }
+
+  Widget _subjectCard(dynamic item, Color color) {
+    final name = sStr(item, ['subjectName', 'name', 'title']) ?? 'Subject';
+    final code = sStr(item, ['code', 'subjectCode']);
+    final teacher = sStr(item, ['teacherName', 'teacher', 'teacherFullName']);
+    final department = sStr(item, ['departmentName', 'department']);
+
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .1),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            alignment: Alignment.center,
+            child: Text(
+              _abbrev(code ?? name),
+              style: TextStyle(
+                color: color,
+                fontSize: 14,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Container(
-                  width: 52,
-                  height: 52,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(.1),
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                  child: Icon(
-                    subject['icon'] as IconData,
-                    color: color,
-                    size: 26,
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: StudentColors.textDark,
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
-
-                const SizedBox(width: 14),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                if (code != null || department != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    [
+                      if (code != null) code,
+                      if (department != null) department,
+                    ].join(' · '),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                ],
+                if (teacher != null) ...[
+                  const SizedBox(height: 6),
+                  Row(
                     children: [
-                      Text(
-                        subject['name'] as String,
-                        style: const TextStyle(
-                          color: textDark,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Icon(
+                        Icons.person_outline_rounded,
+                        size: 14,
+                        color: Colors.grey.shade500,
                       ),
-
-                      const SizedBox(height: 5),
-
-                      Text(
-                        subject['code'] as String,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
-                      ),
-
-                      const SizedBox(height: 3),
-
-                      Text(
-                        subject['teacher'] as String,
-                        style: TextStyle(
-                          color: Colors.grey.shade500,
-                          fontSize: 12,
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text(
+                          teacher,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ),
-
-                const Icon(Icons.chevron_right, color: Colors.grey),
+                ],
               ],
             ),
-          );
-        },
+          ),
+        ],
       ),
     );
+  }
+
+  /// "LIV" from a code, or the first letters of the name.
+  String _abbrev(String text) {
+    final clean = text.trim();
+    if (clean.length <= 4 && !clean.contains(' ')) return clean.toUpperCase();
+
+    final words = clean.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    final letters = words.take(3).map((w) => w[0]).join();
+    return letters.toUpperCase();
   }
 }

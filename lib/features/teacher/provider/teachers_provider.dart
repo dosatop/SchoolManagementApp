@@ -508,27 +508,23 @@ class TeacherNotifier extends AsyncNotifier<void> {
   // ================================================================
   // CREATE BULK ATTENDANCE
   // ================================================================
-
-  // ================================================================
-  // CREATE BULK CLASS ATTENDANCE
-  // ================================================================
   //
-  // Used when the teacher is the class teacher.
-  // SubjectId is always null for this type of attendance.
+  // Class teacher:   leave subjectId null  -> class attendance
+  // Subject teacher: pass subjectId        -> subject attendance
   //
 
   Future<bool> createBulkAttendance({
     required String classId,
+    String? subjectId,
     required String attendanceDate,
     required List<Map<String, dynamic>> students,
   }) async {
     try {
-      state = const AsyncLoading();
-
       final repository = ref.read(teacherRepositoryProvider);
 
       await repository.createBulkAttendance(
         classId: classId,
+        subjectId: subjectId,
         attendanceDate: attendanceDate,
         students: students,
       );
@@ -536,18 +532,10 @@ class TeacherNotifier extends AsyncNotifier<void> {
       // Refresh general attendance
       ref.invalidate(teacherAttendanceProvider);
 
-      // Refresh class attendance
-      ref.invalidate(
-        teacherClassAttendanceProvider(
-          TeacherClassAttendanceParams(
-            classId: classId,
-            subjectId: null,
-            date: attendanceDate,
-          ),
-        ),
-      );
-
-      state = const AsyncData(null);
+      // Refresh every cached class/subject attendance list.
+      // Invalidating the whole family avoids mismatched params
+      // (different date formats, subjectId null vs value).
+      ref.invalidate(teacherClassAttendanceProvider);
 
       return true;
     } catch (error, stackTrace) {
@@ -568,6 +556,7 @@ class TeacherNotifier extends AsyncNotifier<void> {
       await repository.deleteAttendance(attendanceId: attendanceId);
 
       ref.invalidate(teacherAttendanceProvider);
+      ref.invalidate(teacherClassAttendanceProvider);
       ref.invalidate(teacherAttendanceRecordProvider(attendanceId));
 
       return true;

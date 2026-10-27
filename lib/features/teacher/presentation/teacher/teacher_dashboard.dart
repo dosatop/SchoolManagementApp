@@ -1,12 +1,25 @@
 import 'package:app/features/teacher/presentation/assignment/teacher_assignments_page.dart';
 import 'package:app/features/teacher/presentation/attendance/teacher_attendance_page.dart';
 import 'package:app/features/teacher/presentation/class/teacher_classes-page.dart';
-import 'package:app/features/teacher/presentation/teacher/teacher_profile_page.dart';
 import 'package:app/features/teacher/presentation/student/teacher_students_page.dart';
+import 'package:app/features/teacher/presentation/teacher/teacher_profile_page.dart';
 import 'package:app/features/teacher/presentation/teacher_timetable_page.dart';
 import 'package:app/features/teacher/provider/teachers_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// ==================================================================
+// THEME
+// ==================================================================
+
+const Color _primary = Color(0xFF091993);
+const Color _primaryLight = Color(0xFFE9ECFF);
+const Color _background = Color(0xFFF6F7FB);
+const Color _textDark = Color(0xFF20232E);
+
+// ==================================================================
+// DASHBOARD SHELL (BOTTOM NAVIGATION)
+// ==================================================================
 
 class TeacherDashboardPage extends ConsumerStatefulWidget {
   const TeacherDashboardPage({super.key});
@@ -17,72 +30,63 @@ class TeacherDashboardPage extends ConsumerStatefulWidget {
 }
 
 class _TeacherDashboardPageState extends ConsumerState<TeacherDashboardPage> {
-  static const Color primary = Color(0xFF091993);
-  static const Color background = Color(0xFFF6F7FB);
-
   int _currentIndex = 0;
 
-  late final List<Widget> _pages;
+  // No manual preloading: the home tab watches teacherProfileProvider,
+  // teacherClassesProvider, teacherAssignmentsProvider and
+  // teacherStudentsProvider, which fetch on their own.
 
-  @override
-  void initState() {
-    super.initState();
-
-    _pages = [
-      const _TeacherHomePage(),
-      const TeacherClassesPage(),
-      const TeacherAssignmentsPage(),
-      const TeacherProfilePage(),
-    ];
-
-    Future.microtask(() {
-      ref.read(teachersProvider.notifier).getTeacherProfile();
-      ref.read(teachersProvider.notifier).getTeacherClasses();
-      ref.read(teachersProvider.notifier).getTeacherSubjects();
-    });
+  void _goToTab(int index) {
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: background,
+      backgroundColor: _background,
 
-      // IMPORTANT:
-      // IndexedStack keeps all pages alive.
-      // Switching tabs does NOT create a new page.
-      body: IndexedStack(index: _currentIndex, children: _pages),
+      // IndexedStack keeps every tab alive between switches.
+      // The pages are built here (not cached in initState) so they always
+      // get the current callback. Their State objects are still kept,
+      // because each page keeps the same type and position.
+      body: IndexedStack(
+        index: _currentIndex,
+        children: [
+          _TeacherHomePage(onNavigate: _goToTab),
+          const TeacherClassesPage(),
+          const TeacherAssignmentsPage(),
+          const TeacherProfilePage(),
+        ],
+      ),
 
       bottomNavigationBar: NavigationBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.white,
+        indicatorColor: _primaryLight,
         elevation: 8,
+        height: 70,
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          if (_currentIndex == index) return;
-
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onDestinationSelected: _goToTab,
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.dashboard_outlined),
-            selectedIcon: Icon(Icons.dashboard_rounded),
+            selectedIcon: Icon(Icons.dashboard_rounded, color: _primary),
             label: 'Home',
           ),
           NavigationDestination(
             icon: Icon(Icons.menu_book_outlined),
-            selectedIcon: Icon(Icons.menu_book_rounded),
+            selectedIcon: Icon(Icons.menu_book_rounded, color: _primary),
             label: 'Classes',
           ),
           NavigationDestination(
             icon: Icon(Icons.assignment_outlined),
-            selectedIcon: Icon(Icons.assignment_rounded),
+            selectedIcon: Icon(Icons.assignment_rounded, color: _primary),
             label: 'Tasks',
           ),
           NavigationDestination(
             icon: Icon(Icons.person_outline_rounded),
-            selectedIcon: Icon(Icons.person_rounded),
+            selectedIcon: Icon(Icons.person_rounded, color: _primary),
             label: 'Profile',
           ),
         ],
@@ -92,11 +96,14 @@ class _TeacherDashboardPageState extends ConsumerState<TeacherDashboardPage> {
 }
 
 // ==================================================================
-// TEACHER HOME PAGE
+// HOME TAB
 // ==================================================================
 
 class _TeacherHomePage extends ConsumerStatefulWidget {
-  const _TeacherHomePage();
+  const _TeacherHomePage({required this.onNavigate});
+
+  /// Switches the bottom-navigation tab (1 = Classes, 2 = Tasks).
+  final ValueChanged<int> onNavigate;
 
   @override
   ConsumerState<_TeacherHomePage> createState() => _TeacherHomePageState();
@@ -104,126 +111,134 @@ class _TeacherHomePage extends ConsumerStatefulWidget {
 
 class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
     with AutomaticKeepAliveClientMixin {
-  static const Color primary = Color(0xFF091993);
-  static const Color primaryLight = Color(0xFFE9ECFF);
-  static const Color background = Color(0xFFF6F7FB);
-  static const Color textDark = Color(0xFF20232E);
-
   @override
   bool get wantKeepAlive => true;
+
+  // ================================================================
+  // BUILD
+  // ================================================================
 
   @override
   Widget build(BuildContext context) {
     super.build(context);
 
     final profileAsync = ref.watch(teacherProfileProvider);
-    final classesAsync = ref.watch(teacherClassesProvider);
     final assignmentsAsync = ref.watch(teacherAssignmentsProvider);
 
+    // Two sources make up "my classes":
+    //   /teacher/classes  -> classes where the teacher is CLASS TEACHER
+    //   /teacher/subjects -> subject + class rows the teacher TEACHES
+    final classTeacherAsync = ref.watch(teacherClassesProvider);
+    final subjectsAsync = ref.watch(teacherSubjectsProvider);
+
+    final myClasses = _mergeClasses(
+      _list(classTeacherAsync.valueOrNull, ['classes', 'data']),
+      _list(subjectsAsync.valueOrNull, ['subjects', 'data']),
+    );
+
+    final classesLoading =
+        (classTeacherAsync.isLoading && !classTeacherAsync.hasValue) ||
+        (subjectsAsync.isLoading && !subjectsAsync.hasValue);
+
+    final classesFailed =
+        classTeacherAsync.hasError &&
+        subjectsAsync.hasError &&
+        myClasses.isEmpty;
+
+    // Students per class (same provider the class pages use).
+    final studentsByClass = <String, Set<String>>{};
+    var studentsLoading = false;
+
+    for (final c in myClasses) {
+      final async = ref.watch(teacherStudentsProvider(c.id));
+
+      if (async.isLoading && !async.hasValue) {
+        studentsLoading = true;
+        continue;
+      }
+
+      studentsByClass[c.id] = _studentIds(async.valueOrNull);
+    }
+
+    final uniqueStudents = studentsByClass.values.fold<Set<String>>(
+      <String>{},
+      (all, ids) => all..addAll(ids),
+    );
+
+    final teacherName = _teacherName(profileAsync.valueOrNull);
+    final assignments = _list(assignmentsAsync.valueOrNull, [
+      'assignments',
+      'data',
+    ]);
+
     return Scaffold(
-      backgroundColor: background,
-
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        title: const Text(
-          'Teacher Dashboard',
-          style: TextStyle(
-            color: textDark,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Notifications',
-            onPressed: () {
-              // Open notifications page here.
-            },
-            icon: const Icon(Icons.notifications_none_rounded, color: textDark),
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-
-      body: RefreshIndicator(
-        color: primary,
-        onRefresh: _refreshDashboard,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
-          ),
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 35),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: _background,
+      body: SafeArea(
+        bottom: false,
+        child: RefreshIndicator(
+          color: _primary,
+          onRefresh: _refresh,
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
             children: [
-              _welcomeCard(profileAsync),
-
-              const SizedBox(height: 25),
-
-              const Text(
-                'Today Overview',
-                style: TextStyle(
-                  color: textDark,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+              _welcomeCard(
+                name: profileAsync.isLoading && teacherName == null
+                    ? null
+                    : teacherName ?? 'Teacher',
               ),
 
-              const SizedBox(height: 12),
+              const SizedBox(height: 18),
 
-              _overviewGrid(classesAsync, assignmentsAsync),
+              _statsRow(
+                classCount: classesLoading ? null : myClasses.length,
+                studentCount: classesLoading || studentsLoading
+                    ? null
+                    : uniqueStudents.length,
+                assignmentCount:
+                    assignmentsAsync.isLoading && assignments.isEmpty
+                    ? null
+                    : assignments.length,
+              ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 26),
 
-              _sectionHeader(title: 'Quick Actions'),
+              _sectionTitle('Quick actions'),
 
               const SizedBox(height: 12),
 
               _quickActions(),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 26),
 
-              _sectionHeader(
-                title: "Today's Classes",
-                actionText: 'View All',
-                onPressed: () {
-                  _changeMainPage(1);
-                },
+              _sectionTitle(
+                'My classes',
+                action: myClasses.length > 3 ? 'See all' : null,
+                onAction: () => widget.onNavigate(1),
               ),
 
               const SizedBox(height: 12),
 
-              _todayClasses(classesAsync),
+              _classesSection(
+                loading: classesLoading,
+                failed: classesFailed,
+                classes: myClasses,
+                studentsByClass: studentsByClass,
+              ),
 
-              const SizedBox(height: 25),
+              const SizedBox(height: 26),
 
-              _sectionHeader(
-                title: 'Upcoming Assignments',
-                actionText: 'View All',
-                onPressed: () {
-                  _changeMainPage(2);
-                },
+              _sectionTitle(
+                'Upcoming assignments',
+                action: assignments.isEmpty ? null : 'See all',
+                onAction: () => widget.onNavigate(2),
               ),
 
               const SizedBox(height: 12),
 
-              _assignments(assignmentsAsync),
-
-              const SizedBox(height: 25),
-
-              _sectionHeader(
-                title: 'Announcements',
-                actionText: 'View All',
-                onPressed: () {
-                  // Add announcements page when available.
-                },
-              ),
-
-              const SizedBox(height: 12),
-
-              _announcements(),
+              _assignmentsSection(assignmentsAsync, assignments),
             ],
           ),
         ),
@@ -232,27 +247,34 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
   }
 
   // ================================================================
-  // CHANGE MAIN DASHBOARD PAGE
-  // ================================================================
-
-  void _changeMainPage(int index) {
-    final dashboardState = context
-        .findAncestorStateOfType<_TeacherDashboardPageState>();
-
-    dashboardState?.setState(() {
-      dashboardState._currentIndex = index;
-    });
-  }
-
-  // ================================================================
   // REFRESH
   // ================================================================
 
-  Future<void> _refreshDashboard() async {
+  Future<void> _refresh() async {
+    // Refresh every class's student list so the Students count updates.
+    final current = _mergeClasses(
+      _list(ref.read(teacherClassesProvider).valueOrNull, ['classes', 'data']),
+      _list(ref.read(teacherSubjectsProvider).valueOrNull, [
+        'subjects',
+        'data',
+      ]),
+    );
+
+    for (final c in current) {
+      ref.invalidate(teacherStudentsProvider(c.id));
+    }
+
+    ref.invalidate(teacherProfileProvider);
+    ref.invalidate(teacherClassesProvider);
+    ref.invalidate(teacherSubjectsProvider);
+    ref.invalidate(teacherAssignmentsProvider);
+
+    // Wait for all; one failure shouldn't break the others.
     await Future.wait([
-      ref.refresh(teacherProfileProvider.future),
-      ref.refresh(teacherClassesProvider.future),
-      ref.refresh(teacherAssignmentsProvider.future),
+      ref.read(teacherProfileProvider.future).then((_) {}, onError: (_) {}),
+      ref.read(teacherClassesProvider.future).then((_) {}, onError: (_) {}),
+      ref.read(teacherSubjectsProvider.future).then((_) {}, onError: (_) {}),
+      ref.read(teacherAssignmentsProvider.future).then((_) {}, onError: (_) {}),
     ]);
   }
 
@@ -260,93 +282,93 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
   // WELCOME CARD
   // ================================================================
 
-  Widget _welcomeCard(AsyncValue<dynamic> profileAsync) {
-    return profileAsync.when(
-      loading: () {
-        return _buildWelcomeCard(teacherName: 'Loading...');
-      },
+  Widget _welcomeCard({required String? name}) {
+    final initial = (name != null && name.trim().isNotEmpty)
+        ? name.trim()[0].toUpperCase()
+        : '';
 
-      error: (error, stack) {
-        return _buildWelcomeCard(teacherName: 'Teacher');
-      },
-
-      data: (data) {
-        final teacherName = _extractTeacherName(data);
-
-        return _buildWelcomeCard(teacherName: teacherName);
-      },
-    );
-  }
-
-  Widget _buildWelcomeCard({required String teacherName}) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(22),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [primary, Color(0xFF2437C5)],
+          colors: [_primary, Color(0xFF2437C5)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(.18),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: _primary.withValues(alpha: .22),
+            blurRadius: 22,
+            offset: const Offset(0, 10),
           ),
         ],
       ),
       child: Row(
         children: [
-          Container(
-            width: 62,
-            height: 62,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.15),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.person_outline_rounded,
-              color: Colors.white,
-              size: 32,
-            ),
-          ),
-
-          const SizedBox(width: 15),
-
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Good Morning 👋',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                Text(
+                  _todayLabel(),
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: .7),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: .3,
+                  ),
                 ),
 
-                const SizedBox(height: 4),
+                const SizedBox(height: 8),
 
                 Text(
-                  teacherName,
+                  '${_greeting()},',
+                  style: const TextStyle(color: Colors.white70, fontSize: 14),
+                ),
+
+                const SizedBox(height: 2),
+
+                Text(
+                  name ?? 'Loading…',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: Colors.white,
-                    fontSize: 22,
+                    fontSize: 23,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
-                const SizedBox(height: 5),
-
-                Text(
-                  'Have a great day teaching!',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(.75),
-                    fontSize: 11,
-                  ),
-                ),
               ],
+            ),
+          ),
+
+          const SizedBox(width: 14),
+
+          Container(
+            width: 58,
+            height: 58,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .15),
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white.withValues(alpha: .25)),
+            ),
+            child: Center(
+              child: initial.isEmpty
+                  ? const Icon(
+                      Icons.person_outline_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    )
+                  : Text(
+                      initial,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -355,331 +377,87 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
   }
 
   // ================================================================
-  // EXTRACT TEACHER NAME
+  // STATS
   // ================================================================
 
-  String _extractTeacherName(dynamic data) {
-    if (data == null) {
-      return 'Teacher';
-    }
-
-    // --------------------------------------------------------------
-    // DIRECT STRING
-    // --------------------------------------------------------------
-
-    if (data is String && data.trim().isNotEmpty) {
-      return data.trim();
-    }
-
-    // --------------------------------------------------------------
-    // MAP
-    // --------------------------------------------------------------
-
-    if (data is Map) {
-      final map = Map<String, dynamic>.from(data);
-
-      // First check the current map itself.
-      final directName = _nameFromMap(map);
-
-      if (directName != null) {
-        return directName;
-      }
-
-      // Common nested API structures.
-      final possibleKeys = [
-        'teacher',
-        'user',
-        'profile',
-        'staff',
-        'data',
-        'result',
-        'teacherProfile',
-      ];
-
-      for (final key in possibleKeys) {
-        final value = map[key];
-
-        final name = _extractTeacherName(value);
-
-        if (name != 'Teacher') {
-          return name;
-        }
-      }
-
-      // Search nested maps/lists as a final fallback.
-      for (final value in map.values) {
-        if (value is Map || value is List) {
-          final name = _extractTeacherName(value);
-
-          if (name != 'Teacher') {
-            return name;
-          }
-        }
-      }
-    }
-
-    // --------------------------------------------------------------
-    // LIST
-    // --------------------------------------------------------------
-
-    if (data is List) {
-      for (final item in data) {
-        final name = _extractTeacherName(item);
-
-        if (name != 'Teacher') {
-          return name;
-        }
-      }
-    }
-
-    return 'Teacher';
-  }
-
-  // ================================================================
-  // EXTRACT NAME FROM MAP
-  // ================================================================
-
-  String? _nameFromMap(Map<String, dynamic> map) {
-    final firstName =
-        map['firstName'] ??
-        map['firstname'] ??
-        map['first_name'] ??
-        map['givenName'] ??
-        map['given_name'];
-
-    final lastName =
-        map['lastName'] ??
-        map['lastname'] ??
-        map['last_name'] ??
-        map['surname'] ??
-        map['familyName'];
-
-    if (firstName != null &&
-        lastName != null &&
-        firstName.toString().trim().isNotEmpty &&
-        lastName.toString().trim().isNotEmpty) {
-      return '${firstName.toString().trim()} ${lastName.toString().trim()}';
-    }
-
-    if (firstName != null && firstName.toString().trim().isNotEmpty) {
-      return firstName.toString().trim();
-    }
-
-    final nameKeys = [
-      'name',
-      'fullName',
-      'full_name',
-      'displayName',
-      'display_name',
-      'teacherName',
-      'teacher_name',
-      'username',
-    ];
-
-    for (final key in nameKeys) {
-      final value = map[key];
-
-      if (value != null && value.toString().trim().isNotEmpty) {
-        return value.toString().trim();
-      }
-    }
-
-    return null;
-  }
-
-  // ================================================================
-  // OVERVIEW GRID
-  // ================================================================
-
-  Widget _overviewGrid(
-    AsyncValue<dynamic> classesAsync,
-    AsyncValue<dynamic> assignmentsAsync,
-  ) {
-    final classCount = _getListLength(classesAsync.value);
-    final assignmentCount = _getListLength(assignmentsAsync.value);
-
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      mainAxisSpacing: 12,
-      crossAxisSpacing: 12,
-      childAspectRatio: 1.45,
+  Widget _statsRow({
+    required int? classCount,
+    required int? studentCount,
+    required int? assignmentCount,
+  }) {
+    return Row(
       children: [
-        _overviewCard(
-          icon: Icons.class_outlined,
-          title: 'Classes',
-          value: classesAsync.isLoading ? '...' : classCount.toString(),
-          color: Colors.blue,
+        Expanded(
+          child: _statCard(
+            icon: Icons.class_outlined,
+            label: 'Classes',
+            value: classCount,
+            color: Colors.blue,
+          ),
         ),
-
-        _overviewCard(
-          icon: Icons.groups_outlined,
-          title: 'Students',
-          value: _getStudentCount(classesAsync),
-          color: Colors.purple,
+        const SizedBox(width: 10),
+        Expanded(
+          child: _statCard(
+            icon: Icons.groups_outlined,
+            label: 'Students',
+            value: studentCount,
+            color: Colors.purple,
+          ),
         ),
-
-        _overviewCard(
-          icon: Icons.fact_check_outlined,
-          title: 'Attendance',
-          value: '—',
-          color: Colors.green,
-        ),
-
-        _overviewCard(
-          icon: Icons.assignment_outlined,
-          title: 'Assignments',
-          value: assignmentsAsync.isLoading
-              ? '...'
-              : assignmentCount.toString(),
-          color: Colors.orange,
+        const SizedBox(width: 10),
+        Expanded(
+          child: _statCard(
+            icon: Icons.assignment_outlined,
+            label: 'Assignments',
+            value: assignmentCount,
+            color: Colors.orange,
+          ),
         ),
       ],
     );
   }
 
-  // ================================================================
-  // GET LIST LENGTH
-  // ================================================================
-
-  int _getListLength(dynamic data) {
-    if (data == null) {
-      return 0;
-    }
-
-    if (data is List) {
-      return data.length;
-    }
-
-    if (data is Map) {
-      final list =
-          data['data'] ??
-          data['classes'] ??
-          data['assignments'] ??
-          data['results'];
-
-      if (list is List) {
-        return list.length;
-      }
-    }
-
-    return 0;
-  }
-
-  // ================================================================
-  // GET STUDENT COUNT
-  // ================================================================
-
-  String _getStudentCount(AsyncValue<dynamic> classesAsync) {
-    final data = classesAsync.value;
-
-    if (data == null) {
-      return classesAsync.isLoading ? '...' : '0';
-    }
-
-    if (data is List) {
-      int count = 0;
-
-      for (final item in data) {
-        if (item is Map) {
-          final students =
-              item['students'] ?? item['studentCount'] ?? item['studentsCount'];
-
-          if (students is int) {
-            count += students;
-          } else if (students is num) {
-            count += students.toInt();
-          } else if (students is List) {
-            count += students.length;
-          }
-        }
-      }
-
-      return count.toString();
-    }
-
-    if (data is Map) {
-      final classes = data['classes'] ?? data['data'];
-
-      if (classes is List) {
-        int count = 0;
-
-        for (final item in classes) {
-          if (item is Map) {
-            final students =
-                item['students'] ??
-                item['studentCount'] ??
-                item['studentsCount'];
-
-            if (students is num) {
-              count += students.toInt();
-            } else if (students is List) {
-              count += students.length;
-            }
-          }
-        }
-
-        return count.toString();
-      }
-    }
-
-    return '0';
-  }
-
-  // ================================================================
-  // OVERVIEW CARD
-  // ================================================================
-
-  Widget _overviewCard({
+  Widget _statCard({
     required IconData icon,
-    required String title,
-    required String value,
+    required String label,
+    required int? value,
     required Color color,
   }) {
     return Container(
-      padding: const EdgeInsets.all(15),
+      padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.grey.shade200),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 43,
-            height: 43,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-              color: color.withOpacity(.09),
-              borderRadius: BorderRadius.circular(12),
+              color: color.withValues(alpha: .1),
+              borderRadius: BorderRadius.circular(11),
             ),
-            child: Icon(icon, color: color, size: 21),
+            child: Icon(icon, color: color, size: 19),
           ),
-
-          const SizedBox(width: 11),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
-                ),
-
-                const SizedBox(height: 3),
-
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
+          const SizedBox(height: 12),
+          Text(
+            value?.toString() ?? '…',
+            style: const TextStyle(
+              color: _textDark,
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              height: 1,
             ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
           ),
         ],
       ),
@@ -687,37 +465,42 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
   }
 
   // ================================================================
-  // SECTION HEADER
+  // SECTION TITLE
   // ================================================================
 
-  Widget _sectionHeader({
-    required String title,
-    String? actionText,
-    VoidCallback? onPressed,
-  }) {
+  Widget _sectionTitle(String title, {String? action, VoidCallback? onAction}) {
     return Row(
       children: [
         Expanded(
           child: Text(
             title,
             style: const TextStyle(
-              color: textDark,
-              fontSize: 20,
+              color: _textDark,
+              fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
           ),
         ),
-
-        if (actionText != null)
+        if (action != null)
           TextButton(
-            onPressed: onPressed,
+            onPressed: onAction,
             style: TextButton.styleFrom(
-              foregroundColor: primary,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
+              foregroundColor: _primary,
+              visualDensity: VisualDensity.compact,
             ),
-            child: Text(
-              actionText,
-              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  action,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(Icons.chevron_right_rounded, size: 18),
+              ],
             ),
           ),
       ],
@@ -727,527 +510,318 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
   // ================================================================
   // QUICK ACTIONS
   // ================================================================
+  // Classes and Assignments already live in the bottom bar, so only
+  // the pages that aren't reachable from there are here.
 
   Widget _quickActions() {
-    return SizedBox(
-      height: 105,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        physics: const BouncingScrollPhysics(),
-        children: [
-          _quickAction(
-            icon: Icons.fact_check_outlined,
-            title: 'Attendance',
-            color: Colors.green,
-            onTap: () {
-              _openPage(const TeacherAttendancePage());
-            },
-          ),
-
-          _quickAction(
-            icon: Icons.groups_outlined,
-            title: 'Students',
-            color: Colors.purple,
-            onTap: () {
-              _openPage(const TeacherStudentsPage());
-            },
-          ),
-
-          _quickAction(
-            icon: Icons.assignment_outlined,
-            title: 'Assignments',
-            color: Colors.orange,
-            onTap: () {
-              _changeMainPage(2);
-            },
-          ),
-
-          _quickAction(
-            icon: Icons.calendar_month_outlined,
-            title: 'Timetable',
-            color: Colors.blue,
-            onTap: () {
-              _openPage(const TeacherTimetablePage());
-            },
-          ),
-
-          _quickAction(
-            icon: Icons.menu_book_outlined,
-            title: 'Classes',
-            color: Colors.teal,
-            onTap: () {
-              _changeMainPage(1);
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // OPEN EXTRA PAGE
-  // ================================================================
-
-  void _openPage(Widget page) {
-    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
-  }
-
-  // ================================================================
-  // QUICK ACTION
-  // ================================================================
-
-  Widget _quickAction({
-    required IconData icon,
-    required String title,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return Container(
-      width: 95,
-      margin: const EdgeInsets.only(right: 10),
-      child: Material(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(17),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 13),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(17),
-              border: Border.all(color: Colors.grey.shade200),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 43,
-                  height: 43,
-                  decoration: BoxDecoration(
-                    color: color.withOpacity(.09),
-                    borderRadius: BorderRadius.circular(13),
-                  ),
-                  child: Icon(icon, color: color, size: 21),
-                ),
-
-                const SizedBox(height: 7),
-
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ================================================================
-  // TODAY'S CLASSES
-  // ================================================================
-
-  Widget _todayClasses(AsyncValue<dynamic> classesAsync) {
-    if (classesAsync.isLoading) {
-      return _loadingCard();
-    }
-
-    if (classesAsync.hasError) {
-      return _errorCard(
-        message: 'Unable to load classes',
-        onRetry: () {
-          ref.invalidate(teacherClassesProvider);
-        },
-      );
-    }
-
-    final classes = _extractList(
-      classesAsync.value,
-      keys: const ['classes', 'data'],
-    );
-
-    if (classes.isEmpty) {
-      return _emptyCard(
-        icon: Icons.class_outlined,
-        message: 'No classes available',
-      );
-    }
-
-    return Column(
-      children: classes.take(3).map((item) {
-        return _classCardFromData(item);
-      }).toList(),
-    );
-  }
-
-  // ================================================================
-  // CLASS CARD FROM API DATA
-  // ================================================================
-
-  Widget _classCardFromData(dynamic item) {
-    final map = item is Map
-        ? Map<String, dynamic>.from(item)
-        : <String, dynamic>{};
-
-    final subject = map['subjectName'] ?? map['subject'] ?? 'Subject';
-
-    final className =
-        map['className'] ?? map['class'] ?? map['name'] ?? 'Class';
-
-    final time = map['time'] ?? map['schedule'] ?? 'Time not available';
-
-    final room = map['room'] ?? map['roomName'] ?? 'Room not assigned';
-
-    return _classCard(
-      subject: subject.toString(),
-      className: className.toString(),
-      time: time.toString(),
-      room: room.toString(),
-      color: Colors.blue,
-    );
-  }
-
-  // ================================================================
-  // CLASS CARD
-  // ================================================================
-
-  Widget _classCard({
-    required String subject,
-    required String className,
-    required String time,
-    required String room,
-    required Color color,
-  }) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: color.withOpacity(.09),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(Icons.menu_book_outlined, color: color, size: 22),
-          ),
-
-          const SizedBox(width: 13),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  subject,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  className,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                ),
-
-                const SizedBox(height: 3),
-
-                Row(
-                  children: [
-                    Icon(
-                      Icons.access_time_rounded,
-                      size: 13,
-                      color: Colors.grey.shade500,
-                    ),
-
-                    const SizedBox(width: 4),
-
-                    Flexible(
-                      child: Text(
-                        time,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 10),
-
-                    Icon(
-                      Icons.room_outlined,
-                      size: 13,
-                      color: Colors.grey.shade500,
-                    ),
-
-                    const SizedBox(width: 3),
-
-                    Flexible(
-                      child: Text(
-                        room,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
-            decoration: BoxDecoration(
-              color: primaryLight,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: const Text(
-              'View',
-              style: TextStyle(
-                color: primary,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // ASSIGNMENTS
-  // ================================================================
-
-  Widget _assignments(AsyncValue<dynamic> assignmentsAsync) {
-    if (assignmentsAsync.isLoading) {
-      return _loadingCard();
-    }
-
-    if (assignmentsAsync.hasError) {
-      return _errorCard(
-        message: 'Unable to load assignments',
-        onRetry: () {
-          ref.invalidate(teacherAssignmentsProvider);
-        },
-      );
-    }
-
-    final assignments = _extractList(
-      assignmentsAsync.value,
-      keys: const ['assignments', 'data'],
-    );
-
-    if (assignments.isEmpty) {
-      return _emptyCard(
-        icon: Icons.assignment_outlined,
-        message: 'No upcoming assignments',
-      );
-    }
-
-    return Column(
-      children: assignments.take(3).map((item) {
-        return _assignmentCardFromData(item);
-      }).toList(),
-    );
-  }
-
-  // ================================================================
-  // ASSIGNMENT CARD FROM API DATA
-  // ================================================================
-
-  Widget _assignmentCardFromData(dynamic item) {
-    final map = item is Map
-        ? Map<String, dynamic>.from(item)
-        : <String, dynamic>{};
-
-    final title = map['title'] ?? map['name'] ?? 'Assignment';
-
-    final className = map['className'] ?? map['class'] ?? 'Class';
-
-    final dueDate = map['dueDate'] ?? map['deadline'] ?? 'No due date';
-
-    return _assignmentCard(
-      title: title.toString(),
-      className: className.toString(),
-      dueDate: dueDate.toString(),
-      color: Colors.orange,
-    );
-  }
-
-  // ================================================================
-  // ASSIGNMENT CARD
-  // ================================================================
-
-  Widget _assignmentCard({
-    required String title,
-    required String className,
-    required String dueDate,
-    required Color color,
-  }) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 43,
-            height: 43,
-            decoration: BoxDecoration(
-              color: color.withOpacity(.09),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(Icons.assignment_outlined, color: color, size: 21),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 13,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  className,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          Flexible(
-            child: Text(
-              dueDate,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 10,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // EXTRACT LIST
-  // ================================================================
-
-  List<dynamic> _extractList(dynamic data, {required List<String> keys}) {
-    if (data is List) {
-      return data;
-    }
-
-    if (data is Map) {
-      for (final key in keys) {
-        final value = data[key];
-
-        if (value is List) {
-          return value;
-        }
-      }
-    }
-
-    return [];
-  }
-
-  // ================================================================
-  // ANNOUNCEMENTS
-  // ================================================================
-
-  Widget _announcements() {
-    return Column(
+    return Row(
       children: [
-        _announcementCard(
-          title: 'Staff Meeting',
-          message: 'Staff meeting will hold tomorrow at 2:00 PM.',
-          time: '2h ago',
+        Expanded(
+          child: _quickAction(
+            icon: Icons.fact_check_outlined,
+            label: 'Attendance',
+            color: Colors.green,
+            onTap: () => _open(const TeacherAttendancePage()),
+          ),
         ),
-
-        _announcementCard(
-          title: 'School Event',
-          message: 'Remember the upcoming inter-house sports event.',
-          time: 'Yesterday',
+        const SizedBox(width: 10),
+        Expanded(
+          child: _quickAction(
+            icon: Icons.groups_outlined,
+            label: 'Students',
+            color: Colors.purple,
+            onTap: () => _open(const TeacherStudentsPage()),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: _quickAction(
+            icon: Icons.calendar_month_outlined,
+            label: 'Timetable',
+            color: Colors.blue,
+            onTap: () => _open(const TeacherTimetablePage()),
+          ),
         ),
       ],
     );
   }
 
+  Widget _quickAction({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(18),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: .1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, color: color, size: 22),
+              ),
+              const SizedBox(height: 9),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: _textDark,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _open(Widget page) {
+    Navigator.of(context).push(MaterialPageRoute(builder: (_) => page));
+  }
+
   // ================================================================
-  // ANNOUNCEMENT CARD
+  // MY CLASSES
   // ================================================================
 
-  Widget _announcementCard({
-    required String title,
-    required String message,
-    required String time,
+  Widget _classesSection({
+    required bool loading,
+    required bool failed,
+    required List<_MyClass> classes,
+    required Map<String, Set<String>> studentsByClass,
   }) {
+    if (loading && classes.isEmpty) return _loadingCard();
+
+    if (failed) {
+      return _errorCard(
+        message: 'Unable to load your classes',
+        onRetry: () {
+          ref.invalidate(teacherClassesProvider);
+          ref.invalidate(teacherSubjectsProvider);
+        },
+      );
+    }
+
+    if (classes.isEmpty) {
+      return _emptyCard(
+        icon: Icons.class_outlined,
+        title: 'No classes yet',
+        message: 'Classes assigned to you will show up here.',
+      );
+    }
+
+    const colors = [
+      Colors.blue,
+      Colors.purple,
+      Colors.teal,
+      Colors.orange,
+      Colors.indigo,
+    ];
+
+    final visible = classes.take(3).toList();
+
+    return Column(
+      children: [
+        for (var i = 0; i < visible.length; i++)
+          _classCard(
+            visible[i],
+            colors[i % colors.length],
+            studentsByClass[visible[i].id]?.length ??
+                visible[i].reportedStudents,
+          ),
+      ],
+    );
+  }
+
+  Widget _classCard(_MyClass item, Color color, int? students) {
     return Container(
-      width: double.infinity,
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(15),
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          onTap: () => widget.onNavigate(1),
+          borderRadius: BorderRadius.circular(18),
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(Icons.menu_book_rounded, color: color, size: 22),
+                ),
+
+                const SizedBox(width: 13),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              item.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: _textDark,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          if (item.isClassTeacher) ...[
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 3,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                'Class teacher',
+                                style: TextStyle(
+                                  color: Colors.green.shade700,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        [
+                          if (item.subjects.isNotEmpty)
+                            item.subjects.join(', '),
+                          if (students != null)
+                            '$students student${students == 1 ? '' : 's'}',
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // UPCOMING ASSIGNMENTS
+  // ================================================================
+
+  Widget _assignmentsSection(
+    AsyncValue<dynamic> async,
+    List<dynamic> assignments,
+  ) {
+    if (async.isLoading && assignments.isEmpty) return _loadingCard();
+
+    if (async.hasError && assignments.isEmpty) {
+      return _errorCard(
+        message: 'Unable to load assignments',
+        onRetry: () => ref.invalidate(teacherAssignmentsProvider),
+      );
+    }
+
+    // Upcoming first (soonest due), then anything without a date.
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    final upcoming =
+        assignments.where((a) {
+          final due = _dueDate(a);
+          return due == null || !due.isBefore(today);
+        }).toList()..sort((a, b) {
+          final da = _dueDate(a);
+          final db = _dueDate(b);
+          if (da == null && db == null) return 0;
+          if (da == null) return 1;
+          if (db == null) return -1;
+          return da.compareTo(db);
+        });
+
+    if (upcoming.isEmpty) {
+      return _emptyCard(
+        icon: Icons.task_alt_rounded,
+        title: 'All caught up',
+        message: 'You have no upcoming assignments.',
+      );
+    }
+
+    return Column(
+      children: [for (final item in upcoming.take(3)) _assignmentCard(item)],
+    );
+  }
+
+  Widget _assignmentCard(dynamic item) {
+    final title = _str(item, ['title', 'name']) ?? 'Assignment';
+    final className = _str(item, ['className', 'class']);
+    final subject = _str(item, ['subjectName', 'subject']);
+    final due = _dueDate(item);
+    final badge = _dueBadge(due);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 43,
-            height: 43,
+            width: 44,
+            height: 44,
             decoration: BoxDecoration(
-              color: primaryLight,
-              borderRadius: BorderRadius.circular(12),
+              color: badge.color.withValues(alpha: .1),
+              borderRadius: BorderRadius.circular(13),
             ),
-            child: const Icon(
-              Icons.campaign_outlined,
-              color: primary,
+            child: Icon(
+              Icons.assignment_outlined,
+              color: badge.color,
               size: 21,
             ),
           ),
@@ -1258,42 +832,46 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        title,
-                        style: const TextStyle(
-                          color: textDark,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-
-                    Text(
-                      time,
-                      style: TextStyle(
-                        color: Colors.grey.shade500,
-                        fontSize: 9,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 5),
-
                 Text(
-                  message,
-                  maxLines: 2,
+                  title,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 11,
-                    height: 1.35,
+                  style: const TextStyle(
+                    color: _textDark,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
+                const SizedBox(height: 4),
+                Text(
+                  [
+                    if (subject != null) subject,
+                    if (className != null) className,
+                    if (due != null) _shortDate(due),
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
               ],
+            ),
+          ),
+
+          const SizedBox(width: 8),
+
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: badge.color.withValues(alpha: .1),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text(
+              badge.label,
+              style: TextStyle(
+                color: badge.color,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -1301,86 +879,316 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
     );
   }
 
+  ({String label, Color color}) _dueBadge(DateTime? due) {
+    if (due == null) return (label: 'No date', color: Colors.grey.shade600);
+
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final days = DateTime(due.year, due.month, due.day)
+        .difference(today)
+        .inDays;
+
+    if (days < 0) return (label: 'Overdue', color: Colors.red.shade600);
+    if (days == 0) return (label: 'Today', color: Colors.red.shade600);
+    if (days == 1) return (label: 'Tomorrow', color: Colors.orange.shade700);
+    if (days <= 7) return (label: 'In $days days', color: Colors.orange.shade700);
+    return (label: _shortDate(due), color: _primary);
+  }
+
   // ================================================================
-  // LOADING CARD
+  // STATE CARDS
   // ================================================================
 
   Widget _loadingCard() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(25),
+      height: 88,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: const Center(
         child: SizedBox(
           width: 22,
           height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2, color: primary),
+          child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
         ),
       ),
     );
   }
 
-  // ================================================================
-  // ERROR CARD
-  // ================================================================
-
   Widget _errorCard({required String message, required VoidCallback onRetry}) {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(16, 10, 8, 10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: Colors.grey.shade200),
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.red.shade100),
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline_rounded, color: Colors.red),
-
+          Icon(Icons.error_outline_rounded, color: Colors.red.shade400),
           const SizedBox(width: 10),
-
           Expanded(
             child: Text(
               message,
-              style: TextStyle(color: Colors.grey.shade700, fontSize: 11),
+              style: TextStyle(color: Colors.red.shade700, fontSize: 12),
             ),
           ),
-
-          TextButton(onPressed: onRetry, child: const Text('Retry')),
+          TextButton(
+            onPressed: onRetry,
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
+            child: const Text('Retry'),
+          ),
         ],
       ),
     );
   }
 
-  // ================================================================
-  // EMPTY CARD
-  // ================================================================
-
-  Widget _emptyCard({required IconData icon, required String message}) {
+  Widget _emptyCard({
+    required IconData icon,
+    required String title,
+    required String message,
+  }) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(25),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: Colors.grey.shade200),
       ),
       child: Column(
         children: [
-          Icon(icon, size: 32, color: Colors.grey.shade400),
-
-          const SizedBox(height: 8),
-
+          Container(
+            width: 52,
+            height: 52,
+            decoration: const BoxDecoration(
+              color: _primaryLight,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: _primary, size: 24),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            title,
+            style: const TextStyle(
+              color: _textDark,
+              fontSize: 14,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
           Text(
             message,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
           ),
         ],
       ),
     );
   }
+
+  // ================================================================
+  // DATA HELPERS
+  // ================================================================
+
+  List<dynamic> _list(dynamic data, List<String> keys) {
+    if (data is List) return data;
+
+    if (data is Map) {
+      for (final key in keys) {
+        final value = data[key];
+        if (value is List) return value;
+        if (value is Map) {
+          final nested = _list(value, keys);
+          if (nested.isNotEmpty) return nested;
+        }
+      }
+    }
+
+    return const [];
+  }
+
+  String? _str(dynamic item, List<String> keys) {
+    if (item is! Map) return null;
+
+    for (final key in keys) {
+      final value = item[key];
+      if (value != null && value is! Map && value is! List) {
+        final text = value.toString().trim();
+        if (text.isNotEmpty) return text;
+      }
+    }
+
+    return null;
+  }
+
+  /// Teacher name from the profile response (flat or nested).
+  String? _teacherName(dynamic data) {
+    if (data is! Map) return null;
+
+    final first = _str(data, ['firstName', 'firstname', 'first_name']);
+    final last = _str(data, ['lastName', 'lastname', 'last_name', 'surname']);
+
+    if (first != null) return last != null ? '$first $last' : first;
+
+    final full = _str(data, ['fullName', 'name', 'displayName', 'teacherName']);
+    if (full != null) return full;
+
+    for (final key in ['teacher', 'user', 'profile', 'data']) {
+      final nested = _teacherName(data[key]);
+      if (nested != null) return nested;
+    }
+
+    return null;
+  }
+
+  int? _studentsIn(dynamic item) {
+    if (item is! Map) return null;
+
+    final value =
+        item['studentCount'] ?? item['studentsCount'] ?? item['students'];
+
+    if (value is num) return value.toInt();
+    if (value is List) return value.length;
+    return null;
+  }
+
+  /// Merges class-teacher classes and subject-teaching rows into one
+  /// entry per class.
+  ///
+  /// Example with your data:
+  ///   Year 10 -> Class teacher · Livestock Farming
+  ///   Year 11 -> Livestock Farming
+  ///   Year 12 -> Livestock Farming
+  ///
+  /// Class-teacher classes come first, then the rest by name.
+  List<_MyClass> _mergeClasses(
+    List<dynamic> classTeacherRows,
+    List<dynamic> subjectRows,
+  ) {
+    final byId = <String, _MyClass>{};
+
+    for (final row in classTeacherRows) {
+      final id = _str(row, ['classId', 'id']);
+      if (id == null) continue;
+
+      final entry = byId.putIfAbsent(
+        id,
+        () => _MyClass(id: id, name: _str(row, ['className', 'name']) ?? 'Class'),
+      );
+
+      entry.isClassTeacher = true;
+      entry.reportedStudents ??= _studentsIn(row);
+    }
+
+    for (final row in subjectRows) {
+      final id = _str(row, ['classId']);
+      if (id == null) continue;
+
+      final entry = byId.putIfAbsent(
+        id,
+        () => _MyClass(id: id, name: _str(row, ['className']) ?? 'Class'),
+      );
+
+      final subject = _str(row, ['subjectName', 'subject']);
+      if (subject != null && !entry.subjects.contains(subject)) {
+        entry.subjects.add(subject);
+      }
+    }
+
+    final result = byId.values.toList()
+      ..sort((a, b) {
+        if (a.isClassTeacher != b.isClassTeacher) {
+          return a.isClassTeacher ? -1 : 1;
+        }
+        return a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      });
+
+    return result;
+  }
+
+  Set<String> _studentIds(dynamic data) {
+    final ids = <String>{};
+
+    for (final student in _list(data, ['students', 'data'])) {
+      final id = _str(student, ['studentId', 'id']);
+      if (id != null) ids.add(id);
+    }
+
+    return ids;
+  }
+
+  DateTime? _dueDate(dynamic item) {
+    final raw = _str(item, ['dueDate', 'deadline']);
+    if (raw == null) return null;
+    return DateTime.tryParse(raw)?.toLocal();
+  }
+
+  // ================================================================
+  // DATE HELPERS
+  // ================================================================
+
+  static const _weekdays = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+
+  static const _months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+
+  String _greeting() {
+    final hour = DateTime.now().hour;
+    if (hour < 12) return 'Good morning';
+    if (hour < 17) return 'Good afternoon';
+    return 'Good evening';
+  }
+
+  /// MONDAY, 26 OCT
+  String _todayLabel() {
+    final now = DateTime.now();
+    return '${_weekdays[now.weekday - 1]}, ${now.day} ${_months[now.month - 1]}'
+        .toUpperCase();
+  }
+
+  /// 26 Oct
+  String _shortDate(DateTime d) => '${d.day} ${_months[d.month - 1]}';
+}
+
+// ==================================================================
+// MERGED CLASS MODEL
+// ==================================================================
+
+class _MyClass {
+  _MyClass({required this.id, required this.name});
+
+  final String id;
+  final String name;
+
+  /// True when the teacher is this class's class teacher.
+  bool isClassTeacher = false;
+
+  /// Subjects the teacher teaches in this class.
+  final List<String> subjects = [];
+
+  /// studentCount from /teacher/classes, used until the real list loads.
+  int? reportedStudents;
 }

@@ -416,22 +416,29 @@ class TeacherApi {
   }
 
   Future<dynamic> createBulkAttendance({
-  required String classId,
-  required String attendanceDate,
-  required List<Map<String, dynamic>> students,
-}) async {
-  final response = await dioClient.dio.post(
-    '/teacher/bulk-attendance',
-    data: {
-      'classId': classId,
-      'attendanceDate': attendanceDate,
-      'students': students,
-    },
-  );
+    required String classId,
+    String? subjectId,
+    required String attendanceDate,
+    required List<Map<String, dynamic>> students,
+  }) async {
+    final response = await dioClient.dio.post(
+      '/teacher/bulk-attendance',
+      data: {
+        'classId': classId,
 
-  return response.data;
-}
+        // null = class attendance, value = subject attendance.
+        // Empty strings are sent as null so Guid? binding never fails.
+        'subjectId': (subjectId == null || subjectId.trim().isEmpty)
+            ? null
+            : subjectId,
 
+        'attendanceDate': attendanceDate,
+        'students': students,
+      },
+    );
+
+    return response.data;
+  }
 
   // ================================================================
   // GET ATTENDANCE
