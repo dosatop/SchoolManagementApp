@@ -51,7 +51,7 @@ class ParentAttendancePage extends ConsumerWidget {
         onRefresh: refresh,
         child: () {
           if (async.isLoading && !async.hasValue) {
-            return const StudentLoadingView();
+            return const StudentLoadingView(layout: LoadingLayout.summary);
           }
 
           if (async.hasError && !async.hasValue) {

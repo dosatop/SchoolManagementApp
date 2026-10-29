@@ -39,7 +39,7 @@ class ParentChildDetailsPage extends ConsumerWidget {
         onRefresh: refresh,
         child: () {
           if (childAsync.isLoading && !childAsync.hasValue) {
-            return const StudentLoadingView();
+            return const StudentLoadingView(layout: LoadingLayout.detail);
           }
 
           if (childAsync.hasError && !childAsync.hasValue) {

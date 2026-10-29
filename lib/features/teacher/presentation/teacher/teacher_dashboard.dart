@@ -4,9 +4,11 @@ import 'package:app/features/teacher/presentation/class/teacher_classes-page.dar
 import 'package:app/features/teacher/presentation/student/teacher_students_page.dart';
 import 'package:app/features/teacher/presentation/teacher/teacher_profile_page.dart';
 import 'package:app/features/teacher/presentation/teacher_timetable_page.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/teacher/provider/teachers_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 // ==================================================================
 // THEME
@@ -330,16 +332,24 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
 
                 const SizedBox(height: 2),
 
-                Text(
-                  name ?? 'Loading…',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 23,
-                    fontWeight: FontWeight.bold,
+                if (name == null)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 6),
+                    child: Shimmer(
+                      child: ShimmerBox(width: 150, height: 20, onDark: true),
+                    ),
+                  )
+                else
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 23,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
               ],
             ),
           ),
@@ -443,15 +453,18 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
             child: Icon(icon, color: color, size: 19),
           ),
           const SizedBox(height: 12),
-          Text(
-            value?.toString() ?? '…',
-            style: const TextStyle(
-              color: _textDark,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              height: 1,
+          if (value == null)
+            const Shimmer(child: ShimmerBox(width: 34, height: 22))
+          else
+            Text(
+              '$value',
+              style: const TextStyle(
+                color: _textDark,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                height: 1,
+              ),
             ),
-          ),
           const SizedBox(height: 4),
           Text(
             label,
@@ -801,80 +814,98 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
     final subject = _str(item, ['subjectName', 'subject']);
     final due = _dueDate(item);
     final badge = _dueBadge(due);
+    final id = _str(item, ['assignmentId', 'id']);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
+      child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 44,
-            height: 44,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: id == null
+              ? () => widget.onNavigate(2)
+              : () => context.push('/teacher/assignments/details/$id'),
+          child: Container(
+            padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: badge.color.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(13),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: Colors.grey.shade200),
             ),
-            child: Icon(
-              Icons.assignment_outlined,
-              color: badge.color,
-              size: 21,
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: _textDark,
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: badge.color.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(13),
+                  ),
+                  child: Icon(
+                    Icons.assignment_outlined,
+                    color: badge.color,
+                    size: 21,
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  [
-                    if (subject != null) subject,
-                    if (className != null) className,
-                    if (due != null) _shortDate(due),
-                  ].join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+
+                const SizedBox(width: 12),
+
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: _textDark,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        [
+                          if (subject != null) subject,
+                          if (className != null) className,
+                          if (due != null) _shortDate(due),
+                        ].join(' · '),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(width: 8),
+
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: badge.color.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    badge.label,
+                    style: TextStyle(
+                      color: badge.color,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                 ),
               ],
             ),
           ),
-
-          const SizedBox(width: 8),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: badge.color.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Text(
-              badge.label,
-              style: TextStyle(
-                color: badge.color,
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -884,14 +915,17 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final days = DateTime(due.year, due.month, due.day)
-        .difference(today)
-        .inDays;
+    final days = DateTime(
+      due.year,
+      due.month,
+      due.day,
+    ).difference(today).inDays;
 
     if (days < 0) return (label: 'Overdue', color: Colors.red.shade600);
     if (days == 0) return (label: 'Today', color: Colors.red.shade600);
     if (days == 1) return (label: 'Tomorrow', color: Colors.orange.shade700);
-    if (days <= 7) return (label: 'In $days days', color: Colors.orange.shade700);
+    if (days <= 7)
+      return (label: 'In $days days', color: Colors.orange.shade700);
     return (label: _shortDate(due), color: _primary);
   }
 
@@ -899,20 +933,16 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
   // STATE CARDS
   // ================================================================
 
-  Widget _loadingCard() {
-    return Container(
-      height: 88,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: const Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
-        ),
+  /// Shimmer skeleton for a section that is still loading.
+  Widget _loadingCard({int count = 2}) {
+    return Shimmer(
+      child: Column(
+        children: [
+          for (var i = 0; i < count; i++) ...[
+            if (i > 0) const SizedBox(height: 10),
+            ShimmerCard(trailing: i.isEven),
+          ],
+        ],
       ),
     );
   }
@@ -1076,7 +1106,8 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
 
       final entry = byId.putIfAbsent(
         id,
-        () => _MyClass(id: id, name: _str(row, ['className', 'name']) ?? 'Class'),
+        () =>
+            _MyClass(id: id, name: _str(row, ['className', 'name']) ?? 'Class'),
       );
 
       entry.isClassTeacher = true;

@@ -1,3 +1,4 @@
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/teacher/provider/teachers_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -346,7 +347,61 @@ class _TeacherClassAttendancePageState
         (attendanceAsync.isLoading && !attendanceAsync.hasValue);
 
     if (loading) {
-      return _scrollableCenter(const CircularProgressIndicator(color: primary));
+      // Shimmer of student cards with the 4 status buttons.
+      return ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 24),
+        children: [
+          Shimmer(
+            child: Column(
+              children: [
+                for (var i = 0; i < 6; i++) ...[
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Column(
+                      children: [
+                        const Row(
+                          children: [
+                            ShimmerBox(height: 40, circle: true),
+                            SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  ShimmerBox(width: 140, height: 13),
+                                  SizedBox(height: 7),
+                                  ShimmerBox(width: 80, height: 10),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            for (var j = 0; j < 4; j++) ...[
+                              if (j > 0) const SizedBox(width: 6),
+                              const Expanded(
+                                child: ShimmerBox(height: 34, radius: 10),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                ],
+              ],
+            ),
+          ),
+        ],
+      );
     }
 
     if (studentsAsync.hasError && !studentsAsync.hasValue) {
@@ -748,7 +803,7 @@ class _TeacherClassAttendancePageState
     List<dynamic> students,
   ) {
     if (historyAsync.isLoading && !historyAsync.hasValue) {
-      return _scrollableCenter(const CircularProgressIndicator(color: primary));
+      return const StudentLoadingView(layout: LoadingLayout.summary);
     }
 
     if (historyAsync.hasError && !historyAsync.hasValue) {

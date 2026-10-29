@@ -1,3 +1,4 @@
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/teacher/models/teacher_assignment_params.dart';
 import 'package:app/features/teacher/provider/teachers_provider.dart';
 import 'package:flutter/material.dart';
@@ -103,6 +104,7 @@ class _TeacherClassDetailsPageState
     context.push(route, extra: _routeExtra).then((_) {
       if (mounted) {
         _invalidateAll();
+        ref.invalidate(teacherResultsProvider);
       }
     });
   }
@@ -187,9 +189,12 @@ class _TeacherClassDetailsPageState
               studentCount: studentCount,
               assignmentCount: assignmentCount,
               attendancePercentage: attendancePercentage,
-              studentsLoading: studentsAsync.isLoading,
-              assignmentsLoading: assignmentsAsync.isLoading,
-              attendanceLoading: attendanceAsync.isLoading,
+              studentsLoading:
+                  studentsAsync.isLoading && !studentsAsync.hasValue,
+              assignmentsLoading:
+                  assignmentsAsync.isLoading && !assignmentsAsync.hasValue,
+              attendanceLoading:
+                  attendanceAsync.isLoading && !attendanceAsync.hasValue,
             ),
 
             const SizedBox(height: 25),
@@ -237,6 +242,14 @@ class _TeacherClassDetailsPageState
               subtitle: 'Take and view attendance',
               color: Colors.green,
               onTap: () => _openAndRefresh('/teacher/classes/attendance'),
+            ),
+
+            _managementTile(
+              icon: Icons.grading_rounded,
+              title: 'Results',
+              subtitle: 'Enter test and exam scores for $subjectName',
+              color: Colors.indigo,
+              onTap: () => _openAndRefresh('/teacher/results/entry'),
             ),
 
             _managementTile(
@@ -420,14 +433,20 @@ class _TeacherClassDetailsPageState
 
           const SizedBox(height: 8),
 
-          Text(
-            value,
-            style: const TextStyle(
-              color: textDark,
-              fontSize: 17,
-              fontWeight: FontWeight.bold,
+          if (value == '...')
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 2),
+              child: Shimmer(child: ShimmerBox(width: 30, height: 17)),
+            )
+          else
+            Text(
+              value,
+              style: const TextStyle(
+                color: textDark,
+                fontSize: 17,
+                fontWeight: FontWeight.bold,
+              ),
             ),
-          ),
 
           const SizedBox(height: 2),
 
@@ -729,7 +748,10 @@ class _TeacherClassDetailsPageState
   // CALCULATE ATTENDANCE FROM RECORDS
   // ================================================================
   // No records yet -> null (shows '—') instead of a misleading 0%.
-  // Late counts as attended.
+  // Rate = (Present + Late) / (Present + Absent + Late).
+  // Excused and Holiday don't count either way.
+  // Only this subject's records count (class-register marks are a
+  // different attendance type).
 
   double? _calculateAttendancePercentage(List records) {
     if (records.isEmpty) {
@@ -744,19 +766,25 @@ class _TeacherClassDetailsPageState
         continue;
       }
 
+      final recordSubject = record['subjectId']?.toString().toLowerCase();
+      if (recordSubject != null && recordSubject != subjectId.toLowerCase()) {
+        continue;
+      }
+      if (recordSubject == null) {
+        continue; // class register, not this subject
+      }
+
       final status = record['status']?.toString().toLowerCase();
 
       if (status == null) {
         continue;
       }
 
-      total++;
-
-      if (status == 'present' ||
-          status == 'late' ||
-          status == 'p' ||
-          status == 'attended') {
+      if (status == 'present' || status == 'late') {
         present++;
+        total++;
+      } else if (status == 'absent') {
+        total++;
       }
     }
 

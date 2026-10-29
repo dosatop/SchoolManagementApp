@@ -58,7 +58,7 @@ class StudentProfilePage extends ConsumerWidget {
         onRefresh: refresh,
         child: () {
           if (profileAsync.isLoading && student == null) {
-            return const StudentLoadingView();
+            return const StudentLoadingView(layout: LoadingLayout.detail);
           }
 
           if (profileAsync.hasError && student == null) {

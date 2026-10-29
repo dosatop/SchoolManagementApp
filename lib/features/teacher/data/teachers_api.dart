@@ -197,6 +197,57 @@ class TeacherApi {
   }
 
   // ================================================================
+  // BULK RESULTS (whole class, one subject)
+  // ================================================================
+  // POST /teacher/results/bulk        → test + exam per student
+  // POST /teacher/results/bulk/test   → test only (keeps saved exam)
+  // POST /teacher/results/bulk/exam   → exam only (keeps saved test)
+  //
+  // results: [{ studentId, testScore?, examScore?, remark? }]
+  // The server uses the current session/term and updates existing
+  // results instead of duplicating them.
+
+  Future<dynamic> bulkResults({
+    required String classId,
+    required String subjectId,
+    required List<Map<String, dynamic>> results,
+  }) => _bulk('/teacher/results/bulk', classId, subjectId, results);
+
+  Future<dynamic> bulkTestResults({
+    required String classId,
+    required String subjectId,
+    required List<Map<String, dynamic>> results,
+  }) => _bulk('/teacher/results/bulk/test', classId, subjectId, results);
+
+  Future<dynamic> bulkExamResults({
+    required String classId,
+    required String subjectId,
+    required List<Map<String, dynamic>> results,
+  }) => _bulk('/teacher/results/bulk/exam', classId, subjectId, results);
+
+  Future<dynamic> _bulk(
+    String path,
+    String classId,
+    String subjectId,
+    List<Map<String, dynamic>> results,
+  ) async {
+    try {
+      final response = await dioClient.dio.post(
+        path,
+        data: {
+          'classId': classId,
+          'subjectId': subjectId,
+          'results': results,
+        },
+      );
+
+      return response.data;
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  // ================================================================
   // UPDATE TEST RESULT
   // ================================================================
 

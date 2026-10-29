@@ -292,6 +292,58 @@ class TeacherNotifier extends AsyncNotifier<void> {
   }
 
   // ================================================================
+  // SAVE CLASS RESULTS (bulk)
+  // ================================================================
+  // Sends up to three requests, so a teacher can enter test scores
+  // now and exams later:
+  //   both  → students with test AND exam      (/results/bulk)
+  //   tests → students with only a test score  (/results/bulk/test)
+  //   exams → students with only an exam score (/results/bulk/exam)
+  //
+  // Throws on failure (so the page can show the server's message)
+  // and never puts this notifier into an error state.
+
+  Future<int> saveClassResults({
+    required String classId,
+    required String subjectId,
+    List<Map<String, dynamic>> both = const [],
+    List<Map<String, dynamic>> tests = const [],
+    List<Map<String, dynamic>> exams = const [],
+  }) async {
+    final repository = ref.read(teacherRepositoryProvider);
+
+    if (both.isNotEmpty) {
+      await repository.bulkResults(
+        classId: classId,
+        subjectId: subjectId,
+        results: both,
+      );
+    }
+
+    if (tests.isNotEmpty) {
+      await repository.bulkTestResults(
+        classId: classId,
+        subjectId: subjectId,
+        results: tests,
+      );
+    }
+
+    if (exams.isNotEmpty) {
+      await repository.bulkExamResults(
+        classId: classId,
+        subjectId: subjectId,
+        results: exams,
+      );
+    }
+
+    // Refresh every results list and student details page.
+    ref.invalidate(teacherResultsProvider);
+    ref.invalidate(teacherStudentDetailsProvider);
+
+    return both.length + tests.length + exams.length;
+  }
+
+  // ================================================================
   // UPDATE TEST RESULT
   // ================================================================
 

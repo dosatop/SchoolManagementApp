@@ -61,7 +61,7 @@ class ParentProfilePage extends ConsumerWidget {
         onRefresh: refresh,
         child: () {
           if (profileAsync.isLoading && !profileAsync.hasValue) {
-            return const StudentLoadingView();
+            return const StudentLoadingView(layout: LoadingLayout.detail);
           }
 
           if (profileAsync.hasError && !profileAsync.hasValue) {
@@ -97,19 +97,13 @@ class ParentProfilePage extends ConsumerWidget {
               ),
               const SizedBox(height: 10),
               if (childrenAsync.isLoading && !childrenAsync.hasValue)
-                _box(
-                  const Padding(
-                    padding: EdgeInsets.all(22),
-                    child: Center(
-                      child: SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: StudentColors.primary,
-                        ),
-                      ),
-                    ),
+                const Shimmer(
+                  child: Column(
+                    children: [
+                      ShimmerCard(trailing: false),
+                      SizedBox(height: 8),
+                      ShimmerCard(trailing: false),
+                    ],
                   ),
                 )
               else if (children.isEmpty)

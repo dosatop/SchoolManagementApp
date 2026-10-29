@@ -133,6 +133,46 @@ class TeacherRepository {
   }
 
   // ================================================================
+  // BULK RESULTS
+  // ================================================================
+
+  Future<dynamic> bulkResults({
+    required String classId,
+    required String subjectId,
+    required List<Map<String, dynamic>> results,
+  }) {
+    return api.bulkResults(
+      classId: classId,
+      subjectId: subjectId,
+      results: results,
+    );
+  }
+
+  Future<dynamic> bulkTestResults({
+    required String classId,
+    required String subjectId,
+    required List<Map<String, dynamic>> results,
+  }) {
+    return api.bulkTestResults(
+      classId: classId,
+      subjectId: subjectId,
+      results: results,
+    );
+  }
+
+  Future<dynamic> bulkExamResults({
+    required String classId,
+    required String subjectId,
+    required List<Map<String, dynamic>> results,
+  }) {
+    return api.bulkExamResults(
+      classId: classId,
+      subjectId: subjectId,
+      results: results,
+    );
+  }
+
+  // ================================================================
   // UPDATE TEST RESULT
   // ================================================================
 

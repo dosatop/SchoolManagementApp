@@ -3,6 +3,7 @@ import 'package:app/features/students/presentation/student_assignments_page.dart
 import 'package:app/features/students/presentation/student_profile_page.dart';
 import 'package:app/features/students/presentation/student_results_page.dart';
 import 'package:app/features/students/presentation/student_subjects_page.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/students/provider/students_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -519,15 +520,18 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
                 child: Icon(icon, color: color, size: 19),
               ),
               const SizedBox(height: 12),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: _textDark,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  height: 1,
+              if (value == '…')
+                const Shimmer(child: ShimmerBox(width: 34, height: 22))
+              else
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: _textDark,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    height: 1,
+                  ),
                 ),
-              ),
               const SizedBox(height: 4),
               Text(
                 label,
@@ -548,19 +552,13 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
 
   Widget _dueSoon(AsyncValue<dynamic> async, List<dynamic> pending) {
     if (async.isLoading && !async.hasValue) {
-      return Container(
-        height: 80,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(17),
-          border: Border.all(color: Colors.grey.shade200),
-        ),
-        child: const Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2, color: _primary),
-          ),
+      return const Shimmer(
+        child: Column(
+          children: [
+            ShimmerCard(),
+            SizedBox(height: 10),
+            ShimmerCard(trailing: false),
+          ],
         ),
       );
     }
@@ -753,11 +751,9 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
 
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final days = DateTime(
-      due.year,
-      due.month,
-      due.day,
-    ).difference(today).inDays;
+    final days = DateTime(due.year, due.month, due.day)
+        .difference(today)
+        .inDays;
 
     if (days < 0) return (label: 'Overdue', color: Colors.red.shade600);
     if (days == 0) return (label: 'Today', color: Colors.red.shade600);
@@ -911,16 +907,28 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
                       ),
                     ),
                     const SizedBox(height: 2),
-                    Text(
-                      name ?? 'Loading…',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 23,
-                        fontWeight: FontWeight.bold,
+                    if (name == null)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 6),
+                        child: Shimmer(
+                          child: ShimmerBox(
+                            width: 150,
+                            height: 20,
+                            onDark: true,
+                          ),
+                        ),
+                      )
+                    else
+                      Text(
+                        name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 23,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
-                    ),
                   ],
                 ),
               ),

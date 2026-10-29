@@ -634,23 +634,15 @@ class _ParentHomeTab extends ConsumerWidget {
     );
   }
 
+  /// Shimmer skeleton of two child cards.
   Widget _loadingCard() {
-    return Container(
-      height: 100,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: const Center(
-        child: SizedBox(
-          width: 22,
-          height: 22,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: StudentColors.primary,
-          ),
-        ),
+    return const Shimmer(
+      child: Column(
+        children: [
+          ShimmerCard(lines: 2, trailing: false),
+          SizedBox(height: 12),
+          ShimmerCard(lines: 2, trailing: false),
+        ],
       ),
     );
   }
@@ -930,14 +922,17 @@ class _ChildCard extends ConsumerWidget {
             children: [
               Icon(icon, size: 16, color: color),
               const SizedBox(width: 6),
-              Text(
-                value,
-                style: const TextStyle(
-                  color: StudentColors.textDark,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
+              if (value == '…')
+                const Shimmer(child: ShimmerBox(width: 26, height: 13))
+              else
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: StudentColors.textDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
               const SizedBox(width: 4),
               Flexible(
                 child: Text(

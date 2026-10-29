@@ -90,9 +90,7 @@ class _TeacherStudentDetailsPageState
   @override
   Widget build(BuildContext context) {
     final id = _studentId;
-    final async = id == null
-        ? null
-        : ref.watch(teacherStudentDetailsProvider(id));
+    final async = id == null ? null : ref.watch(teacherStudentDetailsProvider(id));
 
     final data = _unwrap(async?.valueOrNull);
     final student = data['student'] is Map ? data['student'] : _student;
@@ -123,10 +121,7 @@ class _TeacherStudentDetailsPageState
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
               ),
               Text(
                 'Student details',
@@ -149,10 +144,7 @@ class _TeacherStudentDetailsPageState
             indicatorColor: StudentColors.primary,
             indicatorWeight: 3,
             dividerColor: Colors.grey.shade200,
-            labelStyle: const TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-            ),
+            labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
             tabs: const [
               Tab(text: 'Overview'),
               Tab(text: 'Results'),
@@ -174,7 +166,7 @@ class _TeacherStudentDetailsPageState
           }
 
           if (async!.isLoading && !async.hasValue) {
-            return const StudentLoadingView();
+            return const StudentLoadingView(layout: LoadingLayout.detail);
           }
 
           if (async.hasError && !async.hasValue) {
@@ -320,9 +312,7 @@ class _TeacherStudentDetailsPageState
                 ),
                 _headerStat(
                   'Tasks done',
-                  assignments.isEmpty
-                      ? '—'
-                      : '$submitted/${assignments.length}',
+                  assignments.isEmpty ? '—' : '$submitted/${assignments.length}',
                 ),
               ],
             ),
@@ -367,12 +357,10 @@ class _TeacherStudentDetailsPageState
         _card(
           Column(
             children: [
-              if (email != null)
-                _contactRow(Icons.email_outlined, 'Email', email),
+              if (email != null) _contactRow(Icons.email_outlined, 'Email', email),
               if (email != null && phone != null)
                 Divider(height: 1, color: Colors.grey.shade200),
-              if (phone != null)
-                _contactRow(Icons.phone_outlined, 'Phone', phone),
+              if (phone != null) _contactRow(Icons.phone_outlined, 'Phone', phone),
             ],
           ),
         ),
@@ -634,10 +622,7 @@ class _TeacherStudentDetailsPageState
                       const SizedBox(height: 3),
                       Text(
                         score == null ? 'Not complete' : '${_fmt(score)} / 100',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 12,
-                        ),
+                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                       ),
                     ],
                   ),
@@ -1048,9 +1033,7 @@ class _TeacherStudentDetailsPageState
                   Row(
                     children: [
                       Icon(
-                        isClass
-                            ? Icons.groups_outlined
-                            : Icons.menu_book_outlined,
+                        isClass ? Icons.groups_outlined : Icons.menu_book_outlined,
                         size: 13,
                         color: Colors.grey.shade500,
                       ),

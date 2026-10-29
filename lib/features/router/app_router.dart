@@ -120,6 +120,7 @@ import 'package:app/features/teacher/presentation/class/teacher_class_student_pa
 import 'package:app/features/teacher/presentation/class/teacher_class_teacher_details_page.dart';
 import 'package:app/features/teacher/presentation/class/teacher_classes-page.dart';
 import 'package:app/features/teacher/presentation/assignment/teacher_create_assignment_page.dart';
+import 'package:app/features/teacher/presentation/class/teacher_subject_results_page.dart';
 import 'package:app/features/teacher/presentation/teacher/teacher_dashboard.dart';
 import 'package:app/features/teacher/presentation/teacher_notifications_page.dart';
 
@@ -677,6 +678,19 @@ GoRouter appRouter(Ref ref) {
           );
         },
       ),
+
+      GoRoute(
+  path: '/teacher/results/entry',
+  builder: (context, state) {
+    final d = state.extra is Map ? state.extra as Map : const {};
+    return TeacherSubjectResultsPage(
+      classId: '${d['classId']}',
+      className: '${d['className'] ?? 'Class'}',
+      subjectId: '${d['subjectId']}',
+      subjectName: '${d['subjectName'] ?? 'Subject'}',
+    );
+  },
+),
 
       GoRoute(
         path: '/teacher/assignments/details/:assignmentId',

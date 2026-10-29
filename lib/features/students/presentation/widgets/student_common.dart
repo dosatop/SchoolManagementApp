@@ -209,13 +209,251 @@ class StatusChip extends StatelessWidget {
 // ==================================================================
 // All are scrollable so pull-to-refresh still works.
 
-class StudentLoadingView extends StatelessWidget {
-  const StudentLoadingView({super.key});
+// ==================================================================
+// SHIMMER (no package needed)
+// ==================================================================
+// Shimmer(child: ...)  → sweeps a soft highlight across [child].
+// ShimmerBox(...)      → grey placeholder block (use inside Shimmer).
+// ShimmerCard(...)     → ready-made list-card skeleton.
+//
+// Wrap a whole section in ONE Shimmer: every ShimmerBox inside it
+// shares the same animation, and card backgrounds stay white.
+
+class Shimmer extends StatefulWidget {
+  const Shimmer({
+    super.key,
+    required this.child,
+    this.period = const Duration(milliseconds: 1300),
+  });
+
+  final Widget child;
+  final Duration period;
+
+  @override
+  State<Shimmer> createState() => _ShimmerState();
+}
+
+class _ShimmerState extends State<Shimmer> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: widget.period,
+  )..repeat();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return _ScrollCenter(
-      child: const CircularProgressIndicator(color: StudentColors.primary),
+    return _ShimmerScope(animation: _controller, child: widget.child);
+  }
+}
+
+class _ShimmerScope extends InheritedWidget {
+  const _ShimmerScope({required this.animation, required super.child});
+
+  final Animation<double> animation;
+
+  static Animation<double>? of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_ShimmerScope>()?.animation;
+
+  @override
+  bool updateShouldNotify(_ShimmerScope old) => old.animation != animation;
+}
+
+/// A grey placeholder block. Inside a [Shimmer] it shimmers; on its
+/// own it is a plain grey block.
+class ShimmerBox extends StatelessWidget {
+  const ShimmerBox({
+    super.key,
+    this.width,
+    this.height = 12,
+    this.radius = 8,
+    this.circle = false,
+    this.onDark = false,
+  });
+
+  final double? width;
+  final double height;
+  final double radius;
+  final bool circle;
+
+  /// Use on coloured/gradient backgrounds (e.g. header cards).
+  final bool onDark;
+
+  static const _base = Color(0xFFE7E9F0);
+  static const _highlight = Color(0xFFF7F8FB);
+  static const _darkBase = Color(0x33FFFFFF);
+  static const _darkHighlight = Color(0x66FFFFFF);
+
+  @override
+  Widget build(BuildContext context) {
+    final animation = _ShimmerScope.of(context);
+    final base = onDark ? _darkBase : _base;
+    final highlight = onDark ? _darkHighlight : _highlight;
+
+    BoxDecoration decoration(double t) => BoxDecoration(
+      shape: circle ? BoxShape.circle : BoxShape.rectangle,
+      borderRadius: circle ? null : BorderRadius.circular(radius),
+      gradient: LinearGradient(
+        begin: Alignment(t - 1, 0),
+        end: Alignment(t + 1, 0),
+        colors: [base, highlight, base],
+        stops: const [0.3, 0.5, 0.7],
+      ),
+    );
+
+    final w = circle ? height : width;
+
+    if (animation == null) {
+      return Container(width: w, height: height, decoration: decoration(-5));
+    }
+
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (_, __) => Container(
+        width: w,
+        height: height,
+        // Sweep from left (-2) to right (+2).
+        decoration: decoration(animation.value * 4 - 2),
+      ),
+    );
+  }
+}
+
+/// Skeleton of a typical list card: icon/avatar + two text lines
+/// (+ optional trailing pill). Put it inside a [Shimmer].
+class ShimmerCard extends StatelessWidget {
+  const ShimmerCard({
+    super.key,
+    this.avatar = true,
+    this.lines = 2,
+    this.trailing = true,
+    this.height,
+  });
+
+  final bool avatar;
+  final int lines;
+  final bool trailing;
+
+  /// Fixed height for a plain block card (ignores the other options).
+  final double? height;
+
+  @override
+  Widget build(BuildContext context) {
+    // Plain block (header / stat cards): the whole block shimmers.
+    if (height != null) {
+      return ShimmerBox(width: double.infinity, height: height!, radius: 18);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+              children: [
+                if (avatar) ...[
+                  const ShimmerBox(width: 44, height: 44, radius: 13),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: .65,
+                        child: ShimmerBox(height: 13),
+                      ),
+                      for (var i = 1; i < lines; i++) ...[
+                        const SizedBox(height: 8),
+                        FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: i.isOdd ? .4 : .55,
+                          child: const ShimmerBox(height: 10),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (trailing) ...[
+                  const SizedBox(width: 10),
+                  const ShimmerBox(width: 54, height: 22, radius: 20),
+                ],
+              ],
+            ),
+    );
+  }
+}
+
+/// Which skeleton [StudentLoadingView] shows.
+enum LoadingLayout {
+  /// Plain list of cards (default).
+  list,
+
+  /// Big header card, a row of stats, then cards (details pages).
+  detail,
+
+  /// Summary card on top, then cards (results / attendance pages).
+  summary,
+}
+
+/// Full-page loading skeleton (shimmer). Scrollable, so
+/// pull-to-refresh still works while loading.
+class StudentLoadingView extends StatelessWidget {
+  const StudentLoadingView({
+    super.key,
+    this.layout = LoadingLayout.list,
+    this.itemCount = 6,
+  });
+
+  final LoadingLayout layout;
+  final int itemCount;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(18, 18, 18, 30),
+      children: [
+        Shimmer(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (layout == LoadingLayout.detail) ...[
+                const ShimmerCard(height: 190),
+                const SizedBox(height: 14),
+                Row(
+                  children: [
+                    for (var i = 0; i < 3; i++) ...[
+                      if (i > 0) const SizedBox(width: 10),
+                      const Expanded(child: ShimmerCard(height: 78)),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 22),
+                const ShimmerBox(width: 120, height: 16),
+                const SizedBox(height: 12),
+              ],
+              if (layout == LoadingLayout.summary) ...[
+                const ShimmerCard(height: 150),
+                const SizedBox(height: 22),
+                const ShimmerBox(width: 140, height: 16),
+                const SizedBox(height: 12),
+              ],
+              for (var i = 0; i < itemCount; i++) ...[
+                ShimmerCard(trailing: i.isEven),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
@@ -407,7 +645,7 @@ PreferredSizeWidget studentAppBar(
           title,
           style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
         ),
-        if (subtitle != null)
+        if (subtitle != null && subtitle.trim().isNotEmpty)
           Text(
             subtitle,
             style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
