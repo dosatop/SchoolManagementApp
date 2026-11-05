@@ -1,353 +1,231 @@
 import 'package:app/features/admin/models/results/admin_result_model.dart';
 import 'package:app/features/admin/models/students/admin_student_model.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
+import 'package:app/features/students/presentation/widgets/student_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+// ==================================================================
+// ADMIN: CREATE RESULT
+// ==================================================================
+// 1. Class → 2. Student → 3. Subject → 4. Scores → 5. Remark
+//
+// The result is saved to the CURRENT session/term (the server decides).
+// If the student already has a result for that subject this term,
+// the server updates it instead of creating a duplicate.
+// ==================================================================
 
 class AdminCreateResultPage extends ConsumerStatefulWidget {
   final String schoolId;
 
-  const AdminCreateResultPage({
-    super.key,
-    required this.schoolId,
-  });
+  const AdminCreateResultPage({super.key, required this.schoolId});
 
   @override
   ConsumerState<AdminCreateResultPage> createState() =>
       _AdminCreateResultPageState();
 }
 
-class _AdminCreateResultPageState
-    extends ConsumerState<AdminCreateResultPage> {
-  static const Color primary = Color(0xFF091993);
-  static const Color primaryLight = Color(0xFFE9ECFF);
-  static const Color background = Color(0xFFF6F7FB);
-  static const Color textDark = Color(0xFF20232E);
+class _AdminCreateResultPageState extends ConsumerState<AdminCreateResultPage> {
+  static const Color primary = StudentColors.primary;
+  static const Color textDark = StudentColors.textDark;
 
-  final _formKey = GlobalKey<FormState>();
+  static const _remarks = [
+    'Excellent',
+    'Very good',
+    'Good',
+    'Fair',
+    'Needs improvement',
+  ];
 
-  final _testController = TextEditingController();
-  final _examController = TextEditingController();
-  final _remarkController = TextEditingController();
+  final _test = TextEditingController();
+  final _exam = TextEditingController();
+  final _remark = TextEditingController();
 
-  String? _selectedClassId;
-  String? _selectedStudentId;
-  String? _selectedSubjectId;
+  String? _classId;
+  String? _studentId;
+  String? _subjectId;
+  bool _showAllSubjects = false;
 
-  bool _isSubmitting = false;
+  bool _saving = false;
+  String? _error;
+  int _savedCount = 0;
 
   @override
   void dispose() {
-    _testController.dispose();
-    _examController.dispose();
-    _remarkController.dispose();
-
+    _test.dispose();
+    _exam.dispose();
+    _remark.dispose();
     super.dispose();
   }
 
   // ================================================================
-  // DASHBOARD DATA
+  // SAFE ACCESS (class & subject models are read dynamically)
   // ================================================================
 
-  List<dynamic> get _classes {
-    return ref.watch(adminDashboardProvider).value?.classes ?? [];
-  }
-
-  List<dynamic> get _allStudents {
-    return ref.watch(adminDashboardProvider).value?.students ?? [];
-  }
-
-  List<dynamic> get _subjects {
-    return ref.watch(adminDashboardProvider).value?.subjects ?? [];
-  }
-
-  // ================================================================
-  // STUDENTS FOR SELECTED CLASS
-  // ================================================================
-
-  List<AdminStudentModel> get _classStudents {
-    if (_selectedClassId == null) {
-      return [];
-    }
-
-    return _allStudents
-        .whereType<AdminStudentModel>()
-        .where((student) {
-          return _studentBelongsToClass(
-            student,
-            _selectedClassId!,
-          );
-        })
-        .toList();
-  }
-
-  bool _studentBelongsToClass(
-    AdminStudentModel student,
-    String classId,
-  ) {
-    /*
-     * IMPORTANT:
-     *
-     * Adjust this helper only if your AdminStudentModel uses
-     * a different property for the student's class.
-     *
-     * Common possibilities are:
-     *   student.classId
-     *   student.currentClassId
-     *
-     * The code below expects classId on AdminStudentModel.
-     */
-
-    return student.classId == classId;
-  }
-
-  // ================================================================
-  // SELECTED ITEMS
-  // ================================================================
-
-  dynamic get _selectedClass {
-    if (_selectedClassId == null) {
+  static String? _get(dynamic o, String Function(dynamic) read) {
+    try {
+      final v = read(o)?.toString().trim();
+      return v == null || v.isEmpty ? null : v;
+    } catch (_) {
       return null;
     }
+  }
 
-    for (final schoolClass in _classes) {
-      if (schoolClass.classId == _selectedClassId) {
-        return schoolClass;
-      }
+  static String _classIdOf(dynamic c) => _get(c, (x) => x.classId) ?? '';
+  static String _classNameOf(dynamic c) =>
+      _get(c, (x) => x.className) ?? _get(c, (x) => x.name) ?? 'Class';
+
+  static String _subjectIdOf(dynamic s) => _get(s, (x) => x.subjectId) ?? '';
+  static String _subjectNameOf(dynamic s) =>
+      _get(s, (x) => x.subjectName) ?? _get(s, (x) => x.name) ?? 'Subject';
+  static String? _subjectCodeOf(dynamic s) => _get(s, (x) => x.code);
+
+  /// Can this student take this subject? (general, their department,
+  /// or their trade). Unknown → allowed.
+  static bool _eligible(dynamic subject, AdminStudentModel? student) {
+    if (student == null) return true;
+
+    final dept = _get(subject, (x) => x.departmentId);
+    final trade = _get(subject, (x) => x.tradeId);
+    final tradeName = _get(subject, (x) => x.tradeName);
+
+    if (dept == null && trade == null && tradeName == null) return true;
+
+    if (dept != null && dept == _get(student, (x) => x.departmentId)) {
+      return true;
     }
 
+    final studentTradeId = _get(student, (x) => x.tradeId);
+    if (trade != null && studentTradeId != null && trade == studentTradeId) {
+      return true;
+    }
+
+    final studentTrade = _get(student, (x) => x.tradeName);
+    if (tradeName != null &&
+        studentTrade != null &&
+        tradeName.toLowerCase() == studentTrade.toLowerCase()) {
+      return true;
+    }
+
+    return false;
+  }
+
+  static double? _parse(String text) {
+    final t = text.trim();
+    return t.isEmpty ? null : double.tryParse(t);
+  }
+
+  void _snack(String text, {Color? color}) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          backgroundColor: color,
+          content: Text(text),
+        ),
+      );
+  }
+
+  // ================================================================
+  // SAVE
+  // ================================================================
+
+  String? _validate() {
+    if (_classId == null) return 'Pick a class.';
+    if (_studentId == null) return 'Pick a student.';
+    if (_subjectId == null) return 'Pick a subject.';
+
+    final testText = _test.text.trim();
+    final examText = _exam.text.trim();
+    if (testText.isEmpty && examText.isEmpty) {
+      return 'Enter a test score, an exam score, or both.';
+    }
+
+    final test = _parse(testText);
+    final exam = _parse(examText);
+    if (testText.isNotEmpty && (test == null || test < 0 || test > 40)) {
+      return 'Test score must be between 0 and 40.';
+    }
+    if (examText.isNotEmpty && (exam == null || exam < 0 || exam > 60)) {
+      return 'Exam score must be between 0 and 60.';
+    }
     return null;
   }
 
-  AdminStudentModel? get _selectedStudent {
-    if (_selectedStudentId == null) {
-      return null;
-    }
+  Future<void> _save({required bool addAnother}) async {
+    FocusScope.of(context).unfocus();
 
-    for (final student in _classStudents) {
-      if (student.studentId == _selectedStudentId) {
-        return student;
-      }
-    }
-
-    return null;
-  }
-
-  dynamic get _selectedSubject {
-    if (_selectedSubjectId == null) {
-      return null;
-    }
-
-    for (final subject in _subjects) {
-      if (subject.subjectId == _selectedSubjectId) {
-        return subject;
-      }
-    }
-
-    return null;
-  }
-
-  // ================================================================
-  // CREATE RESULT
-  // ================================================================
-
-  Future<void> _createResult() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (_selectedClassId == null) {
-      _showError('Please select a class.');
-      return;
-    }
-
-    if (_selectedStudentId == null) {
-      _showError('Please select a student.');
-      return;
-    }
-
-    if (_selectedSubjectId == null) {
-      _showError('Please select a subject.');
-      return;
-    }
-
-    final testText = _testController.text.trim();
-    final examText = _examController.text.trim();
-
-    final hasTest = testText.isNotEmpty;
-    final hasExam = examText.isNotEmpty;
-
-    // At least one score must be supplied.
-    if (!hasTest && !hasExam) {
-      _showError('Enter either a test score, exam score, or both.');
-      return;
-    }
-
-    num? testScore;
-    num? examScore;
-
-    if (hasTest) {
-      testScore = num.tryParse(testText);
-
-      if (testScore == null) {
-        _showError('Enter a valid test score.');
-        return;
-      }
-
-      if (testScore < 0 || testScore > 40) {
-        _showError('Test score must be between 0 and 40.');
-        return;
-      }
-    }
-
-    if (hasExam) {
-      examScore = num.tryParse(examText);
-
-      if (examScore == null) {
-        _showError('Enter a valid exam score.');
-        return;
-      }
-
-      if (examScore < 0 || examScore > 60) {
-        _showError('Exam score must be between 0 and 60.');
-        return;
-      }
-    }
-
-    final student = _selectedStudent;
-
-    if (student == null) {
-      _showError('Selected student could not be found.');
+    final problem = _validate();
+    if (problem != null) {
+      setState(() => _error = problem);
       return;
     }
 
     setState(() {
-      _isSubmitting = true;
+      _saving = true;
+      _error = null;
     });
 
     try {
-      /*
-       * The request now allows either score to be null.
-       *
-       * Examples:
-       *
-       * TEST ONLY:
-       * testScore: 25
-       * examScore: null
-       *
-       * EXAM ONLY:
-       * testScore: null
-       * examScore: 55
-       *
-       * BOTH:
-       * testScore: 25
-       * examScore: 55
-       */
-
-      final request = CreateAdminResultRequest(
-        studentId: student.studentId,
-        classId: _selectedClassId!,
-        subjectId: _selectedSubjectId!,
-        testScore: testScore,
-        examScore: examScore,
-        remark: _remarkController.text.trim(),
-      );
-
-      /*
-       * The notifier should decide which API endpoint to use:
-       *
-       * exam only -> /admin/results/exam
-       * test only -> /admin/results/test
-       * both      -> create both appropriately
-       */
-
-      final AdminResultModel? result = await ref
+      final result = await ref
           .read(adminDashboardProvider.notifier)
           .createResult(
             schoolId: widget.schoolId,
-            request: request,
+            request: CreateAdminResultRequest(
+              studentId: _studentId!,
+              classId: _classId!,
+              subjectId: _subjectId!,
+              testScore: _parse(_test.text),
+              examScore: _parse(_exam.text),
+              remark: _remark.text.trim(),
+            ),
           );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
-      if (result != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Result created successfully.'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        context.pop(true);
-      } else {
-        _showError('Unable to create result.');
-      }
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _showError(
-        'Unable to create result. Please try again.',
-      );
-    } finally {
-      if (mounted) {
+      if (result == null) {
         setState(() {
-          _isSubmitting = false;
+          _saving = false;
+          _error =
+              'Unable to save the result. Check that a current session '
+              'and term are set, then try again.';
         });
+        return;
       }
+
+      _savedCount++;
+
+      if (addAnother) {
+        // Keep class + student, clear the rest for the next subject.
+        _test.clear();
+        _exam.clear();
+        _remark.clear();
+        setState(() {
+          _saving = false;
+          _subjectId = null;
+        });
+        _snack(
+          'Saved. Pick the next subject for this student.',
+          color: Colors.green.shade700,
+        );
+      } else {
+        _snack('Result saved', color: Colors.green.shade700);
+        context.pop(true);
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = e
+            .toString()
+            .replaceFirst(RegExp(r'^[A-Za-z]*Exception:\s*'), '')
+            .trim();
+      });
     }
-  }
-
-  // ================================================================
-  // ERROR
-  // ================================================================
-
-  void _showError(String message) {
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-      ),
-    );
-  }
-
-  // ================================================================
-  // SCORE VALIDATOR
-  // ================================================================
-
-  String? _scoreValidator(
-    String? value, {
-    required num maximum,
-    required String fieldName,
-  }) {
-    /*
-     * Scores are OPTIONAL individually because the admin can
-     * submit test only, exam only, or both.
-     */
-
-    if (value == null || value.trim().isEmpty) {
-      return null;
-    }
-
-    final score = num.tryParse(value.trim());
-
-    if (score == null) {
-      return 'Enter a valid score';
-    }
-
-    if (score < 0 || score > maximum) {
-      return '$fieldName must be 0 - $maximum';
-    }
-
-    return null;
   }
 
   // ================================================================
@@ -357,83 +235,280 @@ class _AdminCreateResultPageState
   @override
   Widget build(BuildContext context) {
     final dashboard = ref.watch(adminDashboardProvider);
+    final session = ref.watch(currentAcademicSessionProvider(widget.schoolId));
 
-    return Scaffold(
-      backgroundColor: background,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        leading: IconButton(
-          onPressed: _isSubmitting
-              ? null
-              : () => context.pop(),
-          icon: const Icon(
-            Icons.arrow_back_rounded,
-            color: textDark,
-          ),
-        ),
-        title: const Text(
-          'Create Result',
-          style: TextStyle(
-            color: textDark,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-      ),
-      body: dashboard.when(
-        loading: () {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: primary,
-            ),
-          );
-        },
-        error: (error, stackTrace) {
-          return _errorState();
-        },
-        data: (_) {
-          return SafeArea(
-            child: Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                physics: const BouncingScrollPhysics(),
-                padding: const EdgeInsets.fromLTRB(
-                  16,
-                  18,
-                  16,
-                  35,
+    return PopScope(
+      canPop: !_saving,
+      child: Scaffold(
+        backgroundColor: StudentColors.background,
+        appBar: studentAppBar('Add result'),
+        body: () {
+          if (dashboard.isLoading && !dashboard.hasValue) {
+            return const StudentLoadingView(layout: LoadingLayout.detail);
+          }
+          if (dashboard.hasError && !dashboard.hasValue) {
+            return StudentErrorView(
+              error: dashboard.error!,
+              onRetry: () => ref.invalidate(adminDashboardProvider),
+              title: 'Unable to load school data',
+            );
+          }
+
+          final data = dashboard.value!;
+          final List<dynamic> classes = [...data.classes]
+            ..sort(
+              (a, b) => _classNameOf(
+                a,
+              ).toLowerCase().compareTo(_classNameOf(b).toLowerCase()),
+            );
+
+          final students =
+              data.students.where((s) => s.classId == _classId).toList()
+                ..sort(
+                  (a, b) => a.studentName.toLowerCase().compareTo(
+                    b.studentName.toLowerCase(),
+                  ),
+                );
+
+          final student = students
+              .where((s) => s.studentId == _studentId)
+              .firstOrNull;
+
+          final List<dynamic> allSubjects = [...data.subjects]
+            ..sort(
+              (a, b) => _subjectNameOf(
+                a,
+              ).toLowerCase().compareTo(_subjectNameOf(b).toLowerCase()),
+            );
+          final eligible = allSubjects
+              .where((s) => _eligible(s, student))
+              .toList();
+          final subjects = _showAllSubjects ? allSubjects : eligible;
+
+          final currentSession = _get(session.valueOrNull, (x) => x.session);
+          String? currentTerm;
+          try {
+            final json = (session.valueOrNull as dynamic)?.toJson();
+            currentTerm = json is Map
+                ? (json['term'] ?? json['currentTerm'])?.toString()
+                : null;
+          } catch (_) {}
+
+          return ListView(
+            physics: const BouncingScrollPhysics(),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
+            children: [
+              _header(currentSession, currentTerm, session.hasError),
+              const SizedBox(height: 14),
+
+              // 1. CLASS
+              _step(
+                number: 1,
+                title: 'Class',
+                done: _classId != null,
+                child: classes.isEmpty
+                    ? _hint('No classes yet. Create a class first.')
+                    : Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final c in classes)
+                            _choice(
+                              label: _classNameOf(c),
+                              selected: _classIdOf(c) == _classId,
+                              onTap: () => setState(() {
+                                if (_classId == _classIdOf(c)) return;
+                                _classId = _classIdOf(c);
+                                _studentId = null;
+                                _subjectId = null;
+                                _error = null;
+                              }),
+                            ),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 10),
+
+              // 2. STUDENT
+              _step(
+                number: 2,
+                title: 'Student',
+                done: _studentId != null,
+                enabled: _classId != null,
+                child: _classId == null
+                    ? _hint('Pick a class first.')
+                    : students.isEmpty
+                    ? _hint('No students in this class yet.')
+                    : _pickerButton(
+                        icon: Icons.person_outline_rounded,
+                        placeholder: 'Choose from ${students.length} students',
+                        value: student?.studentName,
+                        caption: student == null
+                            ? null
+                            : [
+                                if (student.studentNumber.trim().isNotEmpty)
+                                  'No. ${student.studentNumber.trim()}',
+                                if ((student.departmentName ?? '').isNotEmpty)
+                                  student.departmentName!,
+                                if ((student.tradeName ?? '').isNotEmpty)
+                                  student.tradeName!,
+                              ].join(' · '),
+                        onTap: () => _pickStudent(students),
+                      ),
+              ),
+              const SizedBox(height: 10),
+
+              // 3. SUBJECT
+              _step(
+                number: 3,
+                title: 'Subject',
+                done: _subjectId != null,
+                enabled: _studentId != null,
+                trailing: _studentId != null &&
+                        eligible.length != allSubjects.length
+                    ? TextButton(
+                        onPressed: () => setState(() {
+                          _showAllSubjects = !_showAllSubjects;
+                          if (!_showAllSubjects &&
+                              !eligible.any(
+                                (s) => _subjectIdOf(s) == _subjectId,
+                              )) {
+                            _subjectId = null;
+                          }
+                        }),
+                        child: Text(
+                          _showAllSubjects ? 'Show eligible' : 'Show all',
+                        ),
+                      )
+                    : null,
+                child: _studentId == null
+                    ? _hint('Pick a student first.')
+                    : subjects.isEmpty
+                    ? _hint('No subjects found for this student.')
+                    : Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          for (final s in subjects)
+                            _choice(
+                              label: _subjectNameOf(s),
+                              caption: _subjectCodeOf(s),
+                              selected: _subjectIdOf(s) == _subjectId,
+                              muted: !_eligible(s, student),
+                              onTap: () => setState(() {
+                                _subjectId = _subjectIdOf(s);
+                                _error = null;
+                              }),
+                            ),
+                        ],
+                      ),
+              ),
+              const SizedBox(height: 10),
+
+              // 4. SCORES
+              _step(
+                number: 4,
+                title: 'Scores',
+                done:
+                    _test.text.trim().isNotEmpty ||
+                    _exam.text.trim().isNotEmpty,
+                enabled: _subjectId != null,
+                child: _scores(),
+              ),
+              const SizedBox(height: 10),
+
+              // 5. REMARK
+              _step(
+                number: 5,
+                title: 'Remark (optional)',
+                done: _remark.text.trim().isNotEmpty,
+                enabled: _subjectId != null,
+                child: _remarkInput(),
+              ),
+
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.error_outline_rounded,
+                        color: Colors.red.shade600,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: TextStyle(
+                            color: Colors.red.shade700,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _header(),
+              ],
 
-                    const SizedBox(height: 18),
-
-                    _academicSection(),
-
-                    const SizedBox(height: 14),
-
-                    _studentSection(),
-
-                    const SizedBox(height: 14),
-
-                    _scoreSection(),
-
-                    const SizedBox(height: 14),
-
-                    _remarkSection(),
-
-                    const SizedBox(height: 24),
-
-                    _createButton(),
-                  ],
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : () => _save(addAnother: false),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: primary,
+                    disabledBackgroundColor: primary.withValues(alpha: .45),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check_rounded),
+                  label: Text(
+                    _saving ? 'Saving…' : 'Save result',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ),
-            ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 48,
+                child: OutlinedButton.icon(
+                  onPressed: _saving ? null : () => _save(addAnother: true),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: primary,
+                    side: BorderSide(color: primary.withValues(alpha: .35)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  icon: const Icon(Icons.playlist_add_rounded),
+                  label: const Text(
+                    'Save & add another subject',
+                    style: TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                ),
+              ),
+            ],
           );
-        },
+        }(),
       ),
     );
   }
@@ -442,42 +517,81 @@ class _AdminCreateResultPageState
   // HEADER
   // ================================================================
 
-  Widget _header() {
+  Widget _header(String? session, String? term, bool failed) {
+    final t = term?.trim();
+    final termLabel = t == null || t.isEmpty
+        ? null
+        : t.toLowerCase().contains('term')
+        ? t
+        : '$t term';
+
     return Container(
-      width: double.infinity,
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: primary,
-        borderRadius: BorderRadius.circular(19),
+        gradient: kStudentGradient,
+        borderRadius: BorderRadius.circular(24),
       ),
-      child: const Row(
+      child: Row(
         children: [
-          Icon(
-            Icons.assessment_rounded,
-            color: Colors.white,
-            size: 30,
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .15),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(
+              Icons.add_chart_rounded,
+              color: Colors.white,
+              size: 26,
+            ),
           ),
-          SizedBox(width: 13),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'New Student Result',
+                const Text(
+                  'New result',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-                SizedBox(height: 4),
+                const SizedBox(height: 4),
                 Text(
-                  'Select a class first, then choose the student and enter assessment details.',
+                  session == null
+                      ? failed
+                            ? 'Current session could not be loaded.'
+                            : 'Saved to the current session and term.'
+                      : 'Saving to $session${termLabel == null ? '' : ' · $termLabel'}',
                   style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 10,
+                    color: Colors.white.withValues(alpha: .8),
+                    fontSize: 12.5,
                   ),
                 ),
+                if (_savedCount > 0) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: .16),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '$_savedCount saved this visit',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -487,758 +601,535 @@ class _AdminCreateResultPageState
   }
 
   // ================================================================
-  // ACADEMIC SECTION
+  // STEP CARD
   // ================================================================
 
-  Widget _academicSection() {
-    return _sectionCard(
-      title: 'Academic Information',
-      icon: Icons.school_outlined,
-      children: [
-        // ------------------------------------------------------------
-        // CLASS
-        // ------------------------------------------------------------
+  Widget _step({
+    required int number,
+    required String title,
+    required bool done,
+    required Widget child,
+    bool enabled = true,
+    Widget? trailing,
+  }) {
+    final color = done ? Colors.green.shade600 : primary;
 
-        _fieldLabel('Class'),
-
-        const SizedBox(height: 7),
-
-        DropdownButtonFormField<String>(
-          value: _selectedClassId,
-          isExpanded: true,
-          decoration: _inputDecoration(
-            hint: 'Select class first',
-            icon: Icons.class_outlined,
-          ),
-          items: _classes.map<DropdownMenuItem<String>>(
-            (schoolClass) {
-              return DropdownMenuItem<String>(
-                value: schoolClass.classId,
-                child: Text(
-                  _classLabel(schoolClass),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              );
-            },
-          ).toList(),
-          onChanged: _isSubmitting
-              ? null
-              : (value) {
-                  setState(() {
-                    _selectedClassId = value;
-
-                    // Changing class MUST reset the student.
-                    _selectedStudentId = null;
-                  });
-                },
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please select a class';
-            }
-
-            return null;
-          },
-        ),
-
-        const SizedBox(height: 15),
-
-        // ------------------------------------------------------------
-        // SUBJECT
-        // ------------------------------------------------------------
-
-        _fieldLabel('Subject'),
-
-        const SizedBox(height: 7),
-
-        DropdownButtonFormField<String>(
-          value: _selectedSubjectId,
-          isExpanded: true,
-          decoration: _inputDecoration(
-            hint: 'Select subject',
-            icon: Icons.menu_book_outlined,
-          ),
-          items: _subjects.map<DropdownMenuItem<String>>(
-            (subject) {
-              return DropdownMenuItem<String>(
-                value: subject.subjectId,
-                child: Text(
-                  _subjectLabel(subject),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              );
-            },
-          ).toList(),
-          onChanged: _isSubmitting
-              ? null
-              : (value) {
-                  setState(() {
-                    _selectedSubjectId = value;
-                  });
-                },
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return 'Please select a subject';
-            }
-
-            return null;
-          },
-        ),
-      ],
-    );
-  }
-
-  // ================================================================
-  // STUDENT SECTION
-  // ================================================================
-
-  Widget _studentSection() {
-    final hasClass = _selectedClassId != null;
-    final students = _classStudents;
-
-    return _sectionCard(
-      title: 'Student Information',
-      icon: Icons.person_outline_rounded,
-      children: [
-        _fieldLabel('Student'),
-
-        const SizedBox(height: 7),
-
-        DropdownButtonFormField<String>(
-          value: _selectedStudentId,
-          isExpanded: true,
-          decoration: _inputDecoration(
-            hint: hasClass
-                ? students.isEmpty
-                    ? 'No students in this class'
-                    : 'Select student'
-                : 'Select class first',
-            icon: Icons.person_outline_rounded,
-          ),
-          items: students.map<DropdownMenuItem<String>>(
-            (student) {
-              return DropdownMenuItem<String>(
-                value: student.studentId,
-                child: Text(
-                  _studentLabel(student),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              );
-            },
-          ).toList(),
-          onChanged: _isSubmitting || !hasClass || students.isEmpty
-              ? null
-              : (value) {
-                  setState(() {
-                    _selectedStudentId = value;
-                  });
-                },
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              if (!hasClass) {
-                return 'Please select a class first';
-              }
-
-              if (students.isEmpty) {
-                return 'No students found in this class';
-              }
-
-              return 'Please select a student';
-            }
-
-            return null;
-          },
-        ),
-
-        if (hasClass && students.isEmpty) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(
-                Icons.info_outline_rounded,
-                size: 15,
-                color: Colors.orange.shade700,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'There are no students assigned to this class.',
-                  style: TextStyle(
-                    color: Colors.orange.shade700,
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-
-        if (!hasClass) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(
-                Icons.arrow_upward_rounded,
-                size: 15,
-                color: Colors.grey.shade500,
-              ),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Select a class above to populate students.',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 10,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-
-  // ================================================================
-  // STUDENT LABEL
-  // ================================================================
-
-  String _studentLabel(AdminStudentModel student) {
-    final name = student.studentName.trim();
-
-    if (name.isEmpty) {
-      return student.studentId;
-    }
-
-    return name;
-  }
-
-  // ================================================================
-  // CLASS LABEL
-  // ================================================================
-
-  String _classLabel(dynamic schoolClass) {
-    final name = (
-      schoolClass.className ??
-      schoolClass.name ??
-      ''
-    ).toString().trim();
-
-    return name.isEmpty ? 'Class' : name;
-  }
-
-  // ================================================================
-  // SUBJECT LABEL
-  // ================================================================
-
-  String _subjectLabel(dynamic subject) {
-    final name = (
-      subject.subjectName ??
-      subject.name ??
-      ''
-    ).toString().trim();
-
-    final code = (
-      subject.code ??
-      ''
-    ).toString().trim();
-
-    if (name.isEmpty) {
-      return code.isEmpty ? 'Subject' : code;
-    }
-
-    if (code.isEmpty) {
-      return name;
-    }
-
-    return '$name ($code)';
-  }
-
-  // ================================================================
-  // SCORE SECTION
-  // ================================================================
-
-  Widget _scoreSection() {
-    return _sectionCard(
-      title: 'Assessment Scores',
-      icon: Icons.analytics_outlined,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(11),
-          decoration: BoxDecoration(
-            color: primaryLight,
-            borderRadius: BorderRadius.circular(11),
-          ),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.info_outline_rounded,
-                color: primary,
-                size: 18,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'You can enter Test, Exam, or both scores.',
-                  style: TextStyle(
-                    color: primary.withOpacity(.85),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        const SizedBox(height: 15),
-
-        Row(
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 200),
+      opacity: enabled ? 1 : .55,
+      child: SoftCard(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 16),
+        child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // --------------------------------------------------------
-            // TEST
-            // --------------------------------------------------------
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _fieldLabel('Test Score'),
-
-                  const SizedBox(height: 7),
-
-                  TextFormField(
-                    controller: _testController,
-                    enabled: !_isSubmitting,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (_) {
-                      setState(() {});
-                    },
-                    decoration: _inputDecoration(
-                      hint: 'Optional • 0 - 40',
-                      icon: Icons.edit_note_rounded,
-                    ),
-                    validator: (value) {
-                      return _scoreValidator(
-                        value,
-                        maximum: 40,
-                        fieldName: 'Test score',
-                      );
-                    },
+            Row(
+              children: [
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: 26,
+                  height: 26,
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: done ? color : color.withValues(alpha: .1),
+                    shape: BoxShape.circle,
                   ),
-                ],
-              ),
+                  child: done
+                      ? const Icon(
+                          Icons.check_rounded,
+                          size: 16,
+                          color: Colors.white,
+                        )
+                      : Text(
+                          '$number',
+                          style: TextStyle(
+                            color: color,
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: textDark,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+                if (trailing != null) trailing,
+              ],
             ),
+            const SizedBox(height: 12),
+            IgnorePointer(ignoring: !enabled || _saving, child: child),
+          ],
+        ),
+      ),
+    );
+  }
 
-            const SizedBox(width: 12),
+  Widget _hint(String text) {
+    return Text(
+      text,
+      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+    );
+  }
 
-            // --------------------------------------------------------
-            // EXAM
-            // --------------------------------------------------------
-
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _fieldLabel('Exam Score'),
-
-                  const SizedBox(height: 7),
-
-                  TextFormField(
-                    controller: _examController,
-                    enabled: !_isSubmitting,
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    onChanged: (_) {
-                      setState(() {});
-                    },
-                    decoration: _inputDecoration(
-                      hint: 'Optional • 0 - 60',
-                      icon: Icons.assignment_outlined,
-                    ),
-                    validator: (value) {
-                      return _scoreValidator(
-                        value,
-                        maximum: 60,
-                        fieldName: 'Exam score',
-                      );
-                    },
-                  ),
-                ],
+  Widget _choice({
+    required String label,
+    required bool selected,
+    required VoidCallback onTap,
+    String? caption,
+    bool muted = false,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        decoration: BoxDecoration(
+          color: selected ? primary : Colors.white,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(
+            color: selected ? primary : const Color(0xFFE3E6EF),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (caption != null) ...[
+              Text(
+                caption,
+                style: TextStyle(
+                  color: selected
+                      ? Colors.white.withValues(alpha: .8)
+                      : primary.withValues(alpha: muted ? .4 : 1),
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(width: 6),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                color: selected
+                    ? Colors.white
+                    : muted
+                    ? Colors.grey.shade500
+                    : textDark,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
 
-        const SizedBox(height: 15),
+  Widget _pickerButton({
+    required IconData icon,
+    required String placeholder,
+    required String? value,
+    required String? caption,
+    required VoidCallback onTap,
+  }) {
+    final has = value != null;
 
-        _totalPreview(),
+    return Material(
+      color: has ? StudentColors.primaryLight : StudentColors.background,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Row(
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: const Color(0xFFE3E6EF)),
+                ),
+                child: has
+                    ? Text(
+                        studentInitials(value, fallback: 'S'),
+                        style: const TextStyle(
+                          color: primary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      )
+                    : Icon(icon, color: primary, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      value ?? placeholder,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: has ? textDark : Colors.grey.shade600,
+                        fontSize: 14,
+                        fontWeight: has ? FontWeight.w800 : FontWeight.w600,
+                      ),
+                    ),
+                    if (caption != null && caption.isNotEmpty)
+                      Text(
+                        caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              Icon(
+                has ? Icons.swap_horiz_rounded : Icons.chevron_right_rounded,
+                color: Colors.grey.shade500,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // STUDENT PICKER
+  // ================================================================
+
+  Future<void> _pickStudent(List<AdminStudentModel> students) async {
+    final picked = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _StudentPicker(students: students, selected: _studentId),
+    );
+
+    if (picked == null || !mounted) return;
+    setState(() {
+      if (picked != _studentId) {
+        _subjectId = null;
+        _showAllSubjects = false;
+      }
+      _studentId = picked;
+      _error = null;
+    });
+  }
+
+  // ================================================================
+  // SCORES
+  // ================================================================
+
+  Widget _scores() {
+    final test = _parse(_test.text);
+    final exam = _parse(_exam.text);
+    final hasExam = exam != null;
+    final total = (test ?? 0) + (exam ?? 0);
+    final grade = hasExam ? studentGradeFor(total) : null;
+    final color = hasExam ? studentGradeColor(grade) : Colors.blueGrey;
+
+    return Column(
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _scoreField(_test, 'Test', 40, Colors.blue.shade500),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: _scoreField(_exam, 'Exam', 60, Colors.purple.shade500),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: .08),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Row(
+            children: [
+              ProgressRing(
+                value: hasExam ? total / 100 : (test ?? 0) / 40,
+                size: 50,
+                stroke: 6,
+                color: color,
+                trackColor: Colors.grey.shade200,
+                child: Text(
+                  grade ?? '…',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  test == null && exam == null
+                      ? 'Enter test, exam, or both.'
+                      : hasExam
+                      ? 'Total ${studentFmt(total)} / 100'
+                      : 'Test ${studentFmt(test ?? 0)} / 40 — exam can be added later',
+                  style: TextStyle(
+                    color: textDark,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  // ================================================================
-  // TOTAL PREVIEW
-  // ================================================================
+  Widget _scoreField(
+    TextEditingController controller,
+    String label,
+    int max,
+    Color color,
+  ) {
+    final value = _parse(controller.text);
+    final over = value != null && (value < 0 || value > max);
+    final fraction = value == null ? 0.0 : (value / max).clamp(0, 1).toDouble();
 
-  Widget _totalPreview() {
-    final testText = _testController.text.trim();
-    final examText = _examController.text.trim();
-
-    final test = num.tryParse(testText) ?? 0;
-    final exam = num.tryParse(examText) ?? 0;
-
-    final hasTest = testText.isNotEmpty;
-    final hasExam = examText.isNotEmpty;
-
-    final total = test + exam;
-
-    String label;
-
-    if (hasTest && hasExam) {
-      label = 'Total Score';
-    } else if (hasTest) {
-      label = 'Test Score';
-    } else if (hasExam) {
-      label = 'Exam Score';
-    } else {
-      label = 'Score';
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: primaryLight,
-        borderRadius: BorderRadius.circular(13),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.calculate_outlined,
-            color: primary,
-            size: 21,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              label,
-              style: const TextStyle(
-                color: textDark,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextField(
+          controller: controller,
+          enabled: !_saving,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d?)?')),
+          ],
+          textInputAction: TextInputAction.next,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          onChanged: (_) => setState(() => _error = null),
+          decoration: InputDecoration(
+            labelText: label,
+            suffixText: '/ $max',
+            errorText: over ? '0 – $max only' : null,
+            filled: true,
+            fillColor: StudentColors.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: color, width: 1.5),
             ),
           ),
-          Text(
-            _formatScore(total),
-            style: const TextStyle(
-              color: primary,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: fraction,
+            minHeight: 5,
+            color: over ? Colors.red : color,
+            backgroundColor: color.withValues(alpha: .12),
           ),
-          if (hasTest && hasExam)
-            const Text(
-              ' / 100',
-              style: TextStyle(
-                color: primary,
-                fontSize: 11,
-              ),
-            ),
-        ],
-      ),
+        ),
+      ],
     );
-  }
-
-  String _formatScore(num value) {
-    if (value % 1 == 0) {
-      return value.toInt().toString();
-    }
-
-    return value.toStringAsFixed(1);
   }
 
   // ================================================================
   // REMARK
   // ================================================================
 
-  Widget _remarkSection() {
-    return _sectionCard(
-      title: 'Teacher Remark',
-      icon: Icons.comment_outlined,
+  Widget _remarkInput() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _fieldLabel('Remark'),
-
-        const SizedBox(height: 7),
-
-        TextFormField(
-          controller: _remarkController,
-          enabled: !_isSubmitting,
-          maxLines: 4,
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (final r in _remarks)
+              ChoiceChip(
+                label: Text(r),
+                selected: _remark.text.trim() == r,
+                onSelected: (_) => setState(() => _remark.text = r),
+                selectedColor: StudentColors.primaryLight,
+                labelStyle: TextStyle(
+                  color: _remark.text.trim() == r ? primary : textDark,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12.5,
+                ),
+                side: BorderSide(color: Colors.grey.shade200),
+                showCheckmark: false,
+              ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _remark,
+          enabled: !_saving,
+          maxLines: 2,
+          maxLength: 200,
           textCapitalization: TextCapitalization.sentences,
-          decoration: _inputDecoration(
-            hint: 'Enter remark...',
-            icon: Icons.comment_outlined,
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'Or write your own',
+            filled: true,
+            fillColor: StudentColors.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
           ),
-          validator: (value) {
-            if (value == null || value.trim().isEmpty) {
-              return 'Please enter a remark';
-            }
-
-            return null;
-          },
         ),
       ],
     );
   }
+}
 
-  // ================================================================
-  // CREATE BUTTON
-  // ================================================================
+// ==================================================================
+// STUDENT PICKER SHEET (searchable)
+// ==================================================================
 
-  Widget _createButton() {
-    return SizedBox(
-      width: double.infinity,
-      height: 54,
-      child: FilledButton(
-        onPressed: _isSubmitting
-            ? null
-            : _createResult,
-        style: FilledButton.styleFrom(
-          backgroundColor: primary,
-          disabledBackgroundColor: primary.withOpacity(.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-          ),
-        ),
-        child: _isSubmitting
-            ? const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  color: Colors.white,
-                ),
-              )
-            : const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.add_rounded,
-                    size: 21,
-                  ),
-                  SizedBox(width: 8),
-                  Text(
-                    'Create Result',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-      ),
-    );
+class _StudentPicker extends StatefulWidget {
+  const _StudentPicker({required this.students, required this.selected});
+
+  final List<AdminStudentModel> students;
+  final String? selected;
+
+  @override
+  State<_StudentPicker> createState() => _StudentPickerState();
+}
+
+class _StudentPickerState extends State<_StudentPicker> {
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
   }
 
-  // ================================================================
-  // SECTION CARD
-  // ================================================================
+  @override
+  Widget build(BuildContext context) {
+    final list = _query.isEmpty
+        ? widget.students
+        : widget.students
+              .where(
+                (s) => '${s.studentName} ${s.studentNumber}'
+                    .toLowerCase()
+                    .contains(_query),
+              )
+              .toList();
 
-  Widget _sectionCard({
-    required String title,
-    required IconData icon,
-    required List<Widget> children,
-  }) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(17),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: Colors.grey.shade200,
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * .8,
         ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(26)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: primaryLight,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(
-                  icon,
-                  color: primary,
-                  size: 19,
+              const SizedBox(height: 12),
+              const SheetHandle(),
+              const SizedBox(height: 14),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: StudentSearchField(
+                  controller: _search,
+                  hint: 'Search name or number',
+                  onChanged: (v) =>
+                      setState(() => _query = v.trim().toLowerCase()),
                 ),
               ),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: const TextStyle(
-                  color: textDark,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
+              const SizedBox(height: 8),
+              Flexible(
+                child: list.isEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.all(30),
+                        child: Text(
+                          'No student matches "$_query"',
+                          style: TextStyle(color: Colors.grey.shade600),
+                        ),
+                      )
+                    : ListView.builder(
+                        shrinkWrap: true,
+                        padding: const EdgeInsets.fromLTRB(10, 4, 10, 16),
+                        itemCount: list.length,
+                        itemBuilder: (context, i) {
+                          final s = list[i];
+                          final selected = s.studentId == widget.selected;
+                          final color =
+                              StudentColors.accents[i %
+                                  StudentColors.accents.length];
+                          return ListTile(
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            tileColor: selected
+                                ? StudentColors.primaryLight
+                                : null,
+                            onTap: () => Navigator.pop(context, s.studentId),
+                            leading: CircleAvatar(
+                              backgroundColor: color.withValues(alpha: .12),
+                              child: Text(
+                                studentInitials(s.studentName, fallback: 'S'),
+                                style: TextStyle(
+                                  color: color,
+                                  fontWeight: FontWeight.w900,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                            title: Text(
+                              s.studentName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            subtitle: s.studentNumber.trim().isEmpty
+                                ? null
+                                : Text('No. ${s.studentNumber.trim()}'),
+                            trailing: selected
+                                ? const Icon(
+                                    Icons.check_circle_rounded,
+                                    color: StudentColors.primary,
+                                  )
+                                : null,
+                          );
+                        },
+                      ),
               ),
             ],
           ),
-
-          const SizedBox(height: 17),
-
-          ...children,
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // FIELD LABEL
-  // ================================================================
-
-  Widget _fieldLabel(String label) {
-    return Text(
-      label,
-      style: const TextStyle(
-        color: textDark,
-        fontSize: 11,
-        fontWeight: FontWeight.w700,
-      ),
-    );
-  }
-
-  // ================================================================
-  // INPUT DECORATION
-  // ================================================================
-
-  InputDecoration _inputDecoration({
-    required String hint,
-    required IconData icon,
-  }) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(
-        color: Colors.grey.shade400,
-        fontSize: 11,
-      ),
-      prefixIcon: Icon(
-        icon,
-        color: primary,
-        size: 19,
-      ),
-      filled: true,
-      fillColor: Colors.grey.shade50,
-      contentPadding: const EdgeInsets.symmetric(
-        horizontal: 13,
-        vertical: 14,
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: Colors.grey.shade200,
-        ),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide(
-          color: Colors.grey.shade200,
-        ),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(
-          color: primary,
-          width: 1.4,
-        ),
-      ),
-      errorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(
-          color: Colors.red,
-        ),
-      ),
-      focusedErrorBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: const BorderSide(
-          color: Colors.red,
-          width: 1.4,
-        ),
-      ),
-    );
-  }
-
-  // ================================================================
-  // ERROR STATE
-  // ================================================================
-
-  Widget _errorState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(30),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 70,
-              height: 70,
-              decoration: const BoxDecoration(
-                color: Color(0xFFFFEAEA),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.error_outline_rounded,
-                color: Colors.red,
-                size: 32,
-              ),
-            ),
-
-            const SizedBox(height: 15),
-
-            const Text(
-              'Unable to Load Data',
-              style: TextStyle(
-                color: textDark,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 7),
-
-            Text(
-              'Please try again.',
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 11,
-              ),
-            ),
-
-            const SizedBox(height: 18),
-
-            OutlinedButton(
-              onPressed: () {
-                ref.invalidate(adminDashboardProvider);
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: primary,
-                side: const BorderSide(
-                  color: primary,
-                ),
-              ),
-              child: const Text('Retry'),
-            ),
-          ],
         ),
       ),
     );

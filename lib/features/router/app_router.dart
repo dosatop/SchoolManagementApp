@@ -1,4 +1,3 @@
-import 'package:app/features/Classes/presentation/classes_page.dart';
 import 'package:app/features/Subjects/presentation/subjects_page.dart';
 
 import 'package:app/features/admin/models/results/admin_result_model.dart';
@@ -32,6 +31,7 @@ import 'package:app/features/admin/presentation/students/admin_create_student_pa
 
 // Admin - Subjects
 import 'package:app/features/admin/presentation/subjects/admin_create_subject_page.dart';
+import 'package:app/features/admin/presentation/subjects/admin_departments_trades_page.dart';
 import 'package:app/features/admin/presentation/subjects/admin_subject_details_page.dart';
 import 'package:app/features/admin/presentation/subjects/admin_subjects_page.dart';
 
@@ -48,9 +48,7 @@ import 'package:app/features/assignment/presentation/assignment_view_page.dart';
 import 'package:app/features/attendance/presentation/attendance_page.dart';
 
 import 'package:app/features/auth/provider/auth_provider.dart';
-import 'package:app/features/auth/presentation/login_or_sign_up.dart';
 import 'package:app/features/auth/presentation/login_page.dart';
-import 'package:app/features/auth/presentation/sign_up_page.dart';
 
 import 'package:app/features/events/presentation/events_page.dart';
 import 'package:app/features/exam/presentation/exam_page.dart';
@@ -82,7 +80,7 @@ import 'package:app/features/results/presentation/results_page.dart';
 // Student
 import 'package:app/features/students/presentation/student_assignments_page.dart';
 import 'package:app/features/students/presentation/student_attendance_page.dart';
-import 'package:app/features/students/presentation/student_dashboard_page.dart.dart';
+import 'package:app/features/students/presentation/student_dashboard_page.dart';
 import 'package:app/features/students/presentation/student_exams_page.dart';
 import 'package:app/features/students/presentation/student_online_study_page.dart';
 import 'package:app/features/students/presentation/student_online_tutor_page.dart';
@@ -92,6 +90,7 @@ import 'package:app/features/students/presentation/student_timetable_page.dart';
 
 // Onboarding
 import 'package:app/features/onboarding/first_screen.dart';
+import 'package:app/features/onboarding/onboarding_store.dart';
 
 // Study
 import 'package:app/features/study/models/study_model.dart';
@@ -150,7 +149,8 @@ import 'package:go_router/go_router.dart';
 // ==================================================================
 
 /// Pages anyone can open without logging in.
-const _publicRoutes = {'/', '/login', '/signup', '/loginOrSignup'};
+/// (No sign-up: accounts are created by the school.)
+const _publicRoutes = {'/', '/login'};
 
 /// Where each role lands after login.
 String _homeFor(String? role, String? schoolId) {
@@ -160,7 +160,7 @@ String _homeFor(String? role, String? schoolId) {
     case 'Admin':
       return (schoolId != null && schoolId.isNotEmpty)
           ? '/admin-dashboard/$schoolId'
-          : '/loginOrSignup';
+          : '/login';
     case 'Teacher':
       return '/teacher/dashboard';
     case 'Parent':
@@ -168,7 +168,7 @@ String _homeFor(String? role, String? schoolId) {
     case 'Student':
       return '/student/dashboard';
     default:
-      return '/loginOrSignup';
+      return '/login';
   }
 }
 
@@ -209,8 +209,12 @@ GoRouter appRouter(Ref ref) {
     refreshListenable: authChanges,
     redirect: (context, state) {
       final authState = ref.read(authProvider);
-
-      if (authState.isLoading) {
+    
+    if (authState.isLoading) {
+        // Don't flash onboarding while checking the saved login.
+        if (state.matchedLocation == '/' && OnboardingStore.seen) {
+          return '/login';
+        }
         return null;
       }
 
@@ -223,10 +227,13 @@ GoRouter appRouter(Ref ref) {
       final isPublic = _publicRoutes.contains(location);
 
       // ------------------------------------------------------------
-      // NOT LOGGED IN -> only public pages
+      // NOT LOGGED IN
       // ------------------------------------------------------------
       if (!isAuthenticated) {
-        return isPublic ? null : '/loginOrSignup';
+        // Onboarding already seen on this device -> straight to login.
+        if (location == '/' && OnboardingStore.seen) return '/login';
+
+        return isPublic ? null : '/login';
       }
 
       final home = _homeFor(role, schoolId);
@@ -256,13 +263,6 @@ GoRouter appRouter(Ref ref) {
       GoRoute(path: '/', builder: (context, state) => const FirstScreen()),
 
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-
-      GoRoute(path: '/signup', builder: (context, state) => const SignUpPage()),
-
-      GoRoute(
-        path: '/loginOrSignup',
-        builder: (context, state) => const LoginOrSignUp(),
-      ),
 
       // ============================================================
       // GENERAL / DASHBOARD
@@ -680,17 +680,17 @@ GoRouter appRouter(Ref ref) {
       ),
 
       GoRoute(
-  path: '/teacher/results/entry',
-  builder: (context, state) {
-    final d = state.extra is Map ? state.extra as Map : const {};
-    return TeacherSubjectResultsPage(
-      classId: '${d['classId']}',
-      className: '${d['className'] ?? 'Class'}',
-      subjectId: '${d['subjectId']}',
-      subjectName: '${d['subjectName'] ?? 'Subject'}',
-    );
-  },
-),
+        path: '/teacher/results/entry',
+        builder: (context, state) {
+          final d = state.extra is Map ? state.extra as Map : const {};
+          return TeacherSubjectResultsPage(
+            classId: '${d['classId']}',
+            className: '${d['className'] ?? 'Class'}',
+            subjectId: '${d['subjectId']}',
+            subjectName: '${d['subjectName'] ?? 'Subject'}',
+          );
+        },
+      ),
 
       GoRoute(
         path: '/teacher/assignments/details/:assignmentId',
@@ -741,13 +741,13 @@ GoRouter appRouter(Ref ref) {
       // ),
 
       // router
-GoRoute(
-  path: '/teacher/students/:studentId',
-  builder: (_, s) => TeacherStudentDetailsPage(
-    student: s.extra ?? s.pathParameters['studentId'],
-    isClassTeacher: false,
-  ),
-),
+      GoRoute(
+        path: '/teacher/students/:studentId',
+        builder: (_, s) => TeacherStudentDetailsPage(
+          student: s.extra ?? s.pathParameters['studentId'],
+          isClassTeacher: false,
+        ),
+      ),
 
       GoRoute(
         path: '/teacher/classes/attendance',
@@ -928,6 +928,14 @@ GoRoute(
           );
         },
       ),
+
+      GoRoute(
+  path: '/admin/:schoolId/departments-trades',
+  builder: (context, state) => AdminDepartmentsTradesPage(
+    schoolId: state.pathParameters['schoolId']!,
+    initialTab: state.uri.queryParameters['tab'] == 'trades' ? 1 : 0,
+  ),
+),
 
       // ============================================================
       // ADMIN - PARENTS

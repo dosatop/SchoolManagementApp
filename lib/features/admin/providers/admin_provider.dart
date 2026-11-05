@@ -98,6 +98,34 @@ final adminParentDetailsProvider =
     });
 
 // ==================================================================
+// ADMIN DEPARTMENT DETAILS
+// ==================================================================
+//
+// GET /api/admin/department/{departmentId}
+// ==================================================================
+
+final adminDepartmentDetailsProvider = FutureProvider.autoDispose
+    .family<AdminDepartmentModel, String>((ref, departmentId) async {
+      final repository = ref.read(adminRepositoryProvider);
+
+      return repository.getDepartment(departmentId: departmentId);
+    });
+
+// ==================================================================
+// ADMIN TRADE DETAILS
+// ==================================================================
+//
+// GET /api/admin/trade/{tradeId}
+// ==================================================================
+
+final adminTradeDetailsProvider = FutureProvider.autoDispose
+    .family<AdminTradeModel, String>((ref, tradeId) async {
+      final repository = ref.read(adminRepositoryProvider);
+
+      return repository.getTrade(tradeId: tradeId);
+    });
+
+// ==================================================================
 // ADMIN RESULT DETAILS
 // ==================================================================
 //
@@ -474,6 +502,220 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
     return trades.where((trade) => trade.schoolId == schoolId).toList();
   }
 
+  // ================================================================
+  // CREATE DEPARTMENT
+  // ================================================================
+
+  Future<AdminDepartmentModel> createDepartment({
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      final department = await repository.createDepartment(data: data);
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        state = AsyncData(
+          currentState.copyWith(
+            departments: [department, ...currentState.departments],
+          ),
+        );
+      }
+
+      return department;
+    } catch (error, stackTrace) {
+      debugPrint('CREATE DEPARTMENT ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      rethrow;
+    }
+  }
+
+  // ================================================================
+  // UPDATE DEPARTMENT
+  // ================================================================
+
+  Future<AdminDepartmentModel> updateDepartment({
+    required String departmentId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      final updated = await repository.updateDepartment(
+        departmentId: departmentId,
+        data: data,
+      );
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        state = AsyncData(
+          currentState.copyWith(
+            departments: currentState.departments
+                .map((d) => d.departmentId == departmentId ? updated : d)
+                .toList(),
+          ),
+        );
+      }
+
+      ref.invalidate(adminDepartmentDetailsProvider(departmentId));
+
+      // Subjects show the department name, so reload them too.
+      await refresh();
+
+      return updated;
+    } catch (error, stackTrace) {
+      debugPrint('UPDATE DEPARTMENT ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      rethrow;
+    }
+  }
+
+  // ================================================================
+  // DELETE DEPARTMENT
+  // ================================================================
+
+  Future<bool> deleteDepartment({required String departmentId}) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.deleteDepartment(departmentId: departmentId);
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        state = AsyncData(
+          currentState.copyWith(
+            departments: currentState.departments
+                .where((d) => d.departmentId != departmentId)
+                .toList(),
+          ),
+        );
+      }
+
+      ref.invalidate(adminDepartmentDetailsProvider(departmentId));
+
+      // Subjects/students linked to it may have changed on the server.
+      await refresh();
+
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      return false;
+    }
+  }
+
+  // ================================================================
+  // CREATE TRADE
+  // ================================================================
+
+  Future<AdminTradeModel> createTrade({
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      final trade = await repository.createTrade(data: data);
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        state = AsyncData(
+          currentState.copyWith(trades: [trade, ...currentState.trades]),
+        );
+      }
+
+      return trade;
+    } catch (error, stackTrace) {
+      debugPrint('CREATE TRADE ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      rethrow;
+    }
+  }
+
+  // ================================================================
+  // UPDATE TRADE
+  // ================================================================
+
+  Future<AdminTradeModel> updateTrade({
+    required String tradeId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      final updated = await repository.updateTrade(
+        tradeId: tradeId,
+        data: data,
+      );
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        state = AsyncData(
+          currentState.copyWith(
+            trades: currentState.trades
+                .map((t) => t.tradeId == tradeId ? updated : t)
+                .toList(),
+          ),
+        );
+      }
+
+      ref.invalidate(adminTradeDetailsProvider(tradeId));
+
+      // Subjects show the trade name, so reload them too.
+      await refresh();
+
+      return updated;
+    } catch (error, stackTrace) {
+      debugPrint('UPDATE TRADE ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      rethrow;
+    }
+  }
+
+  // ================================================================
+  // DELETE TRADE
+  // ================================================================
+
+  Future<bool> deleteTrade({required String tradeId}) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.deleteTrade(tradeId: tradeId);
+
+      final currentState = state.value;
+
+      if (currentState != null) {
+        state = AsyncData(
+          currentState.copyWith(
+            trades: currentState.trades
+                .where((t) => t.tradeId != tradeId)
+                .toList(),
+          ),
+        );
+      }
+
+      ref.invalidate(adminTradeDetailsProvider(tradeId));
+
+      await refresh();
+
+      return true;
+    } catch (error, stackTrace) {
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      return false;
+    }
+  }
   // ================================================================
   // GET DEPARTMENTS FOR SCHOOL
   // ================================================================
@@ -889,6 +1131,28 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   }
 
   // ================================================================
+  // UNASSIGN CLASS TEACHER
+  // ================================================================
+  // Rethrows so the page can show the server's message.
+
+  Future<void> unassignClassTeacher({required String classId}) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.unassignClassTeacher(classId: classId);
+
+      // Reload so the class shows no class teacher and that teacher
+      // becomes available again in "Assign Teacher".
+      await refresh();
+    } catch (error, stackTrace) {
+      debugPrint('UNASSIGN CLASS TEACHER ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      rethrow;
+    }
+  }
+
+  // ================================================================
   // UPDATE SUBJECT
   // ================================================================
 
@@ -966,6 +1230,29 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
     } catch (error, stackTrace) {
       // Don't replace the loaded dashboard with an error screen
       // because one action failed.
+      debugPrint('ADMIN ACTION ERROR: $error');
+      debugPrintStack(stackTrace: stackTrace);
+
+      return false;
+    }
+  }
+
+  Future<bool> assignSubjectToMultipleClasses({
+    required String subjectId,
+    required List<String> classIds,
+    String? teacherId,
+  }) async {
+    try {
+      final repository = ref.read(adminRepositoryProvider);
+
+      await repository.assignSubjectToMultipleClasses(
+        subjectId: subjectId,
+        classIds: classIds,
+        teacherId: teacherId,
+      );
+
+      return true;
+    } catch (error, stackTrace) {
       debugPrint('ADMIN ACTION ERROR: $error');
       debugPrintStack(stackTrace: stackTrace);
 

@@ -1,13 +1,30 @@
 import 'package:app/features/admin/models/subjects/admin_subject_model.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class AdminSubjectsPage extends ConsumerWidget {
+class AdminSubjectsPage extends ConsumerStatefulWidget {
   final String schoolId;
 
   const AdminSubjectsPage({super.key, required this.schoolId});
+
+  @override
+  ConsumerState<AdminSubjectsPage> createState() => _AdminSubjectsPageState();
+}
+
+class _AdminSubjectsPageState extends ConsumerState<AdminSubjectsPage> {
+  String get schoolId => widget.schoolId;
+
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   static const Color primary = Color(0xFF091993);
   static const Color primaryLight = Color(0xFFE9ECFF);
@@ -15,7 +32,7 @@ class AdminSubjectsPage extends ConsumerWidget {
   static const Color textDark = Color(0xFF20232E);
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final dashboardState = ref.watch(adminDashboardProvider);
 
     return Scaffold(
@@ -84,22 +101,39 @@ class AdminSubjectsPage extends ConsumerWidget {
       // BODY
       // ================================================================
       body: dashboardState.when(
-        loading: () {
-          return const Center(child: CircularProgressIndicator(color: primary));
-        },
+        loading: _loadingView,
 
         error: (error, stackTrace) {
           return _errorView(ref);
         },
 
         data: (dashboard) {
-          final subjects = dashboard.subjects
+          final allSubjects = dashboard.subjects
               .where((subject) => subject.schoolId == schoolId)
-              .toList();
+              .toList()
+            ..sort(
+              (a, b) => a.subjectName.toLowerCase().compareTo(
+                b.subjectName.toLowerCase(),
+              ),
+            );
 
-          if (subjects.isEmpty) {
+          if (allSubjects.isEmpty) {
             return _emptyView();
           }
+
+          final q = _query.toLowerCase();
+          final subjects = q.isEmpty
+              ? allSubjects
+              : allSubjects.where((subject) {
+                  return subject.subjectName.toLowerCase().contains(q) ||
+                      subject.code.toLowerCase().contains(q) ||
+                      (subject.departmentName ?? '').toLowerCase().contains(q) ||
+                      (subject.tradeName ?? '').toLowerCase().contains(q);
+                }).toList();
+
+          final unassignedCount = allSubjects
+              .where((subject) => subject.teacherSubjects.isEmpty)
+              .length;
 
           // ============================================================
           // GENERAL SUBJECTS
@@ -135,6 +169,18 @@ class AdminSubjectsPage extends ConsumerWidget {
               )
               .toList();
 
+          // Anything that doesn't fit the three groups (unknown type, or a
+          // departmental/trade subject missing its department/trade) still
+          // shows up here instead of disappearing.
+          final grouped = {
+            ...generalSubjects,
+            ...departmentalSubjects,
+            ...tradeSubjects,
+          };
+          final otherSubjects = subjects
+              .where((subject) => !grouped.contains(subject))
+              .toList();
+
           return RefreshIndicator(
             color: primary,
 
@@ -143,7 +189,10 @@ class AdminSubjectsPage extends ConsumerWidget {
             },
 
             child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
+              keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
 
               padding: const EdgeInsets.fromLTRB(20, 22, 20, 110),
 
@@ -151,27 +200,41 @@ class AdminSubjectsPage extends ConsumerWidget {
                 // ======================================================
                 // PAGE HEADER
                 // ======================================================
-                const Text(
-                  'School Subjects',
-                  style: TextStyle(
-                    color: textDark,
-                    fontSize: 27,
-                    fontWeight: FontWeight.bold,
-                  ),
+                _summaryCard(
+                  total: allSubjects.length,
+                  general: allSubjects.where((s) => s.type == 1).length,
+                  departmental: allSubjects.where((s) => s.type == 2).length,
+                  trade: allSubjects.where((s) => s.type == 3).length,
+                  unassigned: unassignedCount,
                 ),
 
-                const SizedBox(height: 5),
+                const SizedBox(height: 16),
 
-                Text(
-                  'Manage general, departmental and trade subjects.',
-                  style: TextStyle(
-                    color: Colors.grey.shade600,
-                    fontSize: 13,
-                    height: 1.4,
+                _searchField(),
+
+                const SizedBox(height: 22),
+
+                if (subjects.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 30),
+                    child: Column(
+                      children: [
+                        Icon(
+                          Icons.search_off_rounded,
+                          size: 46,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 10),
+                        Text(
+                          'No subject matches "$_query"',
+                          style: const TextStyle(
+                            color: textDark,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-
-                const SizedBox(height: 24),
 
                 // ======================================================
                 // GENERAL SUBJECTS
@@ -232,6 +295,35 @@ class AdminSubjectsPage extends ConsumerWidget {
                   const SizedBox(height: 12),
 
                   ..._buildTradeGroups(context, tradeSubjects),
+
+                  const SizedBox(height: 12),
+                ],
+
+                // ======================================================
+                // OTHER SUBJECTS
+                // ======================================================
+                if (otherSubjects.isNotEmpty) ...[
+                  _sectionHeader(
+                    icon: Icons.help_outline_rounded,
+                    title: 'Needs attention',
+                    subtitle: 'Missing a category, department or trade',
+                    count: otherSubjects.length,
+                    color: Colors.red,
+                  ),
+
+                  const SizedBox(height: 12),
+
+                  ...otherSubjects.map(
+                    (subject) => _subjectTile(
+                      context: context,
+                      subject: subject,
+                      category: subject.type == 2
+                          ? 'Department not set'
+                          : subject.type == 3
+                          ? 'Trade not set'
+                          : 'Category not set',
+                    ),
+                  ),
                 ],
               ],
             ),
@@ -585,7 +677,26 @@ class AdminSubjectsPage extends ConsumerWidget {
                 ),
               ),
 
-              if (subject.teacherSubjects.isNotEmpty)
+              if (subject.teacherSubjects.isEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withValues(alpha: .1),
+                    borderRadius: BorderRadius.circular(7),
+                  ),
+                  child: const Text(
+                    'No teacher',
+                    style: TextStyle(
+                      color: Colors.orange,
+                      fontSize: 8,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                )
+              else
                 Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 7,
@@ -598,7 +709,7 @@ class AdminSubjectsPage extends ConsumerWidget {
                   ),
 
                   child: Text(
-                    '${subject.teacherSubjects.length} teacher${subject.teacherSubjects.length == 1 ? '' : 's'}',
+                    '${_teacherCount(subject)} teacher${_teacherCount(subject) == 1 ? '' : 's'}',
 
                     style: const TextStyle(
                       color: Colors.green,
@@ -738,9 +849,10 @@ class AdminSubjectsPage extends ConsumerWidget {
                           runSpacing: 5,
 
                           children: subject.teacherSubjects
-                              .map(
-                                (teacher) => _teacherChip(teacher.teacherName),
-                              )
+                              .map((teacher) => teacher.teacherName.toString())
+                              .where((name) => name.trim().isNotEmpty)
+                              .toSet()
+                              .map(_teacherChip)
                               .toList(),
                         ),
                     ],
@@ -797,6 +909,206 @@ class AdminSubjectsPage extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  int _teacherCount(AdminSubjectModel subject) {
+    return subject.teacherSubjects
+        .map((t) => t.teacherName.toString())
+        .toSet()
+        .length;
+  }
+
+  // ================================================================
+  // SUMMARY CARD
+  // ================================================================
+
+  Widget _summaryCard({
+    required int total,
+    required int general,
+    required int departmental,
+    required int trade,
+    required int unassigned,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [primary, Color(0xFF2B3FD1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withValues(alpha: .2),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: Colors.white,
+                  size: 24,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '$total subject${total == 1 ? '' : 's'}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      unassigned == 0
+                          ? 'Every subject has a teacher'
+                          : '$unassigned without a teacher',
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              _summaryPill('General', general),
+              const SizedBox(width: 8),
+              _summaryPill('Department', departmental),
+              const SizedBox(width: 8),
+              _summaryPill('Trade', trade),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryPill(String label, int value) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 9),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Column(
+          children: [
+            Text(
+              '$value',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 15,
+              ),
+            ),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white70, fontSize: 10),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // SEARCH
+  // ================================================================
+
+  Widget _searchField() {
+    return TextField(
+      controller: _searchController,
+      onChanged: (value) => setState(() => _query = value.trim()),
+      decoration: InputDecoration(
+        hintText: 'Search subject, code, department or trade',
+        hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+        prefixIcon: Icon(Icons.search_rounded, color: Colors.grey.shade500),
+        suffixIcon: _query.isEmpty
+            ? null
+            : IconButton(
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() => _query = '');
+                },
+                icon: Icon(Icons.close_rounded, color: Colors.grey.shade500),
+              ),
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.grey.shade200),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: primary, width: 1.4),
+        ),
+      ),
+    );
+  }
+
+  // ================================================================
+  // LOADING
+  // ================================================================
+
+  Widget _loadingView() {
+    return ListView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 30),
+      children: [
+        Shimmer(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const ShimmerBox(width: double.infinity, height: 140, radius: 20),
+              const SizedBox(height: 16),
+              const ShimmerBox(width: double.infinity, height: 48, radius: 14),
+              const SizedBox(height: 24),
+              const Row(
+                children: [
+                  ShimmerBox(width: 42, height: 42, radius: 12),
+                  SizedBox(width: 11),
+                  ShimmerBox(width: 140, height: 14),
+                ],
+              ),
+              const SizedBox(height: 14),
+              for (var i = 0; i < 5; i++) ...[
+                ShimmerCard(lines: 3, trailing: i.isOdd),
+                const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        ),
+      ],
     );
   }
 

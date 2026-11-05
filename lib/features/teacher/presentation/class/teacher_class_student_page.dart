@@ -1,17 +1,16 @@
+import 'package:app/features/students/presentation/widgets/student_common.dart';
+import 'package:app/features/students/presentation/widgets/student_ui.dart';
+import 'package:app/features/teacher/presentation/student/teacher_student_details_page.dart';
 import 'package:app/features/teacher/provider/teachers_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 
-// Import the file where these providers are defined.
-// import 'package:your_app/providers/teacher_provider.dart';
+// ==================================================================
+// TEACHER: STUDENTS IN ONE CLASS (opened from a subject class page)
+// ==================================================================
 
 class TeacherClassStudentsPage extends ConsumerStatefulWidget {
-  final String subjectId;
-  final String subjectName;
-  final String classId;
-  final String className;
-
   const TeacherClassStudentsPage({
     super.key,
     required this.subjectId,
@@ -20,6 +19,11 @@ class TeacherClassStudentsPage extends ConsumerStatefulWidget {
     required this.className,
   });
 
+  final String subjectId;
+  final String subjectName;
+  final String classId;
+  final String className;
+
   @override
   ConsumerState<TeacherClassStudentsPage> createState() =>
       _TeacherClassStudentsPageState();
@@ -27,696 +31,264 @@ class TeacherClassStudentsPage extends ConsumerStatefulWidget {
 
 class _TeacherClassStudentsPageState
     extends ConsumerState<TeacherClassStudentsPage> {
-  final TextEditingController _searchController =
-      TextEditingController();
+  final _search = TextEditingController();
+  String _query = '';
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _search.dispose();
     super.dispose();
   }
 
-  // ============================================================
-  // STUDENTS PROVIDER
-  // ============================================================
-
-  AsyncValue<dynamic> get _studentsAsync {
-    return ref.watch(
-      teacherStudentsProvider(widget.classId),
-    );
+  Future<void> _refresh() async {
+    ref.invalidate(teacherStudentsProvider(widget.classId));
+    await sSafe(ref.read(teacherStudentsProvider(widget.classId).future));
   }
-
-  // ============================================================
-  // SEARCH
-  // ============================================================
-
-  List<dynamic> _filteredStudents(dynamic students) {
-    final query =
-        _searchController.text.trim().toLowerCase();
-
-    if (query.isEmpty) {
-      return List<dynamic>.from(students);
-    }
-
-    return List<dynamic>.from(students).where((student) {
-      final name =
-          (student['studentName'] ?? '')
-              .toString()
-              .toLowerCase();
-
-      final number =
-          (student['studentNumber'] ?? '')
-              .toString()
-              .toLowerCase();
-
-      final email =
-          (student['email'] ?? '')
-              .toString()
-              .toLowerCase();
-
-      return name.contains(query) ||
-          number.contains(query) ||
-          email.contains(query);
-    }).toList();
-  }
-
-  // ============================================================
-  // BUILD
-  // ============================================================
 
   @override
   Widget build(BuildContext context) {
-    final studentsAsync = _studentsAsync;
+    final async = ref.watch(teacherStudentsProvider(widget.classId));
+    final all = [...sList(async.valueOrNull, ['students', 'data'])]
+      ..sort(
+        (a, b) => (_name(a)).toLowerCase().compareTo(_name(b).toLowerCase()),
+      );
+
+    final q = _query.toLowerCase();
+    final visible = q.isEmpty
+        ? all
+        : all.where((s) {
+            final text = [
+              _name(s),
+              sStr(s, ['studentNumber', 'admissionNumber']),
+              sStr(s, ['email']),
+            ].whereType<String>().join(' ').toLowerCase();
+            return text.contains(q);
+          }).toList();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF7F7FB),
-
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.black87,
-        elevation: 0,
-
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
-        ),
-
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              widget.subjectName,
-              style: const TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            Text(
-              widget.className,
-              style: TextStyle(
-                fontSize: 12,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-
+      backgroundColor: StudentColors.background,
+      appBar: studentAppBar(
+        'Students',
+        subtitle: '${widget.subjectName} · ${widget.className}',
         actions: [
           IconButton(
             tooltip: 'Refresh',
+            onPressed: _refresh,
             icon: const Icon(Icons.refresh_rounded),
-            onPressed: () {
-              ref.invalidate(
-                teacherStudentsProvider(widget.classId),
-              );
-            },
           ),
         ],
       ),
-
       body: RefreshIndicator(
-        color: Colors.purple,
-        onRefresh: () async {
-          ref.invalidate(
-            teacherStudentsProvider(widget.classId),
-          );
+        color: StudentColors.primary,
+        onRefresh: _refresh,
+        child: () {
+          if (async.isLoading && !async.hasValue) {
+            return const StudentLoadingView();
+          }
 
-          await ref.read(
-            teacherStudentsProvider(widget.classId).future,
-          );
-        },
-        child: studentsAsync.when(
-          loading: () => ListView(
-            physics: AlwaysScrollableScrollPhysics(),
+          if (async.hasError && !async.hasValue) {
+            return StudentErrorView(
+              error: async.error!,
+              onRetry: _refresh,
+              title: 'Unable to load students',
+            );
+          }
+
+          if (all.isEmpty) {
+            return StudentEmptyView(
+              icon: Icons.groups_outlined,
+              title: 'No students yet',
+              message: 'Students added to ${widget.className} will show here.',
+            );
+          }
+
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
             children: [
-              SizedBox(
-                height: 300,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: Colors.purple,
-                  ),
-                ),
+              _summary(all.length),
+              const SizedBox(height: 14),
+              StudentSearchField(
+                controller: _search,
+                hint: 'Search name, number or email',
+                onChanged: (v) => setState(() => _query = v.trim()),
               ),
-            ],
-          ),
-
-          error: (error, stackTrace) {
-            return _buildError(error);
-          },
-
-          data: (data) {
-            /*
-             * Your API appears to return:
-             *
-             * {
-             *   "students": [...]
-             * }
-             *
-             * But depending on your provider, it may already
-             * return the students list.
-             */
-
-            final List<dynamic> students;
-
-            if (data is Map<String, dynamic>) {
-              students =
-                  List<dynamic>.from(
-                data['students'] ?? [],
-              );
-            } else if (data is List) {
-              students =
-                  List<dynamic>.from(data);
-            } else {
-              students = [];
-            }
-
-            return _buildBody(students);
-          },
-        ),
-      ),
-    );
-  }
-
-  // ============================================================
-  // BODY
-  // ============================================================
-
-  Widget _buildBody(List<dynamic> students) {
-    final filteredStudents =
-        _filteredStudents(students);
-
-    return Column(
-      children: [
-        // --------------------------------------------------------
-        // HEADER
-        // --------------------------------------------------------
-
-        Container(
-          width: double.infinity,
-          color: Colors.white,
-          padding: const EdgeInsets.fromLTRB(
-            16,
-            16,
-            16,
-            18,
-          ),
-          child: Column(
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: Colors.purple.shade50,
-                      borderRadius:
-                          BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      Icons.groups_outlined,
-                      color: Colors.purple.shade700,
-                      size: 27,
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment:
-                          CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Students',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight:
-                                FontWeight.w700,
-                          ),
-                        ),
-
-                        const SizedBox(height: 3),
-
-                        Text(
-                          '${students.length} student${students.length == 1 ? '' : 's'}',
-                          style: TextStyle(
-                            color:
-                                Colors.grey.shade600,
-                            fontSize: 13,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-
               const SizedBox(height: 16),
-
-              // --------------------------------------------------
-              // SEARCH
-              // --------------------------------------------------
-
-              TextField(
-                controller: _searchController,
-                onChanged: (_) {
-                  setState(() {});
-                },
-                decoration: InputDecoration(
-                  hintText: 'Search students...',
-                  prefixIcon:
-                      const Icon(Icons.search),
-
-                  suffixIcon:
-                      _searchController
-                              .text
-                              .isNotEmpty
-                          ? IconButton(
-                              icon: const Icon(
-                                Icons.clear,
-                              ),
-                              onPressed: () {
-                                _searchController
-                                    .clear();
-
-                                setState(() {});
-                              },
-                            )
-                          : null,
-
-                  filled: true,
-                  fillColor:
-                      const Color(0xFFF7F7FB),
-
-                  border: OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
-                    borderSide:
-                        BorderSide.none,
-                  ),
-
-                  enabledBorder:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
-                    borderSide: BorderSide(
-                      color:
-                          Colors.grey.shade200,
-                    ),
-                  ),
-
-                  focusedBorder:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(14),
-                    borderSide:
-                        const BorderSide(
-                      color: Colors.purple,
-                      width: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // --------------------------------------------------------
-        // STUDENT LIST
-        // --------------------------------------------------------
-
-        Expanded(
-          child: filteredStudents.isEmpty
-              ? _buildEmptyState()
-              : ListView.separated(
-                  padding:
-                      const EdgeInsets.all(16),
-
-                  physics:
-                      const AlwaysScrollableScrollPhysics(),
-
-                  itemCount:
-                      filteredStudents.length,
-
-                  separatorBuilder: (_, __) =>
+              if (visible.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(top: 30),
+                  child: Column(
+                    children: [
+                      Icon(
+                        Icons.search_off_rounded,
+                        size: 44,
+                        color: Colors.grey.shade400,
+                      ),
                       const SizedBox(height: 10),
-
-                  itemBuilder:
-                      (context, index) {
-                    final student =
-                        filteredStudents[index];
-
-                    return _buildStudentCard(
-                      student,
-                    );
-                  },
-                ),
-        ),
-      ],
+                      Text(
+                        'No student matches "$_query"',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                for (var i = 0; i < visible.length; i++) ...[
+                  _card(visible[i], all.indexOf(visible[i])),
+                  const SizedBox(height: 10),
+                ],
+            ],
+          );
+        }(),
+      ),
     );
   }
 
-  // ============================================================
-  // STUDENT CARD
-  // ============================================================
-
-  Widget _buildStudentCard(dynamic student) {
-    final name =
-        student['studentName']
-                ?.toString() ??
-            'Unknown Student';
-
-    final studentNumber =
-        student['studentNumber']
-                ?.toString() ??
-            '';
-
-    final email =
-        student['email']
-                ?.toString() ??
-            '';
-
-    final phoneNumber =
-        student['phoneNumber']
-                ?.toString() ??
-            '';
-
-    final initial = name.trim().isNotEmpty
-        ? name.trim()[0].toUpperCase()
-        : '?';
-
+  Widget _summary(int count) {
     return Container(
-      padding: const EdgeInsets.all(14),
-
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius:
-            BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey.shade200,
-        ),
+        gradient: kStudentGradient,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: StudentColors.primary.withValues(alpha: .22),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-
       child: Row(
         children: [
-          // ------------------------------------------------------
-          // AVATAR
-          // ------------------------------------------------------
-
           Container(
-            width: 48,
-            height: 48,
+            width: 50,
+            height: 50,
             decoration: BoxDecoration(
-              color: Colors.purple.shade50,
+              color: Colors.white.withValues(alpha: .15),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(Icons.groups_rounded, color: Colors.white, size: 25),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '$count student${count == 1 ? '' : 's'}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Tap a student to see results, attendance and tasks',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: .75),
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _card(dynamic s, int index) {
+    final name = _name(s);
+    final number = sStr(s, ['studentNumber', 'admissionNumber']);
+    final email = sStr(s, ['email']);
+    final phone = sStr(s, ['phoneNumber', 'phone']);
+    final color = StudentColors.accents[index % StudentColors.accents.length];
+
+    return SoftCard(
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              TeacherStudentDetailsPage(student: s, isClassTeacher: false),
+        ),
+      ),
+      padding: const EdgeInsets.all(13),
+      child: Row(
+        children: [
+          Container(
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .12),
               shape: BoxShape.circle,
             ),
-            child: Center(
-              child: Text(
-                initial,
-                style: TextStyle(
-                  color:
-                      Colors.purple.shade700,
-                  fontSize: 18,
-                  fontWeight:
-                      FontWeight.w700,
-                ),
+            child: Text(
+              studentInitials(name, fallback: '?'),
+              style: TextStyle(
+                color: color,
+                fontSize: 15,
+                fontWeight: FontWeight.w900,
               ),
             ),
           ),
-
-          const SizedBox(width: 13),
-
-          // ------------------------------------------------------
-          // DETAILS
-          // ------------------------------------------------------
-
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
-              crossAxisAlignment:
-                  CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   name,
                   maxLines: 1,
-                  overflow:
-                      TextOverflow.ellipsis,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight:
-                        FontWeight.w700,
+                    color: StudentColors.textDark,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
-
-                if (studentNumber.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-
-                  Text(
-                    studentNumber,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color:
-                          Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-
-                if (email.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-
-                  Text(
-                    email,
-                    maxLines: 1,
-                    overflow:
-                        TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color:
-                          Colors.grey.shade500,
-                    ),
-                  ),
-                ],
-
-                if (phoneNumber.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-
-                  Text(
-                    phoneNumber,
-                    maxLines: 1,
-                    overflow:
-                        TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color:
-                          Colors.grey.shade500,
-                    ),
-                  ),
-                ],
+                const SizedBox(height: 3),
+                Text(
+                  [
+                    if (number != null) 'No. $number',
+                    if (email != null) email,
+                  ].join(' · '),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                ),
               ],
             ),
           ),
-
-          // ------------------------------------------------------
-          // MORE
-          // ------------------------------------------------------
-
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'details') {
-                context.push(
-                  '/teacher/students/details',
-                  extra: student,
-                );
-              }
-            },
-
-            itemBuilder: (context) => const [
-              PopupMenuItem(
-                value: 'details',
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.person_outline,
+          if (phone != null)
+            IconButton(
+              tooltip: 'Copy phone',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: phone));
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      behavior: SnackBarBehavior.floating,
+                      content: Text('$phone copied'),
                     ),
-                    SizedBox(width: 10),
-                    Text('View details'),
-                  ],
-                ),
+                  );
+              },
+              icon: Icon(
+                Icons.phone_outlined,
+                size: 19,
+                color: Colors.grey.shade500,
               ),
-            ],
-          ),
+            ),
+          Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
         ],
       ),
     );
   }
 
-  // ============================================================
-  // EMPTY STATE
-  // ============================================================
-
-  Widget _buildEmptyState() {
-    final isSearching =
-        _searchController.text
-            .trim()
-            .isNotEmpty;
-
-    return ListView(
-      physics:
-          const AlwaysScrollableScrollPhysics(),
-      children: [
-        SizedBox(
-          height:
-              MediaQuery.of(context).size.height *
-                  0.5,
-          child: Center(
-            child: Padding(
-              padding:
-                  const EdgeInsets.all(30),
-              child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    isSearching
-                        ? Icons.search_off
-                        : Icons.groups_outlined,
-                    size: 60,
-                    color:
-                        Colors.grey.shade400,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  Text(
-                    isSearching
-                        ? 'No students found'
-                        : 'No students found in this class',
-                    textAlign:
-                        TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight:
-                          FontWeight.w700,
-                    ),
-                  ),
-
-                  const SizedBox(height: 7),
-
-                  Text(
-                    isSearching
-                        ? 'Try searching with another name or student number.'
-                        : 'There are currently no students assigned to this class.',
-                    textAlign:
-                        TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color:
-                          Colors.grey.shade600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ============================================================
-  // ERROR
-  // ============================================================
-
-  Widget _buildError(Object error) {
-    return ListView(
-      physics:
-          const AlwaysScrollableScrollPhysics(),
-      children: [
-        SizedBox(
-          height:
-              MediaQuery.of(context).size.height *
-                  0.7,
-          child: Center(
-            child: Padding(
-              padding:
-                  const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment:
-                    MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 60,
-                    color:
-                        Colors.red.shade300,
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  const Text(
-                    'Unable to load students',
-                    style: TextStyle(
-                      fontSize: 17,
-                      fontWeight:
-                          FontWeight.w700,
-                    ),
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  Text(
-                    error
-                        .toString()
-                        .replaceFirst(
-                          'Exception: ',
-                          '',
-                        ),
-                    textAlign:
-                        TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color:
-                          Colors.grey.shade600,
-                    ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  ElevatedButton.icon(
-                    onPressed: () {
-                      ref.invalidate(
-                        teacherStudentsProvider(
-                          widget.classId,
-                        ),
-                      );
-                    },
-                    icon: const Icon(
-                      Icons.refresh,
-                    ),
-                    label:
-                        const Text('Try again'),
-                    style:
-                        ElevatedButton.styleFrom(
-                      backgroundColor:
-                          Colors.purple,
-                      foregroundColor:
-                          Colors.white,
-                      shape:
-                          RoundedRectangleBorder(
-                        borderRadius:
-                            BorderRadius.circular(
-                          12,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
+  String _name(dynamic s) =>
+      sStr(s, ['studentName', 'fullName', 'name']) ?? 'Unknown student';
 }

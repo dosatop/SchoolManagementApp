@@ -437,7 +437,11 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                 child: _summaryItem(
                   icon: Icons.person_outline_rounded,
                   label: 'Teachers',
-                  value: subject.teacherSubjects.length.toString(),
+                  value: subject.teacherSubjects
+                      .map((t) => t.teacherName.toString())
+                      .toSet()
+                      .length
+                      .toString(),
                 ),
               ),
 
@@ -583,16 +587,18 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
     final classes = <String, String>{}; // classId -> className
 
+    // classId -> the assignment row for that class. Used so "Unassign"
+    // on a class removes that class's assignment, not the first one.
+    final assignmentByClass = <String, AdminSubjectTeacherModel>{};
+
     // Get class names from the API assignments.
     for (final assignment in assignments) {
       final className = _getAssignmentClassName(assignment);
+      final classId = assignment.classId?.toString() ?? '';
 
-      if (className != null && className.isNotEmpty) {
-        final classId = assignment.classId?.toString() ?? '';
-
-        if (classId != null && classId.isNotEmpty) {
-          classes[classId] = className;
-        }
+      if (className != null && className.isNotEmpty && classId.isNotEmpty) {
+        classes[classId] = className;
+        assignmentByClass[classId] = assignment;
       }
     }
 
@@ -809,7 +815,8 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                           _showUnassignTeacherDialog(
                             context: context,
                             ref: ref,
-                            assignedTeacher: assignedTeacher,
+                            assignedTeacher:
+                                assignmentByClass[classId] ?? assignedTeacher,
                             teacherName: teacherName,
                             className: className,
                           );
@@ -1346,21 +1353,6 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                   onPressed: isLoading
                                       ? null
                                       : () async {
-                                          if (selectedTeacherId == null ||
-                                              selectedTeacherId!.isEmpty) {
-                                            ScaffoldMessenger.of(
-                                              context,
-                                            ).showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Please select a teacher.',
-                                                ),
-                                                backgroundColor: Colors.red,
-                                              ),
-                                            );
-                                            return;
-                                          }
-
                                           if (selectedClassIds.isEmpty) {
                                             ScaffoldMessenger.of(
                                               context,
@@ -1375,40 +1367,77 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                             return;
                                           }
 
+                                          // Ask for confirmation if no teacher is selected.
+                                          if (selectedTeacherId == null ||
+                                              selectedTeacherId!.isEmpty) {
+                                            final confirmed = await showDialog<bool>(
+                                              context: context,
+                                              builder: (dialogContext) => AlertDialog(
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(16),
+                                                ),
+                                                title: const Text(
+                                                  'Assign Without a Teacher?',
+                                                ),
+                                                content: Text(
+                                                  'Are you sure you want to assign this subject to '
+                                                  '${selectedClassIds.length == 1 ? 'this class' : 'these ${selectedClassIds.length} classes'} '
+                                                  'without assigning a teacher?',
+                                                ),
+                                                actions: [
+                                                  TextButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          dialogContext,
+                                                          false,
+                                                        ),
+                                                    child: const Text('Cancel'),
+                                                  ),
+                                                  ElevatedButton(
+                                                    onPressed: () =>
+                                                        Navigator.pop(
+                                                          dialogContext,
+                                                          true,
+                                                        ),
+                                                    style:
+                                                        ElevatedButton.styleFrom(
+                                                          backgroundColor:
+                                                              primary,
+                                                          foregroundColor:
+                                                              Colors.white,
+                                                        ),
+                                                    child: const Text(
+                                                      'Yes, Continue',
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+
+                                            if (confirmed != true) return;
+                                          }
+
                                           setModalState(() {
                                             isLoading = true;
                                           });
 
                                           try {
-                                            bool allSuccessful = true;
+                                            final success = await ref
+                                                .read(
+                                                  adminDashboardProvider
+                                                      .notifier,
+                                                )
+                                                .assignSubjectToMultipleClasses(
+                                                  subjectId: subjectId,
+                                                  classIds: selectedClassIds
+                                                      .toList(),
+                                                  teacherId: selectedTeacherId,
+                                                );
 
-                                            // Assign the teacher to every
-                                            // selected class.
-                                            for (final classId
-                                                in selectedClassIds) {
-                                              final success = await ref
-                                                  .read(
-                                                    adminDashboardProvider
-                                                        .notifier,
-                                                  )
-                                                  .assignTeacherToSubject(
-                                                    teacherId:
-                                                        selectedTeacherId!,
-                                                    subjectId: subjectId,
-                                                    classId: classId,
-                                                  );
+                                            if (!context.mounted) return;
 
-                                              if (!success) {
-                                                allSuccessful = false;
-                                                break;
-                                              }
-                                            }
-
-                                            if (!context.mounted) {
-                                              return;
-                                            }
-
-                                            if (!allSuccessful) {
+                                            if (!success) {
                                               setModalState(() {
                                                 isLoading = false;
                                               });
@@ -1418,16 +1447,14 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                               ).showSnackBar(
                                                 const SnackBar(
                                                   content: Text(
-                                                    'Some assignments could not be completed.',
+                                                    'Assignment could not be completed.',
                                                   ),
                                                   backgroundColor: Colors.red,
                                                 ),
                                               );
-
                                               return;
                                             }
 
-                                            // Refresh dashboard.
                                             await ref
                                                 .read(
                                                   adminDashboardProvider
@@ -1435,16 +1462,13 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                                 )
                                                 .refresh();
 
-                                            // Refresh dedicated endpoint.
                                             ref.invalidate(
                                               adminSubjectTeachersProvider(
                                                 subjectId,
                                               ),
                                             );
 
-                                            if (!context.mounted) {
-                                              return;
-                                            }
+                                            if (!context.mounted) return;
 
                                             Navigator.pop(sheetContext);
 
@@ -1453,15 +1477,17 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
                                             ).showSnackBar(
                                               SnackBar(
                                                 content: Text(
-                                                  'Teacher assigned to ${selectedClassIds.length} class${selectedClassIds.length == 1 ? '' : 'es'} successfully.',
+                                                  selectedTeacherId == null ||
+                                                          selectedTeacherId!
+                                                              .isEmpty
+                                                      ? 'Subject assigned without a teacher successfully.'
+                                                      : 'Teacher assigned to ${selectedClassIds.length} class${selectedClassIds.length == 1 ? '' : 'es'} successfully.',
                                                 ),
                                                 backgroundColor: Colors.green,
                                               ),
                                             );
                                           } catch (error) {
-                                            if (!context.mounted) {
-                                              return;
-                                            }
+                                            if (!context.mounted) return;
 
                                             setModalState(() {
                                               isLoading = false;
@@ -2596,6 +2622,11 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
     final hasAssignedTeachers = subject.teacherSubjects.isNotEmpty;
 
+    // Captured from the page context before the sheet opens. After the
+    // sheet and the page are popped, the sheet's own context is gone.
+    final pageNavigator = Navigator.of(context);
+    final pageMessenger = ScaffoldMessenger.of(context);
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -2811,11 +2842,9 @@ class AdminSubjectDetailsPage extends ConsumerWidget {
 
                                         Navigator.pop(sheetContext);
 
-                                        Navigator.pop(context);
+                                        pageNavigator.pop();
 
-                                        ScaffoldMessenger.of(
-                                          context,
-                                        ).showSnackBar(
+                                        pageMessenger.showSnackBar(
                                           const SnackBar(
                                             content: Text(
                                               'Subject deleted successfully',

@@ -3,6 +3,7 @@ import 'package:app/features/admin/models/parents/admin_parent_model.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
 import 'package:app/features/admin/providers/admin_student_provider.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -112,8 +113,10 @@ class _AdminParentDetailsPageState
         ),
 
         body: parentState.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator(color: primary)),
+          loading: () => const StudentLoadingView(
+            layout: LoadingLayout.detail,
+            itemCount: 3,
+          ),
 
           error: (_, __) => _errorState(),
 
@@ -279,87 +282,167 @@ class _AdminParentDetailsPageState
   // ================================================================
 
   Widget _parentHeader(AdminParentDetailModel parent) {
+    final childCount = parent.children.length;
+
     return Container(
       width: double.infinity,
-
-      padding: const EdgeInsets.all(22),
-
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [primary, Color(0xFF2437C5)],
+          colors: [primary, Color(0xFF2B3FD1)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-
         borderRadius: BorderRadius.circular(22),
-
         boxShadow: [
           BoxShadow(
-            color: primary.withOpacity(.18),
+            color: primary.withValues(alpha: .2),
             blurRadius: 20,
             offset: const Offset(0, 8),
           ),
         ],
       ),
-
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            width: 68,
-            height: 68,
-
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.15),
-              shape: BoxShape.circle,
-            ),
-
-            child: const Icon(
-              Icons.family_restroom,
-              color: Colors.white,
-              size: 34,
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-
-              children: [
-                const Text(
-                  'Parent',
-                  style: TextStyle(color: Colors.white70, fontSize: 12),
-                ),
-
-                const SizedBox(height: 4),
-
-                Text(
-                  parent.fullName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 21,
-                    fontWeight: FontWeight.bold,
+          Row(
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .16),
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: .35),
+                    width: 2,
                   ),
                 ),
-
-                const SizedBox(height: 5),
-
-                Text(
-                  '${parent.children.length} '
-                  '${parent.children.length == 1 ? 'child' : 'children'}',
-
-                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                child: Text(
+                  _initials(parent.fullName),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'PARENT',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          letterSpacing: 1,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      parent.fullName,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                        height: 1.2,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Row(
+            children: [
+              _headerStat(
+                Icons.child_care_rounded,
+                '$childCount',
+                childCount == 1 ? 'Child' : 'Children',
+              ),
+              const SizedBox(width: 10),
+              _headerStat(
+                Icons.class_outlined,
+                '${parent.children.map((c) => c.className).where((c) => c.isNotEmpty).toSet().length}',
+                'Classes',
+              ),
+              const SizedBox(width: 10),
+              _headerStat(
+                parent.phoneNumber.isEmpty
+                    ? Icons.phone_disabled_outlined
+                    : Icons.phone_in_talk_outlined,
+                parent.phoneNumber.isEmpty ? 'No' : 'Yes',
+                'Phone',
+              ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _headerStat(IconData icon, String value, String label) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: .12),
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: Colors.white70, size: 17),
+            const SizedBox(width: 7),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    value,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                  ),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white70, fontSize: 9.5),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _initials(String name) {
+    final parts =
+        name.trim().split(RegExp(r'\s+')).where((p) => p.isNotEmpty).toList();
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts.first[0].toUpperCase();
+    return (parts.first[0] + parts.last[0]).toUpperCase();
   }
 
   // ================================================================
@@ -442,10 +525,15 @@ class _AdminParentDetailsPageState
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
 
-      builder: (_) {
-        return _LinkStudentSheet(
-          parentId: parent.parentId,
-          linkedChildren: parent.children,
+      builder: (sheetContext) {
+        return Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(sheetContext).viewInsets.bottom,
+          ),
+          child: _LinkStudentSheet(
+            parentId: parent.parentId,
+            linkedChildren: parent.children,
+          ),
         );
       },
     );
@@ -683,20 +771,31 @@ class _AdminParentDetailsPageState
       return;
     }
 
+    if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$')
+        .hasMatch(_emailController.text.trim())) {
+      _showMessage('Please enter a valid email.');
+      return;
+    }
+
     setState(() {
       _isSaving = true;
     });
 
-    final updatedParent = await ref
-        .read(adminDashboardProvider.notifier)
-        .updateParent(
-          parentId: parent.parentId,
-          data: {
-            'fullName': _fullNameController.text.trim(),
-            'email': _emailController.text.trim(),
-            'phoneNumber': _phoneController.text.trim(),
-          },
-        );
+    dynamic updatedParent;
+    try {
+      updatedParent = await ref
+          .read(adminDashboardProvider.notifier)
+          .updateParent(
+            parentId: parent.parentId,
+            data: {
+              'fullName': _fullNameController.text.trim(),
+              'email': _emailController.text.trim(),
+              'phoneNumber': _phoneController.text.trim(),
+            },
+          );
+    } catch (_) {
+      updatedParent = null;
+    }
 
     if (!mounted) return;
 
@@ -776,9 +875,14 @@ class _AdminParentDetailsPageState
       _isDeleting = true;
     });
 
-    final deleted = await ref
-        .read(adminDashboardProvider.notifier)
-        .deleteParent(parentId: parent.parentId);
+    bool deleted = false;
+    try {
+      deleted = await ref
+          .read(adminDashboardProvider.notifier)
+          .deleteParent(parentId: parent.parentId);
+    } catch (_) {
+      deleted = false;
+    }
 
     if (!mounted) return;
 
@@ -891,15 +995,28 @@ class _ChildCardState extends ConsumerState<_ChildCard> {
           Row(
             children: [
               Container(
-                width: 45,
-                height: 45,
-
+                width: 46,
+                height: 46,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Colors.purple.withOpacity(.09),
-                  borderRadius: BorderRadius.circular(13),
+                  color: Colors.purple.withValues(alpha: .09),
+                  borderRadius: BorderRadius.circular(14),
                 ),
-
-                child: const Icon(Icons.school_outlined, color: Colors.purple),
+                child: Text(
+                  child.studentName.trim().isEmpty
+                      ? '?'
+                      : child.studentName
+                          .trim()
+                          .split(RegExp(r'\s+'))
+                          .take(2)
+                          .map((w) => w[0].toUpperCase())
+                          .join(),
+                  style: const TextStyle(
+                    color: Colors.purple,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 15,
+                  ),
+                ),
               ),
 
               const SizedBox(width: 12),
@@ -943,11 +1060,16 @@ class _ChildCardState extends ConsumerState<_ChildCard> {
               // UNASSIGN BUTTON
               // ------------------------------------------------------
               IconButton(
-                tooltip: 'Unassign Student',
-
+                tooltip: 'Unlink student',
                 onPressed: _isUnassigning ? null : _confirmUnassign,
-
-                icon: const Icon(Icons.link_off_rounded, color: Colors.red),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.red.withValues(alpha: .07),
+                ),
+                icon: const Icon(
+                  Icons.link_off_rounded,
+                  color: Colors.red,
+                  size: 20,
+                ),
               ),
             ],
           ),
@@ -1088,6 +1210,11 @@ class _ChildCardState extends ConsumerState<_ChildCard> {
     // SHOW CENTERED BLOCKING LOADING DIALOG
     // --------------------------------------------------------------
 
+    // Capture these now: the card can be rebuilt/removed while the
+    // request is running, and the dialog must still be closed.
+    final rootNavigator = Navigator.of(context, rootNavigator: true);
+    final messenger = ScaffoldMessenger.of(context);
+
     final loadingFuture = showDialog<void>(
       context: context,
 
@@ -1167,28 +1294,26 @@ class _ChildCardState extends ConsumerState<_ChildCard> {
       success = false;
     }
 
-    if (!mounted) return;
-
     // --------------------------------------------------------------
-    // CLOSE LOADING DIALOG
+    // CLOSE LOADING DIALOG (always)
     // --------------------------------------------------------------
 
-    Navigator.of(context, rootNavigator: true).pop();
+    rootNavigator.pop();
 
     await loadingFuture;
 
-    if (!mounted) return;
-
-    setState(() {
-      _isUnassigning = false;
-    });
+    if (mounted) {
+      setState(() {
+        _isUnassigning = false;
+      });
+    }
 
     // --------------------------------------------------------------
     // FAILED
     // --------------------------------------------------------------
 
     if (!success) {
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         const SnackBar(
           content: Text(
             'Unable to unassign student. '
@@ -1205,7 +1330,7 @@ class _ChildCardState extends ConsumerState<_ChildCard> {
     // SUCCESS
     // --------------------------------------------------------------
 
-    ScaffoldMessenger.of(context).showSnackBar(
+    messenger.showSnackBar(
       SnackBar(
         content: Text(
           '${widget.child.studentName} '
@@ -1244,6 +1369,15 @@ class _LinkStudentSheetState extends ConsumerState<_LinkStudentSheet> {
 
   // Exact student ID currently being linked.
   String? _loadingStudentId;
+
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1313,12 +1447,46 @@ class _LinkStudentSheetState extends ConsumerState<_LinkStudentSheet> {
               ),
             ),
 
-            const SizedBox(height: 20),
+            const SizedBox(height: 14),
+
+            TextField(
+              controller: _searchController,
+              onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+              decoration: InputDecoration(
+                hintText: 'Search name, number or class',
+                hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                prefixIcon: Icon(
+                  Icons.search_rounded,
+                  color: Colors.grey.shade500,
+                ),
+                filled: true,
+                fillColor: const Color(0xFFF6F7FB),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(13),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 14),
 
             Expanded(
               child: studentsState.when(
-                loading: () => const Center(
-                  child: CircularProgressIndicator(color: primary),
+                loading: () => ListView(
+                  physics: const NeverScrollableScrollPhysics(),
+                  children: [
+                    Shimmer(
+                      child: Column(
+                        children: [
+                          for (var i = 0; i < 5; i++) ...[
+                            const ShimmerCard(),
+                            const SizedBox(height: 10),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
 
                 error: (_, __) => _errorStudents(),
@@ -1349,17 +1517,37 @@ class _LinkStudentSheetState extends ConsumerState<_LinkStudentSheet> {
       return _emptyStudents();
     }
 
+    final shown = _query.isEmpty
+        ? availableStudents
+        : availableStudents.where((student) {
+            String f(dynamic v) => (v ?? '').toString().toLowerCase();
+            return f(student.studentName).contains(_query) ||
+                f(student.studentNumber).contains(_query) ||
+                f(student.className).contains(_query);
+          }).toList();
+
+    if (shown.isEmpty) {
+      return Center(
+        child: Text(
+          'No student matches your search.',
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+        ),
+      );
+    }
+
     return ListView.separated(
       physics: const BouncingScrollPhysics(),
 
-      itemCount: availableStudents.length,
+      keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+
+      itemCount: shown.length,
 
       separatorBuilder: (_, __) {
         return const SizedBox(height: 10);
       },
 
       itemBuilder: (context, index) {
-        final student = availableStudents[index];
+        final student = shown[index];
 
         return _studentCard(student);
       },
@@ -1379,6 +1567,8 @@ class _LinkStudentSheetState extends ConsumerState<_LinkStudentSheet> {
 
     return Material(
       color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
 
       child: InkWell(
         borderRadius: BorderRadius.circular(16),

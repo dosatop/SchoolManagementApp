@@ -1,8 +1,15 @@
 import 'package:app/features/admin/models/results/admin_result_model.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
+import 'package:app/features/students/presentation/widgets/student_ui.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+
+// ==================================================================
+// ADMIN: EDIT RESULT
+// ==================================================================
 
 class AdminEditResultPage extends ConsumerStatefulWidget {
   final String schoolId;
@@ -22,41 +29,52 @@ class AdminEditResultPage extends ConsumerStatefulWidget {
 }
 
 class _AdminEditResultPageState extends ConsumerState<AdminEditResultPage> {
-  static const Color primary = Color(0xFF091993);
-  static const Color primaryLight = Color(0xFFE9ECFF);
-  static const Color background = Color(0xFFF6F7FB);
-  static const Color textDark = Color(0xFF20232E);
+  static const Color primary = StudentColors.primary;
+  static const Color textDark = StudentColors.textDark;
+
+  static const _remarks = [
+    'Excellent',
+    'Very good',
+    'Good',
+    'Fair',
+    'Needs improvement',
+  ];
 
   final _formKey = GlobalKey<FormState>();
 
-  late final TextEditingController _testController;
-  late final TextEditingController _examController;
-  late final TextEditingController _remarkController;
+  late final TextEditingController _test;
+  late final TextEditingController _exam;
+  late final TextEditingController _remark;
 
-  bool _isSaving = false;
+  late final String _initialTest;
+  late final String _initialExam;
+  late final String _initialRemark;
+
+  bool _saving = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
 
-    _testController = TextEditingController(
-      text: _scoreText(widget.result.testScore),
-    );
+    final test = _n(widget.result.testScore);
+    final exam = _n(widget.result.examScore);
 
-    _examController = TextEditingController(
-      text: _scoreText(widget.result.examScore),
-    );
+    // An exam of 0 means "not entered yet" — show it empty.
+    _initialTest = studentFmt(test);
+    _initialExam = exam > 0 ? studentFmt(exam) : '';
+    _initialRemark = widget.result.remark.trim();
 
-    _remarkController = TextEditingController(
-      text: widget.result.remark.trim(),
-    );
+    _test = TextEditingController(text: _initialTest);
+    _exam = TextEditingController(text: _initialExam);
+    _remark = TextEditingController(text: _initialRemark);
   }
 
   @override
   void dispose() {
-    _testController.dispose();
-    _examController.dispose();
-    _remarkController.dispose();
+    _test.dispose();
+    _exam.dispose();
+    _remark.dispose();
     super.dispose();
   }
 
@@ -64,157 +82,121 @@ class _AdminEditResultPageState extends ConsumerState<AdminEditResultPage> {
   // HELPERS
   // ================================================================
 
-  String _scoreText(num value) {
-    if (value == 0) {
-      return '0';
-    }
-
-    if (value % 1 == 0) {
-      return value.toInt().toString();
-    }
-
-    return value.toStringAsFixed(1);
+  static double _n(Object? v) {
+    if (v is num) return v.toDouble();
+    return double.tryParse('${v ?? ''}') ?? 0;
   }
 
-  String _formatScore(num value) {
-    if (value % 1 == 0) {
-      return value.toInt().toString();
-    }
-
-    return value.toStringAsFixed(1);
+  static double? _parse(String text) {
+    final t = text.trim();
+    return t.isEmpty ? null : double.tryParse(t);
   }
 
-  String _subjectName() {
-    final value = widget.result.subjectName.trim();
+  bool get _changed =>
+      _test.text.trim() != _initialTest ||
+      _exam.text.trim() != _initialExam ||
+      _remark.text.trim() != _initialRemark;
 
-    return value.isEmpty ? 'Subject' : value;
+  String get _subject {
+    final s = widget.result.subjectName.trim();
+    return s.isEmpty ? 'Subject' : s;
   }
 
-  String _studentName() {
-    final value = widget.result.studentName.trim();
-
-    return value.isEmpty ? 'Student' : value;
-  }
-
-  num? _parseScore(String value) {
-    final trimmed = value.trim();
-
-    if (trimmed.isEmpty) {
-      return null;
-    }
-
-    return num.tryParse(trimmed);
+  String get _student {
+    final s = widget.result.studentName.trim();
+    return s.isEmpty ? 'Student' : s;
   }
 
   // ================================================================
-  // SAVE RESULT
+  // SAVE
   // ================================================================
 
-  Future<void> _saveResult() async {
+  Future<void> _save() async {
     FocusScope.of(context).unfocus();
+    setState(() => _error = null);
 
-    final testScore = _parseScore(_testController.text);
-    final examScore = _parseScore(_examController.text);
+    if (!_formKey.currentState!.validate()) return;
 
-    // At least one score must be supplied.
-    if (testScore == null && examScore == null) {
-      _showError('Enter at least a test score or an exam score.');
+    final test = _parse(_test.text);
+    final exam = _parse(_exam.text);
+
+    if (test == null && exam == null) {
+      setState(() => _error = 'Enter a test score, an exam score, or both.');
       return;
     }
 
-    // Validate test score only if supplied.
-    if (testScore != null) {
-      if (testScore < 0 || testScore > 40) {
-        _showError('Test score must be between 0 and 40.');
-        return;
-      }
-    }
-
-    // Validate exam score only if supplied.
-    if (examScore != null) {
-      if (examScore < 0 || examScore > 60) {
-        _showError('Exam score must be between 0 and 60.');
-        return;
-      }
-    }
-
-    if (!_formKey.currentState!.validate()) {
+    if (!_changed) {
+      context.pop();
       return;
     }
 
-    setState(() {
-      _isSaving = true;
-    });
+    setState(() => _saving = true);
 
     try {
-      /*
-       * Backend handles:
-       * - total score
-       * - grade
-       * - result calculation
-       *
-       * We only send:
-       * - testScore
-       * - examScore
-       * - remark
-       *
-       * Depending on your UpdateAdminResultRequest implementation,
-       * null values should be omitted from JSON if the score is not
-       * being supplied.
-       */
-      final request = UpdateAdminResultRequest(
-        testScore: testScore,
-        examScore: examScore,
-        remark: _remarkController.text.trim(),
-      );
-
       final updated = await ref
           .read(adminDashboardProvider.notifier)
-          .updateResult(resultId: widget.resultId, request: request);
+          .updateResult(
+            resultId: widget.resultId,
+            request: UpdateAdminResultRequest(
+              testScore: test,
+              examScore: exam,
+              remark: _remark.text.trim(),
+            ),
+          );
 
-      if (!mounted) {
-        return;
-      }
+      if (!mounted) return;
 
       if (updated != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Result updated successfully.'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            behavior: SnackBarBehavior.floating,
+            backgroundColor: Colors.green.shade700,
+            content: Text('$_subject result updated'),
           ),
         );
-
         context.pop(updated);
       } else {
-        _showError('Unable to update result.');
-      }
-    } catch (error) {
-      if (!mounted) {
-        return;
-      }
-
-      _showError('Unable to update result. Please try again.');
-    } finally {
-      if (mounted) {
         setState(() {
-          _isSaving = false;
+          _saving = false;
+          _error = 'Unable to update the result. Please try again.';
         });
       }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _saving = false;
+        _error = e
+            .toString()
+            .replaceFirst(RegExp(r'^[A-Za-z]*Exception:\s*'), '')
+            .trim();
+      });
     }
   }
 
-  // ================================================================
-  // ERROR
-  // ================================================================
-
-  void _showError(String message) {
-    if (!mounted) {
-      return;
-    }
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: Colors.red),
+  Future<bool> _confirmDiscard() async {
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+        title: const Text(
+          'Discard changes?',
+          style: TextStyle(fontWeight: FontWeight.w800),
+        ),
+        content: const Text('Your edits to this result will be lost.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Keep editing'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
     );
+    return discard == true;
   }
 
   // ================================================================
@@ -223,482 +205,455 @@ class _AdminEditResultPageState extends ConsumerState<AdminEditResultPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: background,
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        leading: IconButton(
-          onPressed: _isSaving ? null : () => context.pop(),
-          icon: const Icon(Icons.arrow_back_rounded, color: textDark),
-        ),
-        title: const Text(
-          'Edit Result',
-          style: TextStyle(color: textDark, fontWeight: FontWeight.bold),
-        ),
-      ),
-      body: SafeArea(
-        child: Form(
+    return PopScope(
+      canPop: !_saving && !_changed,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop || _saving) return;
+        if (await _confirmDiscard() && context.mounted) context.pop();
+      },
+      child: Scaffold(
+        backgroundColor: StudentColors.background,
+        appBar: studentAppBar('Edit result', subtitle: _student),
+        body: Form(
           key: _formKey,
-          child: SingleChildScrollView(
+          child: ListView(
             physics: const BouncingScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(16, 18, 16, 35),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _studentCard(),
-
-                const SizedBox(height: 14),
-
-                _subjectCard(),
-
-                const SizedBox(height: 20),
-
-                const Text(
-                  'Score Details',
-                  style: TextStyle(
-                    color: textDark,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 6),
-
-                Text(
-                  'You can update the test, exam, or both.',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                ),
-
-                const SizedBox(height: 12),
-
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: _scoreField(
-                        controller: _testController,
-                        label: 'Test Score',
-                        hint: '0 - 40',
-                        icon: Icons.edit_note_rounded,
-                        maximum: 40,
-                      ),
-                    ),
-
-                    const SizedBox(width: 10),
-
-                    Expanded(
-                      child: _scoreField(
-                        controller: _examController,
-                        label: 'Exam Score',
-                        hint: '0 - 60',
-                        icon: Icons.assignment_outlined,
-                        maximum: 60,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 14),
-
-                _totalPreview(),
-
-                const SizedBox(height: 20),
-
-                const Text(
-                  'Teacher Remark',
-                  style: TextStyle(
-                    color: textDark,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                const SizedBox(height: 12),
-
-                _textField(
-                  controller: _remarkController,
-                  label: 'Remark',
-                  hint: 'e.g. Excellent performance',
-                  icon: Icons.notes_outlined,
-                  maxLines: 4,
-                ),
-
-                const SizedBox(height: 25),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
-                  child: FilledButton.icon(
-                    onPressed: _isSaving ? null : _saveResult,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: primary,
-                      disabledBackgroundColor: primary.withOpacity(.45),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    icon: _isSaving
-                        ? const SizedBox(
-                            width: 19,
-                            height: 19,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : const Icon(Icons.save_outlined),
-                    label: Text(
-                      _isSaving ? 'Saving...' : 'Save Changes',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: OutlinedButton(
-                    onPressed: _isSaving ? null : () => context.pop(),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: primary,
-                      side: const BorderSide(color: primary),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                    ),
-                    child: const Text('Cancel'),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ================================================================
-  // STUDENT CARD
-  // ================================================================
-
-  Widget _studentCard() {
-    final studentNumber = widget.result.studentNumber.trim();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: const BoxDecoration(
-              color: primaryLight,
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person_outline_rounded, color: primary),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _studentName(),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                if (studentNumber.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-
-                  Text(
-                    'Student No. $studentNumber',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // SUBJECT CARD
-  // ================================================================
-
-  Widget _subjectCard() {
-    final code = widget.result.subjectCode.trim();
-
-    final session = widget.result.session.trim();
-    final term = widget.result.term.trim();
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: primary,
-        borderRadius: BorderRadius.circular(18),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 45,
-            height: 45,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.14),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.menu_book_rounded, color: Colors.white),
-          ),
-
-          const SizedBox(width: 12),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  _subjectName(),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-
-                if (code.isNotEmpty) ...[
-                  const SizedBox(height: 3),
-
-                  Text(
-                    code,
-                    style: const TextStyle(color: Colors.white70, fontSize: 10),
-                  ),
-                ],
-
-                if (session.isNotEmpty || term.isNotEmpty) ...[
-                  const SizedBox(height: 7),
-
-                  Text(
-                    [
-                      if (session.isNotEmpty) session,
-                      if (term.isNotEmpty) term,
-                    ].join(' • '),
-                    style: const TextStyle(color: Colors.white70, fontSize: 10),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // SCORE FIELD
-  // ================================================================
-
-  Widget _scoreField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    required num maximum,
-  }) {
-    return TextFormField(
-      controller: controller,
-      enabled: !_isSaving,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      textInputAction: TextInputAction.next,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon, color: primary, size: 20),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: primary, width: 1.5),
-        ),
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.red),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: Colors.red, width: 1.5),
-        ),
-      ),
-      validator: (value) {
-        final text = value?.trim() ?? '';
-
-        // Empty is allowed because the backend supports
-        // test-only, exam-only, or both.
-        if (text.isEmpty) {
-          return null;
-        }
-
-        final score = num.tryParse(text);
-
-        if (score == null) {
-          return 'Invalid';
-        }
-
-        if (score < 0 || score > maximum) {
-          return '0 - $maximum';
-        }
-
-        return null;
-      },
-      onChanged: (_) {
-        setState(() {});
-      },
-    );
-  }
-
-  // ================================================================
-  // TEXT FIELD
-  // ================================================================
-
-  Widget _textField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    int maxLines = 1,
-  }) {
-    return TextFormField(
-      controller: controller,
-      enabled: !_isSaving,
-      maxLines: maxLines,
-      textInputAction: maxLines > 1
-          ? TextInputAction.newline
-          : TextInputAction.next,
-      textCapitalization: TextCapitalization.sentences,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon, color: primary, size: 20),
-        filled: true,
-        fillColor: Colors.white,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.grey.shade200),
-        ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(14),
-          borderSide: const BorderSide(color: primary, width: 1.5),
-        ),
-      ),
-    );
-  }
-
-  // ================================================================
-  // TOTAL PREVIEW
-  // ================================================================
-
-  Widget _totalPreview() {
-    final test = _parseScore(_testController.text) ?? 0;
-    final exam = _parseScore(_examController.text) ?? 0;
-
-    final total = test + exam;
-
-    final hasTest = _testController.text.trim().isNotEmpty;
-    final hasExam = _examController.text.trim().isNotEmpty;
-
-    String scoreType;
-
-    if (hasTest && hasExam) {
-      scoreType = 'Test + Exam';
-    } else if (hasTest) {
-      scoreType = 'Test only';
-    } else if (hasExam) {
-      scoreType = 'Exam only';
-    } else {
-      scoreType = 'No score';
-    }
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: primaryLight,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        children: [
-          Row(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 30),
             children: [
-              const Icon(Icons.calculate_outlined, color: primary),
-
-              const SizedBox(width: 12),
-
-              const Expanded(
-                child: Text(
-                  'Total Score',
-                  style: TextStyle(
-                    color: textDark,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+              _header(),
+              const SizedBox(height: 14),
+              _scoresCard(),
+              const SizedBox(height: 12),
+              _remarkCard(),
+              if (_error != null) ...[
+                const SizedBox(height: 12),
+                _errorBox(_error!),
+              ],
+              const SizedBox(height: 20),
+              SizedBox(
+                height: 54,
+                child: FilledButton.icon(
+                  onPressed: _saving ? null : _save,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: primary,
+                    disabledBackgroundColor: primary.withValues(alpha: .45),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
-                ),
-              ),
-
-              Text(
-                _formatScore(total),
-                style: const TextStyle(
-                  color: primary,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  icon: _saving
+                      ? const SizedBox(
+                          width: 19,
+                          height: 19,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.check_rounded),
+                  label: Text(
+                    _saving ? 'Saving…' : 'Save changes',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
                 ),
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
 
-          const SizedBox(height: 7),
+  // ================================================================
+  // HEADER
+  // ================================================================
 
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              scoreType,
-              style: TextStyle(
-                color: Colors.grey.shade600,
-                fontSize: 9,
-                fontWeight: FontWeight.w600,
+  Widget _header() {
+    final r = widget.result;
+    final number = r.studentNumber.trim();
+    final code = r.subjectCode.trim();
+    final term = r.term.trim();
+    final period = [
+      r.session.trim(),
+      if (term.isNotEmpty)
+        term.toLowerCase().contains('term') ? term : '$term term',
+    ].where((s) => s.isNotEmpty).join(' · ');
+
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: kStudentGradient,
+        borderRadius: BorderRadius.circular(24),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: .15),
+                  borderRadius: BorderRadius.circular(15),
+                ),
+                child: const Icon(Icons.menu_book_rounded, color: Colors.white),
               ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _subject,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    if (code.isNotEmpty)
+                      Text(
+                        code,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: .75),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              _chip(Icons.person_outline_rounded, _student),
+              if (number.isNotEmpty) _chip(Icons.badge_outlined, 'No. $number'),
+              if (r.className.trim().isNotEmpty)
+                _chip(Icons.class_outlined, r.className.trim()),
+              if (period.isNotEmpty)
+                _chip(Icons.calendar_month_rounded, period),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip(IconData icon, String text) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: .14),
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 12, color: Colors.white),
+          const SizedBox(width: 4),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 160),
+            child: Text(
+              text,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ================================================================
+  // SCORES
+  // ================================================================
+
+  Widget _scoresCard() {
+    final test = _parse(_test.text);
+    final exam = _parse(_exam.text);
+    final hasExam = exam != null;
+    final total = (test ?? 0) + (exam ?? 0);
+    final grade = hasExam ? studentGradeFor(total) : null;
+    final color = hasExam ? studentGradeColor(grade) : Colors.blueGrey;
+
+    return SoftCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Scores',
+            style: TextStyle(
+              color: textDark,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            'Leave the exam empty if it hasn\'t been written yet.',
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _scoreField(
+                  controller: _test,
+                  label: 'Test',
+                  max: 40,
+                  color: Colors.blue.shade500,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _scoreField(
+                  controller: _exam,
+                  label: 'Exam',
+                  max: 60,
+                  color: Colors.purple.shade500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: .08),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                ProgressRing(
+                  value: hasExam ? total / 100 : (test ?? 0) / 40,
+                  size: 56,
+                  stroke: 6,
+                  color: color,
+                  trackColor: Colors.grey.shade200,
+                  child: Text(
+                    grade ?? '…',
+                    style: TextStyle(
+                      color: color,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        hasExam ? 'New total' : 'Test only',
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: studentFmt(total),
+                              style: TextStyle(
+                                color: color,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            TextSpan(
+                              text: hasExam ? ' / 100' : ' / 40',
+                              style: TextStyle(
+                                color: Colors.grey.shade500,
+                                fontSize: 12,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        hasExam
+                            ? 'Grade is worked out by the server when you save.'
+                            : 'Grade appears once an exam score is entered.',
+                        style: TextStyle(
+                          color: Colors.grey.shade500,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _scoreField({
+    required TextEditingController controller,
+    required String label,
+    required int max,
+    required Color color,
+  }) {
+    final value = _parse(controller.text);
+    final fraction = value == null ? 0.0 : (value / max).clamp(0, 1).toDouble();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        TextFormField(
+          controller: controller,
+          enabled: !_saving,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d{0,3}(\.\d?)?')),
+          ],
+          textInputAction: TextInputAction.next,
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            labelText: label,
+            suffixText: '/ $max',
+            filled: true,
+            fillColor: StudentColors.background,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide.none,
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: color, width: 1.5),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(14),
+              borderSide: BorderSide(color: Colors.red.shade300),
+            ),
+          ),
+          validator: (v) {
+            final text = v?.trim() ?? '';
+            if (text.isEmpty) return null;
+            final n = double.tryParse(text);
+            if (n == null) return 'Invalid';
+            if (n < 0 || n > max) return '0 – $max only';
+            return null;
+          },
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: fraction,
+            minHeight: 5,
+            color: color,
+            backgroundColor: color.withValues(alpha: .12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ================================================================
+  // REMARK
+  // ================================================================
+
+  Widget _remarkCard() {
+    return SoftCard(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Remark',
+            style: TextStyle(
+              color: textDark,
+              fontSize: 15,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final r in _remarks)
+                ChoiceChip(
+                  label: Text(r),
+                  selected: _remark.text.trim() == r,
+                  onSelected: _saving
+                      ? null
+                      : (_) => setState(() => _remark.text = r),
+                  selectedColor: StudentColors.primaryLight,
+                  labelStyle: TextStyle(
+                    color: _remark.text.trim() == r ? primary : textDark,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 12.5,
+                  ),
+                  side: BorderSide(color: Colors.grey.shade200),
+                  showCheckmark: false,
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          TextFormField(
+            controller: _remark,
+            enabled: !_saving,
+            maxLines: 3,
+            maxLength: 200,
+            textCapitalization: TextCapitalization.sentences,
+            onChanged: (_) => setState(() {}),
+            decoration: InputDecoration(
+              hintText: 'Optional comment for this result',
+              filled: true,
+              fillColor: StudentColors.background,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(14),
+                borderSide: BorderSide.none,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _errorBox(String text) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, color: Colors.red.shade600),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: Colors.red.shade700, fontSize: 13),
             ),
           ),
         ],

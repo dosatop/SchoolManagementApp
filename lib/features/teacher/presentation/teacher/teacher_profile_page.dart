@@ -1,6 +1,9 @@
 import 'package:app/features/auth/provider/auth_provider.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
+import 'package:app/features/students/presentation/widgets/student_ui.dart';
 import 'package:app/features/teacher/provider/teachers_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -27,43 +30,21 @@ class TeacherProfilePage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: background,
-
-      // This page is a tab in the teacher dashboard, so there is no
-      // back button. Logout lives in the app bar.
-      appBar: AppBar(
-        automaticallyImplyLeading: false,
-        elevation: 0,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        titleSpacing: 20,
-        title: const Text(
-          'My Profile',
-          style: TextStyle(
-            color: textDark,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        actions: [
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: () => _logout(context, ref),
-            icon: const Icon(Icons.logout_rounded, color: Colors.red),
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
-
       body: RefreshIndicator(
         color: primary,
         onRefresh: () => _refresh(ref),
         child: profileAsync.when(
           skipLoadingOnRefresh: true,
-          loading: () => _scrollable(
-            context,
-            const CircularProgressIndicator(color: primary),
+          loading: () => const SafeArea(
+            child: StudentLoadingView(layout: LoadingLayout.detail),
           ),
-          error: (error, _) => _scrollable(context, _errorView(ref)),
+          error: (error, _) => SafeArea(
+            child: StudentErrorView(
+              error: error,
+              onRetry: () => _refresh(ref),
+              title: 'Unable to load your profile',
+            ),
+          ),
           data: (data) => _profileContent(context, ref, data, classesAsync),
         ),
       ),
@@ -156,18 +137,37 @@ class TeacherProfilePage extends ConsumerWidget {
 
     final teaching = _teachingList(classesAsync.valueOrNull);
 
+    final classCount = teaching.map((t) => t.className).toSet().length;
+    final subjectCount = teaching
+        .map((t) => t.subject)
+        .whereType<String>()
+        .toSet()
+        .length;
+
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(
         parent: BouncingScrollPhysics(),
       ),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+      padding: EdgeInsets.zero,
       children: [
         _profileHeader(
+          context: context,
           name: fullName,
           email: email,
           schoolName: schoolName,
           profileImage: profileImage,
+          classes: classesAsync.isLoading && !classesAsync.hasValue
+              ? null
+              : classCount,
+          subjects: classesAsync.isLoading && !classesAsync.hasValue
+              ? null
+              : subjectCount,
         ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(18, 4, 18, 40),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
 
         // ------------------------------------------------------------
         // TEACHING
@@ -183,8 +183,8 @@ class TeacherProfilePage extends ConsumerWidget {
         // INFO SECTIONS (empty rows and sections are hidden)
         // ------------------------------------------------------------
         ..._section('Contact', [
-          _InfoItem(Icons.email_outlined, 'Email', email),
-          _InfoItem(Icons.phone_outlined, 'Phone', phone),
+          _InfoItem(Icons.email_outlined, 'Email', email, copyable: true),
+          _InfoItem(Icons.phone_outlined, 'Phone', phone, copyable: true),
           _InfoItem(Icons.location_on_outlined, 'Address', address),
         ]),
 
@@ -204,6 +204,9 @@ class TeacherProfilePage extends ConsumerWidget {
         const SizedBox(height: 28),
 
         _logoutButton(context, ref),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -232,7 +235,7 @@ class TeacherProfilePage extends ConsumerWidget {
             for (var i = 0; i < visible.length; i++) ...[
               if (i > 0)
                 Divider(height: 1, thickness: .7, color: Colors.grey.shade200),
-              _infoRow(visible[i]),
+              _InfoRowView(item: visible[i]),
             ],
           ],
         ),
@@ -245,35 +248,36 @@ class TeacherProfilePage extends ConsumerWidget {
   // ================================================================
 
   Widget _profileHeader({
+    required BuildContext context,
     required String name,
     String? email,
     String? schoolName,
     String? profileImage,
+    int? classes,
+    int? subjects,
   }) {
+    final top = MediaQuery.of(context).padding.top;
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [primary, Color(0xFF2437C5)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: primary.withValues(alpha: .22),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
-          ),
-        ],
+      padding: EdgeInsets.fromLTRB(20, top + 14, 20, 24),
+      decoration: const BoxDecoration(
+        gradient: kStudentGradient,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
       ),
       child: Column(
         children: [
+          const Text(
+            'My Profile',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 16),
           _avatar(name: name, imageUrl: profileImage),
-
           const SizedBox(height: 14),
-
           Text(
             name,
             textAlign: TextAlign.center,
@@ -282,10 +286,9 @@ class TeacherProfilePage extends ConsumerWidget {
             style: const TextStyle(
               color: Colors.white,
               fontSize: 22,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
             ),
           ),
-
           if (email != null) ...[
             const SizedBox(height: 4),
             Text(
@@ -295,13 +298,11 @@ class TeacherProfilePage extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: Colors.white.withValues(alpha: .75),
-                fontSize: 12,
+                fontSize: 12.5,
               ),
             ),
           ],
-
-          const SizedBox(height: 14),
-
+          const SizedBox(height: 12),
           Wrap(
             alignment: WrapAlignment.center,
             spacing: 8,
@@ -311,6 +312,30 @@ class TeacherProfilePage extends ConsumerWidget {
               if (schoolName != null)
                 _headerPill(Icons.school_outlined, schoolName),
             ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                HeroStat('Classes', '${classes ?? ''}', loading: classes == null),
+                Container(
+                  width: 1,
+                  height: 30,
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  color: Colors.white.withValues(alpha: .18),
+                ),
+                HeroStat(
+                  'Subjects',
+                  '${subjects ?? ''}',
+                  loading: subjects == null,
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -350,11 +375,11 @@ class TeacherProfilePage extends ConsumerWidget {
     final hasImage = imageUrl != null && imageUrl.startsWith('http');
 
     return Container(
-      width: 92,
-      height: 92,
-      padding: const EdgeInsets.all(3),
+      width: 96,
+      height: 96,
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.white.withValues(alpha: .25),
         shape: BoxShape.circle,
         boxShadow: [
           BoxShadow(color: Colors.black.withValues(alpha: .14), blurRadius: 14),
@@ -392,13 +417,6 @@ class TeacherProfilePage extends ConsumerWidget {
   // ================================================================
 
   Widget _teachingCard(List<({String? subject, String className})> items) {
-    final classCount = items.map((i) => i.className).toSet().length;
-    final subjectCount = items
-        .map((i) => i.subject)
-        .whereType<String>()
-        .toSet()
-        .length;
-
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(15),
@@ -410,16 +428,6 @@ class TeacherProfilePage extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              _miniStat(Icons.class_outlined, '$classCount', 'Classes'),
-              const SizedBox(width: 10),
-              _miniStat(Icons.menu_book_outlined, '$subjectCount', 'Subjects'),
-            ],
-          ),
-
-          const SizedBox(height: 14),
-
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -452,41 +460,6 @@ class TeacherProfilePage extends ConsumerWidget {
     );
   }
 
-  Widget _miniStat(IconData icon, String value, String label) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: background,
-          borderRadius: BorderRadius.circular(13),
-        ),
-        child: Row(
-          children: [
-            Icon(icon, color: primary, size: 20),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    height: 1.1,
-                  ),
-                ),
-                Text(
-                  label,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   // ================================================================
   // INFO ROW / SECTION TITLE
@@ -503,47 +476,6 @@ class TeacherProfilePage extends ConsumerWidget {
     );
   }
 
-  Widget _infoRow(_InfoItem item) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 13),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: primaryLight,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(item.icon, color: primary, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  item.label,
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  item.value!,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: textDark,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 
   // ================================================================
   // LOGOUT
@@ -552,23 +484,20 @@ class TeacherProfilePage extends ConsumerWidget {
   Widget _logoutButton(BuildContext context, WidgetRef ref) {
     return SizedBox(
       width: double.infinity,
-      height: 52,
-      child: OutlinedButton.icon(
+      height: 54,
+      child: ElevatedButton.icon(
         onPressed: () => _logout(context, ref),
-        icon: const Icon(Icons.logout_rounded, color: Colors.red, size: 19),
+        icon: const Icon(Icons.logout_rounded, size: 19),
         label: const Text(
-          'Logout',
-          style: TextStyle(
-            color: Colors.red,
-            fontSize: 14,
-            fontWeight: FontWeight.w700,
-          ),
+          'Log out',
+          style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800),
         ),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
-          side: BorderSide(color: Colors.red.shade200),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Colors.red.shade50,
+          foregroundColor: Colors.red.shade700,
+          elevation: 0,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(15),
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
       ),
@@ -579,17 +508,27 @@ class TeacherProfilePage extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: Icon(Icons.logout_rounded, color: Colors.red.shade600),
+        title: const Text('Log out?'),
+        content: const Text(
+          'You\'ll need your email and password to sign in again.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Logout'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Log out'),
           ),
         ],
       ),
@@ -608,71 +547,9 @@ class TeacherProfilePage extends ConsumerWidget {
   // ERROR
   // ================================================================
 
-  Widget _errorView(WidgetRef ref) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 68,
-          height: 68,
-          decoration: BoxDecoration(
-            color: Colors.red.withValues(alpha: .08),
-            shape: BoxShape.circle,
-          ),
-          child: const Icon(
-            Icons.person_off_outlined,
-            color: Colors.red,
-            size: 30,
-          ),
-        ),
-        const SizedBox(height: 15),
-        const Text(
-          'Unable to load profile',
-          style: TextStyle(
-            color: textDark,
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Pull down or tap retry to try again.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-        ),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: () => _refresh(ref),
-          icon: const Icon(Icons.refresh_rounded, size: 18),
-          label: const Text('Retry'),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: primary,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 
   /// Centers [child] inside a scrollable so pull-to-refresh still works
   /// on loading and error states.
-  Widget _scrollable(BuildContext context, Widget child) {
-    return ListView(
-      physics: const AlwaysScrollableScrollPhysics(),
-      children: [
-        SizedBox(
-          height: MediaQuery.of(context).size.height * .65,
-          child: Center(
-            child: Padding(padding: const EdgeInsets.all(24), child: child),
-          ),
-        ),
-      ],
-    );
-  }
 
   // ================================================================
   // DATA HELPERS
@@ -793,6 +670,64 @@ class _InfoItem {
   final IconData icon;
   final String label;
   final String? value;
+  final bool copyable;
 
-  const _InfoItem(this.icon, this.label, this.value);
+  const _InfoItem(this.icon, this.label, this.value, {this.copyable = false});
+}
+
+class _InfoRowView extends StatelessWidget {
+  const _InfoRowView({required this.item});
+
+  final _InfoItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          IconBadge(item.icon, color: StudentColors.primary, size: 40),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.label,
+                  style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.value!,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: StudentColors.textDark,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (item.copyable)
+            IconButton(
+              tooltip: 'Copy',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: item.value!));
+                ScaffoldMessenger.of(context)
+                  ..hideCurrentSnackBar()
+                  ..showSnackBar(
+                    SnackBar(
+                      behavior: SnackBarBehavior.floating,
+                      content: Text('${item.label} copied'),
+                    ),
+                  );
+              },
+              icon: Icon(Icons.copy_rounded, size: 18, color: Colors.grey.shade500),
+            ),
+        ],
+      ),
+    );
+  }
 }

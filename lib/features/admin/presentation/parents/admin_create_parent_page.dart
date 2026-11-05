@@ -62,37 +62,55 @@ class _AdminCreateParentPageState extends ConsumerState<AdminCreateParentPage> {
       password: _passwordController.text,
     );
 
-    final parent = await ref
-        .read(adminDashboardProvider.notifier)
-        .createParent(request: request);
+    dynamic parent;
+    String? errorMessage;
+
+    try {
+      parent = await ref
+          .read(adminDashboardProvider.notifier)
+          .createParent(request: request);
+    } catch (error) {
+      parent = null;
+      errorMessage = error.toString().replaceFirst('Exception: ', '').trim();
+    }
 
     if (!mounted) return;
 
-    setState(() {
-      _isLoading = false;
-    });
-
-    if (parent != null) {
-      await ref.read(adminDashboardProvider.notifier).refresh();
-
-      if (!mounted) return;
+    if (parent == null) {
+      setState(() => _isLoading = false);
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Parent created successfully'),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      context.pop();
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Unable to create parent. Please try again.'),
+        SnackBar(
+          content: Text(
+            (errorMessage == null || errorMessage.isEmpty)
+                ? 'Unable to create parent. Please try again.'
+                : errorMessage,
+          ),
           backgroundColor: Colors.red,
         ),
       );
+      return;
     }
+
+    // Refresh the dashboard so the new parent shows in the list.
+    try {
+      await ref.read(adminDashboardProvider.notifier).refresh();
+    } catch (_) {}
+
+    if (!mounted) return;
+
+    setState(() => _isLoading = false);
+
+    final name = _fullNameController.text.trim();
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('$name was added. Link their children from the parent page.'),
+        backgroundColor: Colors.green,
+      ),
+    );
+
+    context.pop();
   }
 
   // ================================================================
@@ -101,7 +119,9 @@ class _AdminCreateParentPageState extends ConsumerState<AdminCreateParentPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: !_isLoading,
+      child: Scaffold(
       backgroundColor: background,
 
       appBar: AppBar(
@@ -232,7 +252,7 @@ class _AdminCreateParentPageState extends ConsumerState<AdminCreateParentPage> {
 
               const SizedBox(height: 18),
 
-              _label('Password'),
+              _label('Login password'),
 
               const SizedBox(height: 8),
 
@@ -282,9 +302,25 @@ class _AdminCreateParentPageState extends ConsumerState<AdminCreateParentPage> {
 
               const SizedBox(height: 10),
 
-              Text(
-                'The parent will use this password to sign in.',
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+              Row(
+                children: [
+                  Icon(
+                    Icons.info_outline_rounded,
+                    size: 14,
+                    color: Colors.grey.shade500,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Share this password with the parent. They sign in '
+                      'with their email and this password.',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
               ),
 
               const SizedBox(height: 30),
@@ -343,6 +379,7 @@ class _AdminCreateParentPageState extends ConsumerState<AdminCreateParentPage> {
           ),
         ),
       ),
+    ),
     );
   }
 
@@ -352,55 +389,58 @@ class _AdminCreateParentPageState extends ConsumerState<AdminCreateParentPage> {
 
   Widget _header() {
     return Container(
-      padding: const EdgeInsets.all(18),
-
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: primaryLight,
-        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [primary, Color(0xFF2B3FD1)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [
+          BoxShadow(
+            color: primary.withValues(alpha: .2),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
       ),
-
       child: Row(
         children: [
           Container(
-            width: 52,
-            height: 52,
-
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
+            width: 54,
+            height: 54,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .15),
+              borderRadius: BorderRadius.circular(16),
             ),
-
             child: const Icon(
-              Icons.person_add_alt_1_rounded,
-              color: primary,
-              size: 26,
+              Icons.family_restroom_rounded,
+              color: Colors.white,
+              size: 27,
             ),
           ),
-
           const SizedBox(width: 14),
-
           const Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-
               children: [
                 Text(
                   'Add a new parent',
                   style: TextStyle(
-                    color: textDark,
-                    fontSize: 16,
+                    color: Colors.white,
+                    fontSize: 17,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-
                 SizedBox(height: 5),
-
                 Text(
-                  'Enter the parent\'s information below.',
+                  'Create their login. You can link their children '
+                  'after the account is created.',
                   style: TextStyle(
-                    color: Colors.black54,
+                    color: Colors.white70,
                     fontSize: 12,
-                    height: 1.3,
+                    height: 1.35,
                   ),
                 ),
               ],
@@ -440,7 +480,7 @@ class _AdminCreateParentPageState extends ConsumerState<AdminCreateParentPage> {
 
       hintStyle: TextStyle(color: Colors.grey.shade500, fontSize: 13),
 
-      prefixIcon: Icon(icon, color: Colors.grey.shade600, size: 20),
+      prefixIcon: Icon(icon, color: primary, size: 20),
 
       suffixIcon: suffixIcon,
 

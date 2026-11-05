@@ -261,6 +261,23 @@ class TeacherRepository {
   Future<dynamic> getAssignment({required String assignmentId}) {
     return api.getAssignment(assignmentId: assignmentId);
   }
+  
+  
+  Future<dynamic> gradeSubmission({
+    required String assignmentId,
+    required String submissionId,
+    required double score,
+    String? feedback,
+  }) {
+    return api.gradeSubmission(
+      assignmentId: assignmentId,
+      submissionId: submissionId,
+      score: score,
+      feedback: feedback,
+    );
+  }
+
+  
 
   Future<dynamic> updateAssignment({
     required String assignmentId,

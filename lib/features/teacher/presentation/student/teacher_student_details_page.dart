@@ -1,4 +1,5 @@
 import 'package:app/features/students/presentation/widgets/student_common.dart';
+import 'package:app/features/students/presentation/widgets/student_ui.dart';
 import 'package:app/features/teacher/provider/teachers_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -45,6 +46,9 @@ class TeacherStudentDetailsPage extends ConsumerStatefulWidget {
 
 enum _AttendanceFilter { all, classOnly, subjectOnly }
 
+const _classColor = Color(0xFF16A34A);
+const _subjectColor = Color(0xFF2563EB);
+
 class _TeacherStudentDetailsPageState
     extends ConsumerState<TeacherStudentDetailsPage> {
   _AttendanceFilter _attendanceFilter = _AttendanceFilter.all;
@@ -90,7 +94,9 @@ class _TeacherStudentDetailsPageState
   @override
   Widget build(BuildContext context) {
     final id = _studentId;
-    final async = id == null ? null : ref.watch(teacherStudentDetailsProvider(id));
+    final async = id == null
+        ? null
+        : ref.watch(teacherStudentDetailsProvider(id));
 
     final data = _unwrap(async?.valueOrNull);
     final student = data['student'] is Map ? data['student'] : _student;
@@ -121,11 +127,18 @@ class _TeacherStudentDetailsPageState
                 name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               Text(
-                'Student details',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                isClassTeacher ? 'Your class student' : 'Subject student',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  color: isClassTeacher ? _classColor : _subjectColor,
+                ),
               ),
             ],
           ),
@@ -136,21 +149,45 @@ class _TeacherStudentDetailsPageState
               icon: const Icon(Icons.refresh_rounded),
             ),
           ],
-          bottom: TabBar(
-            isScrollable: true,
-            tabAlignment: TabAlignment.start,
-            labelColor: StudentColors.primary,
-            unselectedLabelColor: Colors.grey.shade600,
-            indicatorColor: StudentColors.primary,
-            indicatorWeight: 3,
-            dividerColor: Colors.grey.shade200,
-            labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
-            tabs: const [
-              Tab(text: 'Overview'),
-              Tab(text: 'Results'),
-              Tab(text: 'Attendance'),
-              Tab(text: 'Tasks'),
-            ],
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(56),
+            child: Container(
+              margin: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+              height: 44,
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF0F1F6),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: TabBar(
+                dividerColor: Colors.transparent,
+                indicatorSize: TabBarIndicatorSize.tab,
+                indicator: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(11),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: .06),
+                      blurRadius: 6,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                labelColor: StudentColors.primary,
+                unselectedLabelColor: Colors.grey.shade600,
+                labelPadding: EdgeInsets.zero,
+                labelStyle: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                ),
+                tabs: const [
+                  Tab(text: 'Overview'),
+                  Tab(text: 'Results'),
+                  Tab(text: 'Attendance'),
+                  Tab(text: 'Tasks'),
+                ],
+              ),
+            ),
           ),
         ),
         body: () {
@@ -195,7 +232,7 @@ class _TeacherStudentDetailsPageState
                   assignments: assignments,
                 ),
               ),
-              _tab(_resultsTab(results, isClassTeacher)),
+              _tab(_resultsTab(results, isClassTeacher, subjects)),
               _tab(_attendanceTab(attendance, isClassTeacher, subjects)),
               _tab(_assignmentsTab(assignments, isClassTeacher)),
             ],
@@ -249,105 +286,138 @@ class _TeacherStudentDetailsPageState
       // ---------------- HEADER ----------------
       Container(
         width: double.infinity,
-        padding: const EdgeInsets.fromLTRB(20, 22, 20, 20),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [StudentColors.primary, Color(0xFF2437C5)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-          ),
+          gradient: kStudentGradient,
           borderRadius: BorderRadius.circular(24),
           boxShadow: [
             BoxShadow(
-              color: StudentColors.primary.withValues(alpha: .2),
+              color: StudentColors.primary.withValues(alpha: .22),
               blurRadius: 20,
-              offset: const Offset(0, 8),
+              offset: const Offset(0, 10),
             ),
           ],
         ),
         child: Column(
           children: [
-            CircleAvatar(
-              radius: 36,
-              backgroundColor: Colors.white,
-              child: Text(
-                _initials(name),
-                style: const TextStyle(
-                  color: StudentColors.primary,
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              name,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              alignment: WrapAlignment.center,
-              spacing: 8,
-              runSpacing: 8,
+            Row(
               children: [
-                if (className != null) _pill(Icons.groups_outlined, className),
-                if (number != null) _pill(Icons.badge_outlined, 'No. $number'),
+                Container(
+                  width: 66,
+                  height: 66,
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: .25),
+                  ),
+                  child: Container(
+                    alignment: Alignment.center,
+                    decoration: const BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white,
+                    ),
+                    child: Text(
+                      _initials(name),
+                      style: const TextStyle(
+                        color: StudentColors.primary,
+                        fontSize: 21,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 19,
+                          fontWeight: FontWeight.w800,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          if (className != null)
+                            _pill(Icons.groups_outlined, className),
+                          if (number != null)
+                            _pill(Icons.badge_outlined, 'No. $number'),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 18),
-            Row(
-              children: [
-                _headerStat(
-                  'Attendance',
-                  rate == null ? '—' : '${_fmt(rate)}%',
-                ),
-                _headerStat(
-                  latest == null ? 'Average' : 'Avg · ${latest.shortLabel}',
-                  average == null ? '—' : '${_fmt(average)}%',
-                ),
-                _headerStat(
-                  'Tasks done',
-                  assignments.isEmpty ? '—' : '$submitted/${assignments.length}',
-                ),
-              ],
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .12),
+                borderRadius: BorderRadius.circular(18),
+              ),
+              child: Row(
+                children: [
+                  ProgressRing(
+                    value: (rate ?? 0) / 100,
+                    size: 58,
+                    stroke: 6,
+                    child: Text(
+                      rate == null ? '—' : '${_fmt(rate)}%',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  SizedBox(
+                    width: 60,
+                    child: Text(
+                      'Attendance',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: .7),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    width: 1,
+                    height: 34,
+                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    color: Colors.white.withValues(alpha: .18),
+                  ),
+                  HeroStat(
+                    latest == null ? 'Average' : 'Avg · ${latest.shortLabel}',
+                    average == null ? '—' : '${_fmt(average)}%',
+                  ),
+                  HeroStat(
+                    'Tasks done',
+                    assignments.isEmpty
+                        ? '—'
+                        : '$submitted/${assignments.length}',
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
 
-      // ---------------- YOUR ROLE ----------------
-      const SizedBox(height: 22),
-      _title('Your role'),
-      const SizedBox(height: 10),
-      _card(
-        Padding(
-          padding: const EdgeInsets.all(14),
-          child: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (isClassTeacher)
-                _roleChip(Icons.star_rounded, 'Class teacher', Colors.green),
-              for (final s in subjects)
-                _roleChip(
-                  Icons.menu_book_outlined,
-                  sStr(s, ['subjectName', 'name']) ?? 'Subject',
-                  StudentColors.primary,
-                ),
-              if (!isClassTeacher && subjects.isEmpty)
-                Text(
-                  'No role found for this class.',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                ),
-            ],
-          ),
-        ),
-      ),
+      // ---------------- RELATIONSHIP ----------------
+      const SizedBox(height: 16),
+      _relationshipCard(isClassTeacher, subjects),
 
       // ---------------- CONTACT ----------------
       if (email != null || phone != null) ...[
@@ -357,10 +427,12 @@ class _TeacherStudentDetailsPageState
         _card(
           Column(
             children: [
-              if (email != null) _contactRow(Icons.email_outlined, 'Email', email),
+              if (email != null)
+                _contactRow(Icons.email_outlined, 'Email', email),
               if (email != null && phone != null)
                 Divider(height: 1, color: Colors.grey.shade200),
-              if (phone != null) _contactRow(Icons.phone_outlined, 'Phone', phone),
+              if (phone != null)
+                _contactRow(Icons.phone_outlined, 'Phone', phone),
             ],
           ),
         ),
@@ -383,6 +455,77 @@ class _TeacherStudentDetailsPageState
         ),
       ],
     ];
+  }
+
+  Widget _relationshipCard(bool isClassTeacher, List<dynamic> subjects) {
+    final color = isClassTeacher ? _classColor : _subjectColor;
+    final subjectNames = subjects
+        .map((s) => sStr(s, ['subjectName', 'name']))
+        .whereType<String>()
+        .toList();
+
+    return Container(
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: .06),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: color.withValues(alpha: .2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              IconBadge(
+                isClassTeacher ? Icons.star_rounded : Icons.menu_book_rounded,
+                color: color,
+                size: 42,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      isClassTeacher
+                          ? 'In your class'
+                          : 'You teach this student',
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isClassTeacher
+                          ? 'You see every subject, the class register and all tasks.'
+                          : 'You see only your subjects\' results, attendance and tasks.',
+                      style: TextStyle(
+                        color: Colors.grey.shade700,
+                        fontSize: 11.5,
+                        height: 1.3,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (subjectNames.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final n in subjectNames)
+                  _roleChip(Icons.menu_book_outlined, n, _subjectColor),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _pill(IconData icon, String text) {
@@ -541,7 +684,16 @@ class _TeacherStudentDetailsPageState
   // RESULTS
   // ================================================================
 
-  List<Widget> _resultsTab(List<dynamic> results, bool isClassTeacher) {
+  List<Widget> _resultsTab(
+    List<dynamic> results,
+    bool isClassTeacher,
+    List<dynamic> subjects,
+  ) {
+    final mySubjects = subjects
+        .map((s) => sStr(s, ['subjectName', 'name'])?.toLowerCase())
+        .whereType<String>()
+        .toSet();
+
     if (results.isEmpty) {
       return [
         _emptyBox(
@@ -580,7 +732,14 @@ class _TeacherStudentDetailsPageState
         ),
         const SizedBox(height: 10),
         for (final r in group.results) ...[
-          _resultCard(r),
+          _resultCard(
+            r,
+            youTeach:
+                isClassTeacher &&
+                mySubjects.contains(
+                  sStr(r, ['subjectName', 'subject'])?.toLowerCase(),
+                ),
+          ),
           const SizedBox(height: 10),
         ],
         const SizedBox(height: 12),
@@ -588,7 +747,7 @@ class _TeacherStudentDetailsPageState
     ];
   }
 
-  Widget _resultCard(dynamic r) {
+  Widget _resultCard(dynamic r, {bool youTeach = false}) {
     final subject = sStr(r, ['subjectName', 'subject']) ?? 'Subject';
     final test = sNum(r, ['testScore']);
     final exam = sNum(r, ['examScore']);
@@ -611,18 +770,48 @@ class _TeacherStudentDetailsPageState
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        subject,
-                        style: const TextStyle(
-                          color: StudentColors.textDark,
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                        ),
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              subject,
+                              style: const TextStyle(
+                                color: StudentColors.textDark,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          if (youTeach) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 7,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: _subjectColor.withValues(alpha: .1),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Text(
+                                'You teach',
+                                style: TextStyle(
+                                  color: _subjectColor,
+                                  fontSize: 9.5,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                       const SizedBox(height: 3),
                       Text(
                         score == null ? 'Not complete' : '${_fmt(score)} / 100',
-                        style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                        style: TextStyle(
+                          color: Colors.grey.shade600,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -748,8 +937,8 @@ class _TeacherStudentDetailsPageState
         _attendanceSummaryCard(
           title: 'Class register',
           subtitle: 'Daily attendance you mark as class teacher',
-          icon: Icons.groups_outlined,
-          color: Colors.green,
+          icon: Icons.star_rounded,
+          color: _classColor,
           summary: classSummary,
         ),
       if (hasClass && hasSubject) const SizedBox(height: 12),
@@ -762,8 +951,8 @@ class _TeacherStudentDetailsPageState
                     .map((s) => sStr(s, ['subjectName', 'name']))
                     .whereType<String>()
                     .join(', '),
-          icon: Icons.menu_book_outlined,
-          color: Colors.blue,
+          icon: Icons.menu_book_rounded,
+          color: _subjectColor,
           summary: subjectSummary,
         ),
 
@@ -781,12 +970,22 @@ class _TeacherStudentDetailsPageState
 
       if (hasClass && hasSubject) ...[
         const SizedBox(height: 10),
-        Wrap(
-          spacing: 8,
-          children: [
-            _filterChip('All', _AttendanceFilter.all),
-            _filterChip('Class', _AttendanceFilter.classOnly),
-            _filterChip('Subjects', _AttendanceFilter.subjectOnly),
+        PillTabs<_AttendanceFilter>(
+          padding: EdgeInsets.zero,
+          selected: _attendanceFilter,
+          onChanged: (f) => setState(() => _attendanceFilter = f),
+          tabs: const [
+            PillTab(_AttendanceFilter.all, 'All'),
+            PillTab(
+              _AttendanceFilter.classOnly,
+              'Class register',
+              color: _classColor,
+            ),
+            PillTab(
+              _AttendanceFilter.subjectOnly,
+              'Subjects',
+              color: _subjectColor,
+            ),
           ],
         ),
       ],
@@ -946,30 +1145,6 @@ class _TeacherStudentDetailsPageState
     );
   }
 
-  Widget _filterChip(String label, _AttendanceFilter value) {
-    final selected = _attendanceFilter == value;
-
-    return ChoiceChip(
-      selected: selected,
-      onSelected: (_) => setState(() => _attendanceFilter = value),
-      showCheckmark: false,
-      selectedColor: StudentColors.primary,
-      backgroundColor: Colors.white,
-      side: BorderSide(
-        color: selected ? StudentColors.primary : Colors.grey.shade300,
-      ),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-      label: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: FontWeight.w700,
-          color: selected ? Colors.white : Colors.grey.shade700,
-        ),
-      ),
-    );
-  }
-
   Widget _attendanceRecord(dynamic r) {
     final day = sDay(r, ['attendanceDate', 'date']);
     final status = _titleCase(sStr(r, ['status']) ?? 'Unknown');
@@ -978,6 +1153,8 @@ class _TeacherStudentDetailsPageState
         ? 'Class register'
         : (sStr(r, ['subjectName']) ?? 'Subject');
     final remarks = sStr(r, ['remarks']);
+
+    final typeColor = isClass ? _classColor : _subjectColor;
 
     return _card(
       Padding(
@@ -988,7 +1165,7 @@ class _TeacherStudentDetailsPageState
               width: 44,
               height: 48,
               decoration: BoxDecoration(
-                color: StudentColors.primaryLight,
+                color: typeColor.withValues(alpha: .08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: day == null
@@ -998,18 +1175,18 @@ class _TeacherStudentDetailsPageState
                       children: [
                         Text(
                           sMonths[day.month - 1].toUpperCase(),
-                          style: const TextStyle(
-                            color: StudentColors.primary,
+                          style: TextStyle(
+                            color: typeColor,
                             fontSize: 9,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: FontWeight.w800,
                           ),
                         ),
                         Text(
                           '${day.day}',
-                          style: const TextStyle(
-                            color: StudentColors.primary,
+                          style: TextStyle(
+                            color: typeColor,
                             fontSize: 17,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w900,
                             height: 1.1,
                           ),
                         ),
@@ -1033,9 +1210,9 @@ class _TeacherStudentDetailsPageState
                   Row(
                     children: [
                       Icon(
-                        isClass ? Icons.groups_outlined : Icons.menu_book_outlined,
+                        isClass ? Icons.star_rounded : Icons.menu_book_rounded,
                         size: 13,
-                        color: Colors.grey.shade500,
+                        color: typeColor,
                       ),
                       const SizedBox(width: 4),
                       Flexible(
@@ -1278,8 +1455,8 @@ class _TeacherStudentDetailsPageState
     clipBehavior: Clip.antiAlias,
     decoration: BoxDecoration(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(17),
-      border: Border.all(color: Colors.grey.shade200),
+      borderRadius: BorderRadius.circular(18),
+      border: Border.all(color: const Color(0xFFE9EBF2)),
     ),
     child: child,
   );

@@ -146,6 +146,10 @@ class AdminRepository {
     return api.assignClassTeacher(classId: classId, teacherId: teacherId);
   }
 
+  Future<void> unassignClassTeacher({required String classId}) {
+    return api.unassignClassTeacher(classId);
+  }
+
   // ================================================================
   // SUBJECTS
   // ================================================================
@@ -185,6 +189,18 @@ class AdminRepository {
     required String subjectId,
   }) {
     return api.deleteSubject(schoolId: schoolId, subjectId: subjectId);
+  }
+
+  Future<void> assignSubjectToMultipleClasses({
+    required String subjectId,
+    required List<String> classIds,
+    String? teacherId,
+  }) {
+    return api.assignSubjectToMultipleClasses(
+      subjectId: subjectId,
+      classIds: classIds,
+      teacherId: teacherId,
+    );
   }
 
   Future<void> assignTeacherToSubject({
@@ -238,33 +254,29 @@ class AdminRepository {
   }
 
   // ================================================================
-// LINK STUDENT TO PARENT
-// ================================================================
+  // LINK STUDENT TO PARENT
+  // ================================================================
 
-Future<void> assignStudentToParent({
-  required String parentId,
-  required String studentId,
-}) {
-  return api.assignStudentToParent(
-    parentId: parentId,
-    studentId: studentId,
-  );
-}
+  Future<void> assignStudentToParent({
+    required String parentId,
+    required String studentId,
+  }) {
+    return api.assignStudentToParent(parentId: parentId, studentId: studentId);
+  }
 
-// ================================================================
-// REMOVE STUDENT FROM PARENT
-// ================================================================
+  // ================================================================
+  // REMOVE STUDENT FROM PARENT
+  // ================================================================
 
-Future<void> removeStudentFromParent({
-  required String parentId,
-  required String studentId,
-}) {
-  return api.removeStudentFromParent(
-    parentId: parentId,
-    studentId: studentId,
-  );
-}
-
+  Future<void> removeStudentFromParent({
+    required String parentId,
+    required String studentId,
+  }) {
+    return api.removeStudentFromParent(
+      parentId: parentId,
+      studentId: studentId,
+    );
+  }
   // ================================================================
   // DEPARTMENTS
   // ================================================================
@@ -273,12 +285,52 @@ Future<void> removeStudentFromParent({
     return api.getDepartments();
   }
 
+  Future<AdminDepartmentModel> getDepartment({required String departmentId}) {
+    return api.getDepartment(departmentId);
+  }
+
+  Future<AdminDepartmentModel> createDepartment({
+    required Map<String, dynamic> data,
+  }) {
+    return api.createDepartment(data);
+  }
+
+  Future<AdminDepartmentModel> updateDepartment({
+    required String departmentId,
+    required Map<String, dynamic> data,
+  }) {
+    return api.updateDepartment(departmentId: departmentId, data: data);
+  }
+
+  Future<bool> deleteDepartment({required String departmentId}) {
+    return api.deleteDepartment(departmentId);
+  }
+
   // ================================================================
   // TRADES
   // ================================================================
 
   Future<List<AdminTradeModel>> getTrades() {
     return api.getTrades();
+  }
+
+  Future<AdminTradeModel> getTrade({required String tradeId}) {
+    return api.getTrade(tradeId);
+  }
+
+  Future<AdminTradeModel> createTrade({required Map<String, dynamic> data}) {
+    return api.createTrade(data);
+  }
+
+  Future<AdminTradeModel> updateTrade({
+    required String tradeId,
+    required Map<String, dynamic> data,
+  }) {
+    return api.updateTrade(tradeId: tradeId, data: data);
+  }
+
+  Future<bool> deleteTrade({required String tradeId}) {
+    return api.deleteTrade(tradeId);
   }
 
   // ================================================================

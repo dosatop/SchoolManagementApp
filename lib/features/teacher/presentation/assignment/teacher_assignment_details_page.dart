@@ -4,17 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-// ==================================================================
-// TEACHER: ASSIGNMENT DETAILS
-// ==================================================================
-// Accepts the assignment in any of these shapes:
-//   { assignmentId | id, title, ... }
-//   { assignment: {...} }   { data: {...} }   { data: { assignment } }
-//
-// Shows: title, subject/class, status, due date, description,
-// attachment, and submissions — who submitted (score / graded) and,
-// when the class list loads, who hasn't submitted yet.
-
 class TeacherAssignmentDetailsPage extends ConsumerStatefulWidget {
   const TeacherAssignmentDetailsPage({super.key, required this.assignmentId});
 
@@ -30,15 +19,13 @@ class _TeacherAssignmentDetailsPageState
   bool _showMissing = false;
 
   Future<void> _refresh() async {
-    ref.invalidate(teacherAssignmentDetailsProvider(widget.assignmentId));
-    await sSafe(
-      ref.read(teacherAssignmentDetailsProvider(widget.assignmentId).future),
-    );
-  }
+    final id = widget.assignmentId.trim();
+    if (id.isEmpty || id == 'null') return;
 
-  // ================================================================
-  // BUILD
-  // ================================================================
+    ref.invalidate(teacherAssignmentDetailsProvider(id));
+
+    await sSafe(ref.read(teacherAssignmentDetailsProvider(id).future));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +34,7 @@ class _TeacherAssignmentDetailsPageState
 
     final async = invalidId
         ? null
-        : ref.watch(teacherAssignmentDetailsProvider(widget.assignmentId));
+        : ref.watch(teacherAssignmentDetailsProvider(id));
 
     final assignment = _extract(async?.valueOrNull);
 
@@ -67,49 +54,51 @@ class _TeacherAssignmentDetailsPageState
       ),
       body: RefreshIndicator(
         color: StudentColors.primary,
-        onRefresh: invalidId ? () async {} : _refresh,
-        child: () {
-          if (invalidId) {
-            return const StudentEmptyView(
-              icon: Icons.link_off_rounded,
-              title: 'Assignment not found',
-              message:
-                  'This link has no assignment ID. Go back and open it again.',
-            );
-          }
+        onRefresh: _refresh,
+        child: Builder(
+          builder: (context) {
+            if (invalidId) {
+              return const StudentEmptyView(
+                icon: Icons.link_off_rounded,
+                title: 'Assignment not found',
+                message: 'Go back and open the assignment again.',
+              );
+            }
 
-          if (async!.isLoading && !async.hasValue) {
-            return const StudentLoadingView(layout: LoadingLayout.detail);
-          }
+            if (async!.isLoading && !async.hasValue) {
+              return const StudentLoadingView(layout: LoadingLayout.detail);
+            }
 
-          if (async.hasError && !async.hasValue) {
-            return StudentErrorView(
-              error: async.error!,
-              onRetry: _refresh,
-              title: 'Unable to load assignment',
-            );
-          }
+            if (async.hasError && !async.hasValue) {
+              return StudentErrorView(
+                error: async.error!,
+                onRetry: _refresh,
+                title: 'Unable to load assignment',
+              );
+            }
 
-          if (assignment == null) {
-            return const StudentEmptyView(
-              icon: Icons.assignment_outlined,
-              title: 'Assignment not found',
-              message: 'It may have been deleted.',
-            );
-          }
+            if (assignment == null) {
+              return const StudentEmptyView(
+                icon: Icons.assignment_outlined,
+                title: 'Assignment not found',
+                message: 'The assignment may have been deleted.',
+              );
+            }
 
-          return _content(assignment);
-        }(),
+            return _content(assignment);
+          },
+        ),
       ),
     );
   }
 
   // ================================================================
-  // CONTENT
+  // ASSIGNMENT CONTENT
   // ================================================================
 
   Widget _content(Map assignment) {
     final title = sStr(assignment, ['title', 'name']) ?? 'Untitled assignment';
+
     final description = sStr(assignment, ['description']);
     final subject = sStr(assignment, ['subjectName', 'subject']);
     final className = sStr(assignment, ['className', 'class']);
@@ -121,34 +110,38 @@ class _TeacherAssignmentDetailsPageState
     final isPublished = assignment['isPublished'] != false;
 
     final rawAttachment = sStr(assignment, ['attachmentUrl']);
-    final attachment =
-        (rawAttachment == null || rawAttachment == 'string') ? null : rawAttachment;
+    final attachment = rawAttachment == null || rawAttachment == 'string'
+        ? null
+        : rawAttachment;
 
     final submissions = sList(assignment['submissions']);
 
-    // Class list → who hasn't submitted (optional; ignored if it fails).
     final classStudents = classId == null
-        ? const <dynamic>[]
-        : sList(ref.watch(teacherStudentsProvider(classId)).valueOrNull,
-              ['students']);
+        ? <dynamic>[]
+        : sList(ref.watch(teacherStudentsProvider(classId)).valueOrNull, [
+            'students',
+          ]);
 
     final submittedIds = submissions
         .map((s) => sStr(s, ['studentId']))
         .whereType<String>()
         .toSet();
 
-    final missing = classStudents
-        .where((s) => !submittedIds.contains(sStr(s, ['studentId', 'id'])))
-        .toList();
+    final missing = classStudents.where((student) {
+      final studentId = sStr(student, ['studentId', 'id']);
+      return studentId != null && !submittedIds.contains(studentId);
+    }).toList();
 
-    final graded = submissions
-        .where((s) => s is Map && (s['isGraded'] == true || s['score'] != null))
-        .length;
+    final graded = submissions.where((s) {
+      return s is Map && (s['isGraded'] == true || sNum(s, ['score']) != null);
+    }).length;
 
     final now = DateTime.now();
     final status = !isPublished
         ? 'Draft'
-        : (due != null && due.isBefore(now) ? 'Closed' : 'Open');
+        : due != null && due.isBefore(now)
+        ? 'Closed'
+        : 'Open';
 
     return ListView(
       physics: const AlwaysScrollableScrollPhysics(
@@ -156,7 +149,7 @@ class _TeacherAssignmentDetailsPageState
       ),
       padding: const EdgeInsets.fromLTRB(18, 18, 18, 32),
       children: [
-        // ---------------- HEADER ----------------
+        // HEADER
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
@@ -174,15 +167,21 @@ class _TeacherAssignmentDetailsPageState
               Row(
                 children: [
                   _headerPill(
-                    switch (status) {
-                      'Draft' => Icons.visibility_off_outlined,
-                      'Closed' => Icons.lock_outline_rounded,
-                      _ => Icons.radio_button_checked_rounded,
-                    },
+                    status == 'Draft'
+                        ? Icons.visibility_off_outlined
+                        : status == 'Closed'
+                        ? Icons.lock_outline_rounded
+                        : Icons.radio_button_checked_rounded,
                     status,
                   ),
                   const Spacer(),
-                  if (due != null) _headerPill(Icons.event_outlined, _dueText(due)),
+                  if (due != null)
+                    Flexible(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: _headerPill(Icons.event_outlined, _dueText(due)),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 14),
@@ -207,11 +206,15 @@ class _TeacherAssignmentDetailsPageState
               const SizedBox(height: 16),
               Row(
                 children: [
-                  SummaryStat('Submitted', '${submissions.length}'),
-                  SummaryStat('Graded', '$graded'),
-                  SummaryStat(
-                    'Not yet',
-                    classStudents.isEmpty ? '—' : '${missing.length}',
+                  Expanded(
+                    child: SummaryStat('Submitted', '${submissions.length}'),
+                  ),
+                  Expanded(child: SummaryStat('Graded', '$graded')),
+                  Expanded(
+                    child: SummaryStat(
+                      'Not yet',
+                      classStudents.isEmpty ? '—' : '${missing.length}',
+                    ),
                   ),
                 ],
               ),
@@ -219,7 +222,7 @@ class _TeacherAssignmentDetailsPageState
           ),
         ),
 
-        // ---------------- DESCRIPTION ----------------
+        // INSTRUCTIONS
         const SizedBox(height: 20),
         _title('Instructions'),
         const SizedBox(height: 10),
@@ -239,18 +242,17 @@ class _TeacherAssignmentDetailsPageState
           ),
         ),
 
-        // ---------------- ATTACHMENT ----------------
+        // ATTACHMENT
         if (attachment != null) ...[
           const SizedBox(height: 20),
           _title('Attachment'),
           const SizedBox(height: 10),
           _card(
             ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 14,
-                vertical: 4,
+              leading: _iconBox(
+                Icons.insert_drive_file_outlined,
+                Colors.orange,
               ),
-              leading: _iconBox(Icons.insert_drive_file_outlined, Colors.orange),
               title: Text(
                 attachment,
                 maxLines: 2,
@@ -259,14 +261,14 @@ class _TeacherAssignmentDetailsPageState
               ),
               trailing: IconButton(
                 tooltip: 'Copy link',
-                icon: const Icon(Icons.copy_rounded, size: 18),
+                icon: const Icon(Icons.copy_rounded),
                 onPressed: () => _copy(attachment),
               ),
             ),
           ),
         ],
 
-        // ---------------- DETAILS ----------------
+        // DETAILS
         const SizedBox(height: 20),
         _title('Details'),
         const SizedBox(height: 10),
@@ -274,7 +276,12 @@ class _TeacherAssignmentDetailsPageState
           Column(
             children: _divided([
               if (due != null)
-                _infoRow(Icons.event_outlined, 'Due', _dateTime(due), Colors.red),
+                _infoRow(
+                  Icons.event_outlined,
+                  'Due',
+                  _dateTime(due),
+                  Colors.red,
+                ),
               if (assignedAt != null)
                 _infoRow(
                   Icons.access_time_rounded,
@@ -294,14 +301,16 @@ class _TeacherAssignmentDetailsPageState
                     ? Icons.check_circle_outline
                     : Icons.visibility_off_outlined,
                 'Visibility',
-                isPublished ? 'Published to students' : 'Draft — students can\'t see it',
+                isPublished
+                    ? 'Published to students'
+                    : 'Draft — students cannot see it',
                 isPublished ? Colors.teal : Colors.grey,
               ),
             ]),
           ),
         ),
 
-        // ---------------- SUBMISSIONS ----------------
+        // SUBMISSIONS
         const SizedBox(height: 20),
         Row(
           children: [
@@ -318,10 +327,14 @@ class _TeacherAssignmentDetailsPageState
           ClipRRect(
             borderRadius: BorderRadius.circular(10),
             child: LinearProgressIndicator(
-              value: (submissions.length / classStudents.length).clamp(0, 1).toDouble(),
+              value: classStudents.isEmpty
+                  ? 0
+                  : (submissions.length / classStudents.length)
+                        .clamp(0.0, 1.0)
+                        .toDouble(),
               minHeight: 7,
               backgroundColor: Colors.grey.shade200,
-              valueColor: const AlwaysStoppedAnimation(Colors.green),
+              valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
             ),
           ),
         ],
@@ -329,18 +342,13 @@ class _TeacherAssignmentDetailsPageState
 
         if (submissions.isEmpty)
           _card(
-            Padding(
-              padding: const EdgeInsets.all(18),
+            const Padding(
+              padding: EdgeInsets.all(18),
               child: Row(
                 children: [
-                  _iconBox(Icons.inbox_outlined, Colors.orange),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      'No submissions yet.',
-                      style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-                    ),
-                  ),
+                  Icon(Icons.inbox_outlined, color: Colors.orange, size: 28),
+                  SizedBox(width: 12),
+                  Expanded(child: Text('No submissions yet.')),
                 ],
               ),
             ),
@@ -349,19 +357,22 @@ class _TeacherAssignmentDetailsPageState
           _card(
             Column(
               children: _divided([
-                for (final s in submissions) _submissionRow(s),
+                for (final submission in submissions)
+                  _submissionRow(submission),
               ]),
             ),
           ),
 
-        // ---------------- NOT SUBMITTED ----------------
+        // STUDENTS WHO HAVE NOT SUBMITTED
         if (missing.isNotEmpty) ...[
           const SizedBox(height: 14),
           _card(
             Column(
               children: [
                 ListTile(
-                  onTap: () => setState(() => _showMissing = !_showMissing),
+                  onTap: () {
+                    setState(() => _showMissing = !_showMissing);
+                  },
                   leading: _iconBox(Icons.hourglass_empty_rounded, Colors.red),
                   title: Text(
                     '${missing.length} student${missing.length == 1 ? '' : 's'} not submitted',
@@ -378,29 +389,30 @@ class _TeacherAssignmentDetailsPageState
                   ),
                 ),
                 if (_showMissing)
-                  for (final s in missing) ...[
+                  for (final student in missing) ...[
                     Divider(height: 1, color: Colors.grey.shade200),
                     ListTile(
                       dense: true,
                       leading: CircleAvatar(
                         radius: 15,
-                        backgroundColor: Colors.grey.shade100,
                         child: Text(
-                          _initials(sStr(s, ['studentName', 'fullName', 'name']) ?? '?'),
-                          style: TextStyle(
-                            color: Colors.grey.shade700,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
+                          _initials(
+                            sStr(student, [
+                                  'studentName',
+                                  'fullName',
+                                  'name',
+                                ]) ??
+                                'Student',
                           ),
                         ),
                       ),
                       title: Text(
-                        sStr(s, ['studentName', 'fullName', 'name']) ?? 'Student',
-                        style: const TextStyle(fontSize: 13),
+                        sStr(student, ['studentName', 'fullName', 'name']) ??
+                            'Student',
                       ),
-                      subtitle: sStr(s, ['studentNumber']) == null
+                      subtitle: sStr(student, ['studentNumber']) == null
                           ? null
-                          : Text('No. ${sStr(s, ['studentNumber'])}'),
+                          : Text('No. ${sStr(student, ['studentNumber'])}'),
                     ),
                   ],
               ],
@@ -411,16 +423,28 @@ class _TeacherAssignmentDetailsPageState
     );
   }
 
-  Widget _submissionRow(dynamic s) {
-    final name = sStr(s, ['studentName', 'fullName', 'name']) ??
-        sStr(s is Map ? s['student'] : null, ['fullName', 'studentName']) ??
+  // ================================================================
+  // SUBMISSION ROW
+  // ================================================================
+
+  Widget _submissionRow(dynamic submission) {
+    final name =
+        sStr(submission, ['studentName', 'fullName', 'name']) ??
+        sStr(submission is Map ? submission['student'] : null, [
+          'fullName',
+          'studentName',
+        ]) ??
         'Student';
-    final submittedAt = sLocal(s, ['submittedAt', 'createdAt']);
-    final score = sNum(s, ['score']);
-    final isGraded = s is Map && (s['isGraded'] == true || score != null);
+
+    final studentNumber = sStr(submission, ['studentNumber']);
+    final submittedAt = sLocal(submission, ['submittedAt', 'createdAt']);
+    final score = sNum(submission, ['score']);
+
+    final isGraded =
+        submission is Map && (submission['isGraded'] == true || score != null);
 
     return InkWell(
-      onTap: () => _showSubmission(s, name),
+      onTap: () => _showSubmission(submission, name),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         child: Row(
@@ -450,17 +474,28 @@ class _TeacherAssignmentDetailsPageState
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  if (studentNumber != null)
+                    Text(
+                      'Student No. $studentNumber',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 11,
+                      ),
+                    ),
                   if (submittedAt != null)
                     Text(
                       'Submitted ${_dateTime(submittedAt)}',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 11,
+                      ),
                     ),
                 ],
               ),
             ),
-            if (score != null) ...[
+            if (isGraded && score != null) ...[
               Text(
-                _fmt(score),
+                '${_fmt(score)}/10',
                 style: const TextStyle(
                   color: StudentColors.textDark,
                   fontSize: 14,
@@ -469,104 +504,62 @@ class _TeacherAssignmentDetailsPageState
               ),
               const SizedBox(width: 8),
             ],
-            StatusChip(isGraded ? 'Graded' : 'Submitted'),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+              decoration: BoxDecoration(
+                color: isGraded
+                    ? Colors.green.withValues(alpha: 0.10)
+                    : Colors.orange.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Text(
+                isGraded ? 'Graded' : 'Not graded',
+                style: TextStyle(
+                  color: isGraded
+                      ? Colors.green.shade700
+                      : Colors.orange.shade800,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  void _showSubmission(dynamic s, String name) {
-    final text = sStr(s, ['submissionText', 'text', 'answer']);
-    final file = sStr(s, ['attachmentUrl']);
-    final feedback = sStr(s, ['feedback']);
-    final score = sNum(s, ['score']);
+  // ================================================================
+  // OPEN GRADING SHEET
+  // ================================================================
 
-    showModalBottomSheet<void>(
+  Future<void> _showSubmission(dynamic submission, String name) async {
+    final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
+      useSafeArea: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: .6,
-        minChildSize: .35,
-        maxChildSize: .92,
-        expand: false,
-        builder: (context, controller) => Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: ListView(
-            controller: controller,
-            padding: const EdgeInsets.fromLTRB(20, 10, 20, 30),
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                name,
-                style: const TextStyle(
-                  color: StudentColors.textDark,
-                  fontSize: 19,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              if (score != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  'Score: ${_fmt(score)}',
-                  style: TextStyle(
-                    color: Colors.green.shade700,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-              const SizedBox(height: 16),
-              const Text('Answer', style: TextStyle(fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: StudentColors.background,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: SelectableText(
-                  text ?? 'No written answer.',
-                  style: const TextStyle(height: 1.5),
-                ),
-              ),
-              if (file != null && file != 'string') ...[
-                const SizedBox(height: 14),
-                const Text('File', style: TextStyle(fontWeight: FontWeight.w700)),
-                const SizedBox(height: 6),
-                SelectableText(
-                  file,
-                  style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
-                ),
-              ],
-              if (feedback != null) ...[
-                const SizedBox(height: 14),
-                const Text(
-                  'Your feedback',
-                  style: TextStyle(fontWeight: FontWeight.w700),
-                ),
-                const SizedBox(height: 6),
-                Text(feedback, style: const TextStyle(height: 1.5)),
-              ],
-            ],
-          ),
-        ),
+      builder: (_) => _SubmissionGradingSheet(
+        assignmentId: widget.assignmentId,
+        submission: submission,
+        studentName: name,
       ),
     );
+
+    if (!mounted || saved != true) return;
+
+    final id = widget.assignmentId.trim();
+
+    ref.invalidate(teacherAssignmentDetailsProvider(id));
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Assignment graded successfully.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
   }
 
   // ================================================================
@@ -585,12 +578,17 @@ class _TeacherAssignmentDetailsPageState
         children: [
           Icon(icon, size: 14, color: Colors.white),
           const SizedBox(width: 5),
-          Text(
-            text,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 150),
+            child: Text(
+              text,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ],
@@ -671,14 +669,13 @@ class _TeacherAssignmentDetailsPageState
   // HELPERS
   // ================================================================
 
-  /// Finds the assignment map in any response shape.
   Map? _extract(dynamic data) {
     if (data is! Map) return null;
 
-    bool looksLikeAssignment(Map m) =>
-        m.containsKey('title') ||
-        m.containsKey('assignmentId') ||
-        (m.containsKey('id') && m.containsKey('dueDate'));
+    bool looksLikeAssignment(Map value) =>
+        value.containsKey('title') ||
+        value.containsKey('assignmentId') ||
+        (value.containsKey('id') && value.containsKey('dueDate'));
 
     for (final candidate in [
       data['assignment'],
@@ -686,7 +683,9 @@ class _TeacherAssignmentDetailsPageState
       data['data'],
       data,
     ]) {
-      if (candidate is Map && looksLikeAssignment(candidate)) return candidate;
+      if (candidate is Map && looksLikeAssignment(candidate)) {
+        return candidate;
+      }
     }
 
     return null;
@@ -694,6 +693,7 @@ class _TeacherAssignmentDetailsPageState
 
   void _copy(String value) {
     Clipboard.setData(ClipboardData(text: value));
+
     ScaffoldMessenger.of(context)
       ..hideCurrentSnackBar()
       ..showSnackBar(
@@ -708,28 +708,430 @@ class _TeacherAssignmentDetailsPageState
   String _dueText(DateTime due) {
     final now = DateTime.now();
     final today = DateTime(now.year, now.month, now.day);
-    final days = DateTime(due.year, due.month, due.day).difference(today).inDays;
+    final dueDay = DateTime(due.year, due.month, due.day);
+    final days = dueDay.difference(today).inDays;
 
     if (days < 0) return 'Closed ${sShortDate(due)}';
     if (days == 0) return 'Due today';
     if (days == 1) return 'Due tomorrow';
+
     return 'Due ${sShortDate(due)}';
   }
 
-  String _dateTime(DateTime d) {
-    final hour = d.hour == 0 ? 12 : (d.hour > 12 ? d.hour - 12 : d.hour);
-    final minute = d.minute.toString().padLeft(2, '0');
-    final period = d.hour >= 12 ? 'PM' : 'AM';
-    return '${sPrettyDate(d)} · $hour:$minute $period';
+  String _dateTime(DateTime date) {
+    final hour = date.hour == 0
+        ? 12
+        : date.hour > 12
+        ? date.hour - 12
+        : date.hour;
+
+    final minute = date.minute.toString().padLeft(2, '0');
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+
+    return '${sPrettyDate(date)} · $hour:$minute $period';
   }
 
-  String _fmt(num n) =>
-      n % 1 == 0 ? n.toInt().toString() : n.toStringAsFixed(1);
+  String _fmt(num number) =>
+      number % 1 == 0 ? number.toInt().toString() : number.toStringAsFixed(1);
 
   String _initials(String name) {
-    final words = name.trim().split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+    final words = name
+        .trim()
+        .split(RegExp(r'\s+'))
+        .where((word) => word.isNotEmpty)
+        .toList();
+
     if (words.isEmpty) return '?';
     if (words.length == 1) return words.first[0].toUpperCase();
+
     return '${words.first[0]}${words.last[0]}'.toUpperCase();
+  }
+}
+
+// ==================================================================
+// SEPARATE GRADING SHEET
+// Its controllers are disposed with this widget, even when Android
+// Back closes the modal.
+// ==================================================================
+
+class _SubmissionGradingSheet extends ConsumerStatefulWidget {
+  const _SubmissionGradingSheet({
+    required this.assignmentId,
+    required this.submission,
+    required this.studentName,
+  });
+
+  final String assignmentId;
+  final dynamic submission;
+  final String studentName;
+
+  @override
+  ConsumerState<_SubmissionGradingSheet> createState() =>
+      _SubmissionGradingSheetState();
+}
+
+class _SubmissionGradingSheetState
+    extends ConsumerState<_SubmissionGradingSheet> {
+  late final TextEditingController _scoreController;
+  late final TextEditingController _feedbackController;
+
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final existingScore = _value(['score']);
+    final existingFeedback = _value(['feedback']);
+
+    _scoreController = TextEditingController(
+      text: existingScore?.toString() ?? '',
+    );
+
+    _feedbackController = TextEditingController(
+      text: existingFeedback?.toString() ?? '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _scoreController.dispose();
+    _feedbackController.dispose();
+    super.dispose();
+  }
+
+  dynamic _value(List<String> keys) {
+    final submission = widget.submission;
+
+    if (submission is! Map) return null;
+
+    for (final key in keys) {
+      if (submission[key] != null) {
+        return submission[key];
+      }
+    }
+
+    return null;
+  }
+
+  String _stringValue(dynamic value) {
+    if (value == null) return '';
+    return value.toString().trim();
+  }
+
+  Future<void> _copyAttachment(String url) async {
+    await Clipboard.setData(ClipboardData(text: url));
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        const SnackBar(
+          content: Text('Attachment link copied'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+  }
+
+  Future<void> _saveGrade() async {
+    if (_isSaving) return;
+
+    final scoreText = _scoreController.text.trim();
+    final feedbackText = _feedbackController.text.trim();
+    final enteredScore = double.tryParse(scoreText);
+
+    if (enteredScore == null ||
+        !enteredScore.isFinite ||
+        enteredScore < 0 ||
+        enteredScore > 10) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enter a valid score from 0 to 10.')),
+      );
+      return;
+    }
+
+    final submissionId = _stringValue(
+      _value(['submissionId', 'id', 'studentAssignmentId']),
+    );
+
+    if (submissionId.isEmpty || submissionId == 'null') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Cannot grade this submission: submission ID is missing.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSaving = true);
+
+    try {
+      final success = await ref
+          .read(teachersProvider.notifier)
+          .gradeSubmission(
+            assignmentId: widget.assignmentId,
+            submissionId: submissionId,
+            score: enteredScore,
+            feedback: feedbackText.isEmpty ? null : feedbackText,
+          );
+
+      // Android Back may have disposed this sheet during the request.
+      if (!mounted) return;
+
+      if (success) {
+        Navigator.of(context).pop(true);
+      } else {
+        setState(() => _isSaving = false);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Unable to save the grade. Please try again.'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() => _isSaving = false);
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to save grade: $error')));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final answer = _stringValue(
+      _value(['submissionText', 'text', 'answer', 'textAnswer', 'content']),
+    );
+
+    final attachment = _stringValue(
+      _value(['attachmentUrl', 'fileUrl', 'documentUrl', 'imageUrl']),
+    );
+
+    final score = _value(['score']);
+    final isGraded = _value(['isGraded']) == true || score != null;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      child: DraggableScrollableSheet(
+        initialChildSize: .78,
+        minChildSize: .45,
+        maxChildSize: .95,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: ListView(
+            controller: scrollController,
+            padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
+            children: [
+              // Drag handle
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Header
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.studentName,
+                          style: const TextStyle(
+                            color: StudentColors.textDark,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        Text(
+                          score == null
+                              ? 'Not graded yet'
+                              : 'Current score: $score/10',
+                          style: TextStyle(
+                            color: isGraded
+                                ? Colors.green.shade700
+                                : Colors.orange.shade800,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Close',
+                    onPressed: _isSaving
+                        ? null
+                        : () => Navigator.of(context).pop(false),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 20),
+
+              // Student answer
+              const Text(
+                'Student answer',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: StudentColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: StudentColors.background,
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: SelectableText(
+                  answer.isEmpty ? 'No written answer.' : answer,
+                  style: const TextStyle(height: 1.5),
+                ),
+              ),
+
+              if (attachment.isNotEmpty && attachment != 'string') ...[
+                const SizedBox(height: 16),
+                const Text(
+                  'Student attachment',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    color: StudentColors.textDark,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                SelectableText(
+                  attachment,
+                  style: TextStyle(color: Colors.blue.shade700, fontSize: 12),
+                ),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: () => _copyAttachment(attachment),
+                    icon: const Icon(Icons.copy_rounded),
+                    label: const Text('Copy attachment link'),
+                  ),
+                ),
+              ],
+
+              // Grading form
+              const SizedBox(height: 22),
+              const Text(
+                'Grade submission',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: StudentColors.textDark,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                'Enter a score from 0 to 10. You can update the grade later.',
+                style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              ),
+              const SizedBox(height: 14),
+
+              TextField(
+                controller: _scoreController,
+                enabled: !_isSaving,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                ],
+                decoration: InputDecoration(
+                  labelText: 'Score (out of 10)',
+                  hintText: 'e.g. 8.5',
+                  prefixIcon: const Icon(Icons.grade_outlined),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
+              TextField(
+                controller: _feedbackController,
+                enabled: !_isSaving,
+                maxLines: 4,
+                maxLength: 2000,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: InputDecoration(
+                  labelText: 'Feedback (optional)',
+                  hintText: 'Give the student feedback...',
+                  alignLabelWithHint: true,
+                  prefixIcon: const Padding(
+                    padding: EdgeInsets.only(bottom: 60),
+                    child: Icon(Icons.comment_outlined),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton.icon(
+                  onPressed: _isSaving ? null : _saveGrade,
+                  icon: _isSaving
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(
+                    _isSaving
+                        ? 'Saving grade...'
+                        : score == null
+                        ? 'Save grade'
+                        : 'Update grade',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: StudentColors.primary,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

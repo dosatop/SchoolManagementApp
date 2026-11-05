@@ -2,6 +2,7 @@ import 'package:app/features/admin/models/subjects/admin_create_subject_model.da
 import 'package:app/features/admin/models/students/admin_department_model.dart';
 import 'package:app/features/admin/models/subjects/admin_trade_model.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -435,7 +436,7 @@ class _AdminCreateSubjectPageState
                     child: _typeCard(
                       type: 2,
                       title: 'Department',
-                      subtitle: 'Department',
+                      subtitle: 'One department',
                       icon: Icons.account_tree_rounded,
                     ),
                   ),
@@ -446,7 +447,7 @@ class _AdminCreateSubjectPageState
                     child: _typeCard(
                       type: 3,
                       title: 'Trade',
-                      subtitle: 'Trade',
+                      subtitle: 'One trade',
                       icon: Icons.build_rounded,
                     ),
                   ),
@@ -531,7 +532,11 @@ class _AdminCreateSubjectPageState
                 ),
               ],
 
-              const SizedBox(height: 35),
+              const SizedBox(height: 22),
+
+              _preview(),
+
+              const SizedBox(height: 22),
 
               // ==========================================================
               // CREATE BUTTON
@@ -588,6 +593,102 @@ class _AdminCreateSubjectPageState
           ),
         ),
       ),
+    );
+  }
+
+  // ================================================================
+  // PREVIEW
+  // ================================================================
+
+  Widget _preview() {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_nameController, _codeController]),
+      builder: (context, _) {
+        final name = _nameController.text.trim();
+        final code = _codeController.text.trim().toUpperCase();
+        final category = switch (_selectedType) {
+          2 => 'Department subject',
+          3 => 'Trade subject',
+          _ => 'General subject',
+        };
+
+        return Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: primaryLight,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(Icons.menu_book_rounded, color: primary),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'PREVIEW',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 9,
+                        letterSpacing: 1,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      name.isEmpty ? 'Subject name' : name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: name.isEmpty ? Colors.grey.shade400 : textDark,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      category,
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 10.5,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (code.isNotEmpty)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 9,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: primaryLight,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    code,
+                    style: const TextStyle(
+                      color: primary,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -793,23 +894,8 @@ class _AdminCreateSubjectPageState
   // ================================================================
 
   Widget _loadingDropdown() {
-    return Container(
-      height: 56,
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(13),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-
-      child: const Center(
-        child: SizedBox(
-          width: 20,
-          height: 20,
-
-          child: CircularProgressIndicator(strokeWidth: 2, color: primary),
-        ),
-      ),
+    return const Shimmer(
+      child: ShimmerBox(width: double.infinity, height: 56, radius: 13),
     );
   }
 

@@ -702,55 +702,17 @@ class _TeacherSubjectResultsPageState
   }
 
   Future<void> _editRemark(_Row row) async {
-    final controller = TextEditingController(text: row.remark ?? '');
-
+    // The dialog owns its TextEditingController and disposes it only
+    // after it has fully closed (disposing it here, right after
+    // showDialog returns, crashes during the close animation).
     final result = await showDialog<String>(
       context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('Remark · ${row.name}'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          maxLines: 3,
-          maxLength: 200,
-          textCapitalization: TextCapitalization.sentences,
-          decoration: const InputDecoration(
-            hintText: 'e.g. Very good, keep it up',
-            border: OutlineInputBorder(),
-          ),
-        ),
-        actions: [
-          if (row.remark != null)
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, ''),
-              style: TextButton.styleFrom(foregroundColor: Colors.red),
-              child: const Text('Remove'),
-            ),
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
-          ),
-          // Done is only active once there's an actual remark that
-          // differs from the saved one (spaces alone don't count).
-          ValueListenableBuilder<TextEditingValue>(
-            valueListenable: controller,
-            builder: (context, value, _) {
-              final text = value.text.trim();
-              final canSubmit = text.isNotEmpty && text != (row.remark ?? '');
-
-              return ElevatedButton(
-                onPressed: canSubmit
-                    ? () => Navigator.pop(dialogContext, text)
-                    : null,
-                child: const Text('Done'),
-              );
-            },
-          ),
-        ],
+      builder: (_) => _RemarkDialog(
+        studentName: row.name,
+        initial: row.remark,
       ),
     );
 
-    controller.dispose();
     if (result == null || !mounted) return;
 
     setState(() => row.setRemark(result.trim().isEmpty ? null : result.trim()));
@@ -828,6 +790,81 @@ class _TeacherSubjectResultsPageState
 
   String _fmt(num n) =>
       n % 1 == 0 ? n.toInt().toString() : n.toStringAsFixed(1);
+}
+
+// ==================================================================
+// REMARK DIALOG
+// ==================================================================
+// Returns:
+//   • the new remark text  → Done
+//   • ''                   → Remove (clears the remark)
+//   • null                 → Cancel / tapped outside
+
+class _RemarkDialog extends StatefulWidget {
+  const _RemarkDialog({required this.studentName, this.initial});
+
+  final String studentName;
+  final String? initial;
+
+  @override
+  State<_RemarkDialog> createState() => _RemarkDialogState();
+}
+
+class _RemarkDialogState extends State<_RemarkDialog> {
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initial ?? '',
+  );
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Remark · ${widget.studentName}'),
+      content: TextField(
+        controller: _controller,
+        autofocus: true,
+        maxLines: 3,
+        maxLength: 200,
+        textCapitalization: TextCapitalization.sentences,
+        decoration: const InputDecoration(
+          hintText: 'e.g. Very good, keep it up',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        if (widget.initial != null)
+          TextButton(
+            onPressed: () => Navigator.pop(context, ''),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Remove'),
+          ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        // Only active once there's a real remark that differs from the
+        // saved one (spaces alone don't count).
+        ValueListenableBuilder<TextEditingValue>(
+          valueListenable: _controller,
+          builder: (context, value, _) {
+            final text = value.text.trim();
+            final canSubmit =
+                text.isNotEmpty && text != (widget.initial ?? '');
+
+            return ElevatedButton(
+              onPressed: canSubmit ? () => Navigator.pop(context, text) : null,
+              child: const Text('Done'),
+            );
+          },
+        ),
+      ],
+    );
+  }
 }
 
 // ==================================================================

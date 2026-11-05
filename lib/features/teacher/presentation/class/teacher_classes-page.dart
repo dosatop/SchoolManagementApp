@@ -1,592 +1,387 @@
+import 'package:app/features/students/presentation/widgets/student_common.dart';
+import 'package:app/features/students/presentation/widgets/student_ui.dart';
+import 'package:app/features/teacher/presentation/class/teacher_class_attendance_page.dart';
 import 'package:app/features/teacher/provider/teachers_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-class TeacherClassesPage extends ConsumerWidget {
+// ==================================================================
+// TEACHER: MY CLASSES (tab)
+// ==================================================================
+//   /teacher/classes  -> classes where I'm CLASS TEACHER
+//   /teacher/subjects -> subject + class rows I TEACH
+// ==================================================================
+
+class TeacherClassesPage extends ConsumerStatefulWidget {
   const TeacherClassesPage({super.key});
 
-  static const Color primary = Color(0xFF091993);
-  static const Color background = Color(0xFFF6F7FB);
-  static const Color textDark = Color(0xFF20232E);
+  @override
+  ConsumerState<TeacherClassesPage> createState() => _TeacherClassesPageState();
+}
+
+class _TeacherClassesPageState extends ConsumerState<TeacherClassesPage> {
+  final _search = TextEditingController();
+  String _query = '';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refresh() async {
+    ref.invalidate(teacherSubjectsProvider);
+    ref.invalidate(teacherClassesProvider);
+    await Future.wait([
+      sSafe(ref.read(teacherSubjectsProvider.future)),
+      sSafe(ref.read(teacherClassesProvider.future)),
+    ]);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final subjectsAsync = ref.watch(teacherSubjectsProvider);
     final classesAsync = ref.watch(teacherClassesProvider);
 
+    final classTeacher = _classTeacherClasses(classesAsync.valueOrNull);
+    final subjects = _groupSubjects(subjectsAsync.valueOrNull);
+
+    final q = _query.toLowerCase();
+    final visibleClassTeacher = q.isEmpty
+        ? classTeacher
+        : classTeacher.where((c) => c.name.toLowerCase().contains(q)).toList();
+    final visibleSubjects = q.isEmpty
+        ? subjects
+        : subjects
+              .map((s) {
+                if (s.name.toLowerCase().contains(q) ||
+                    s.code.toLowerCase().contains(q)) {
+                  return s;
+                }
+                final classes = s.classes
+                    .where((c) => c.name.toLowerCase().contains(q))
+                    .toList();
+                return classes.isEmpty ? null : s.copyWith(classes: classes);
+              })
+              .whereType<_Subject>()
+              .toList();
+
+    final loading =
+        (subjectsAsync.isLoading && !subjectsAsync.hasValue) &&
+        (classesAsync.isLoading && !classesAsync.hasValue);
+    final failed =
+        subjectsAsync.hasError &&
+        !subjectsAsync.hasValue &&
+        classesAsync.hasError &&
+        !classesAsync.hasValue;
+
+    final classCount = {
+      ...classTeacher.map((c) => c.id),
+      for (final s in subjects) ...s.classes.map((c) => c.id),
+    }.length;
+
     return Scaffold(
-      backgroundColor: background,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        elevation: 0,
-        title: const Text(
-          'My Classes',
-          style: TextStyle(
-            color: textDark,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
-        ),
-        actions: [
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.search_rounded, color: textDark),
-          ),
-        ],
+      backgroundColor: StudentColors.background,
+      appBar: studentAppBar(
+        'My Classes',
+        subtitle: loading
+            ? null
+            : '$classCount class${classCount == 1 ? '' : 'es'} · '
+                  '${subjects.length} subject${subjects.length == 1 ? '' : 's'}',
       ),
+      body: RefreshIndicator(
+        color: StudentColors.primary,
+        onRefresh: _refresh,
+        child: () {
+          if (loading) {
+            return const StudentLoadingView(layout: LoadingLayout.summary);
+          }
 
-      body: subjectsAsync.when(
-        loading: () {
-          return const Center(child: CircularProgressIndicator(color: primary));
-        },
+          if (failed) {
+            return StudentErrorView(
+              error: subjectsAsync.error!,
+              onRetry: _refresh,
+              title: 'Unable to load your classes',
+            );
+          }
 
-        error: (error, stack) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(
-                    Icons.error_outline_rounded,
-                    color: Colors.red,
-                    size: 40,
-                  ),
+          if (classTeacher.isEmpty && subjects.isEmpty) {
+            return const StudentEmptyView(
+              icon: Icons.class_outlined,
+              title: 'No classes yet',
+              message:
+                  'When the admin makes you a class teacher or assigns you '
+                  'a subject, your classes will show here.',
+            );
+          }
 
-                  const SizedBox(height: 10),
-
-                  const Text(
-                    'Unable to load your classes',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
-
-                  const SizedBox(height: 10),
-
-                  Text(
-                    error.toString(),
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  ElevatedButton(
-                    onPressed: () {
-                      ref.invalidate(teacherSubjectsProvider);
-                      ref.invalidate(teacherClassesProvider);
-                    },
-                    child: const Text('Retry'),
-                  ),
-                ],
+          return ListView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            padding: const EdgeInsets.fromLTRB(18, 16, 18, 30),
+            children: [
+              _summary(
+                classes: classCount,
+                subjects: subjects.length,
+                classTeacher: classTeacher.length,
               ),
-            ),
-          );
-        },
+              const SizedBox(height: 14),
+              StudentSearchField(
+                controller: _search,
+                hint: 'Search class or subject',
+                onChanged: (v) => setState(() => _query = v.trim()),
+              ),
 
-        data: (data) {
-          final groupedSubjects = _groupSubjects(data);
-
-          return RefreshIndicator(
-            color: primary,
-            onRefresh: () async {
-              ref.invalidate(teacherSubjectsProvider);
-              ref.invalidate(teacherClassesProvider);
-
-              await Future.wait([
-                ref.read(teacherSubjectsProvider.future),
-                ref.read(teacherClassesProvider.future),
-              ]);
-            },
-
-            child: ListView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(20),
-              children: [
-                // ======================================================
-                // CLASS TEACHER SECTION
-                // ======================================================
-                classesAsync.when(
-                  loading: () {
-                    return _classTeacherLoading();
-                  },
-
-                  error: (error, stack) {
-                    return _classTeacherError(context, ref);
-                  },
-
-                  data: (classData) {
-                    final classTeacherClasses = _extractClassTeacherClasses(
-                      classData,
-                    );
-
-                    if (classTeacherClasses.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Class Teacher',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: textDark,
-                          ),
-                        ),
-
-                        const SizedBox(height: 5),
-
-                        Text(
-                          'Classes assigned to you as class teacher',
-                          style: TextStyle(
-                            color: Colors.grey.shade600,
-                            fontSize: 12,
-                          ),
-                        ),
-
-                        const SizedBox(height: 14),
-
-                        ...classTeacherClasses.map(
-                          (classItem) => _classTeacherCard(context, classItem),
-                        ),
-
-                        const SizedBox(height: 25),
-                      ],
-                    );
-                  },
+              // ---------------- CLASS TEACHER ----------------
+              if (classesAsync.hasError && !classesAsync.hasValue) ...[
+                const SizedBox(height: 20),
+                _inlineError(
+                  'Couldn\'t load your class-teacher classes.',
+                  () => ref.invalidate(teacherClassesProvider),
                 ),
-
-                // ======================================================
-                // SUBJECT TEACHING SECTION
-                // ======================================================
-                const Text(
-                  'Subject Teaching',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: textDark,
-                  ),
+              ] else if (visibleClassTeacher.isNotEmpty) ...[
+                const SizedBox(height: 22),
+                const SectionHeader(
+                  'Class teacher',
+                  subtitle: 'Your register and full class overview',
                 ),
-
-                const SizedBox(height: 5),
-
-                Text(
-                  '${groupedSubjects.length} subjects assigned to you',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                ),
-
-                const SizedBox(height: 18),
-
-                if (groupedSubjects.isEmpty)
-                  _emptySubjects()
-                else
-                  ...groupedSubjects.map(
-                    (subject) => _subjectCard(context, subject: subject),
-                  ),
+                const SizedBox(height: 12),
+                for (final c in visibleClassTeacher) ...[
+                  _classTeacherCard(c),
+                  const SizedBox(height: 10),
+                ],
               ],
-            ),
+
+              // ---------------- SUBJECTS ----------------
+              const SizedBox(height: 14),
+              SectionHeader(
+                'Subject teaching',
+                subtitle:
+                    '${visibleSubjects.length} subject${visibleSubjects.length == 1 ? '' : 's'}',
+              ),
+              const SizedBox(height: 12),
+              if (subjectsAsync.hasError && !subjectsAsync.hasValue)
+                _inlineError(
+                  'Couldn\'t load your subjects.',
+                  () => ref.invalidate(teacherSubjectsProvider),
+                )
+              else if (visibleSubjects.isEmpty)
+                SoftCard(
+                  padding: const EdgeInsets.all(18),
+                  child: Text(
+                    _query.isEmpty
+                        ? 'No subjects assigned to you yet.'
+                        : 'Nothing matches "$_query".',
+                    style: TextStyle(color: Colors.grey.shade600),
+                  ),
+                )
+              else
+                for (var i = 0; i < visibleSubjects.length; i++) ...[
+                  _subjectCard(
+                    visibleSubjects[i],
+                    StudentColors.accents[i % StudentColors.accents.length],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+            ],
           );
-        },
+        }(),
       ),
     );
   }
 
   // ================================================================
-  // EXTRACT CLASS TEACHER CLASSES
+  // SUMMARY
   // ================================================================
 
-  List<Map<String, dynamic>> _extractClassTeacherClasses(dynamic data) {
-    if (data == null) {
-      return [];
-    }
-
-    dynamic value = data;
-
-    if (data is Map) {
-      value = data['data'] ?? data['classes'] ?? data['teacherClasses'] ?? [];
-    }
-
-    if (value is! List) {
-      return [];
-    }
-
-    final result = <Map<String, dynamic>>[];
-
-    for (final item in value) {
-      if (item is! Map) {
-        continue;
-      }
-
-      final map = Map<String, dynamic>.from(item);
-
-      final classId = map['classId']?.toString() ?? map['id']?.toString() ?? '';
-
-      final className =
-          map['className']?.toString() ??
-          map['name']?.toString() ??
-          'Unknown Class';
-
-      if (classId.isEmpty) {
-        continue;
-      }
-
-      result.add({'classId': classId, 'className': className});
-    }
-
-    return result;
+  Widget _summary({
+    required int classes,
+    required int subjects,
+    required int classTeacher,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        gradient: kStudentGradient,
+        borderRadius: BorderRadius.circular(22),
+        boxShadow: [
+          BoxShadow(
+            color: StudentColors.primary.withValues(alpha: .22),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .15),
+              borderRadius: BorderRadius.circular(15),
+            ),
+            child: const Icon(
+              Icons.class_rounded,
+              color: Colors.white,
+              size: 25,
+            ),
+          ),
+          const SizedBox(width: 16),
+          HeroStat('Classes', '$classes'),
+          HeroStat('Subjects', '$subjects'),
+          HeroStat('Class teacher', '$classTeacher'),
+        ],
+      ),
+    );
   }
 
   // ================================================================
   // CLASS TEACHER CARD
   // ================================================================
 
-  Widget _classTeacherCard(
-    BuildContext context,
-    Map<String, dynamic> classItem,
-  ) {
-    final classId = classItem['classId']?.toString() ?? '';
-    final className = classItem['className']?.toString() ?? 'Class';
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.green.withOpacity(.18)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(.025),
-            blurRadius: 8,
-            offset: const Offset(0, 3),
-          ),
-        ],
+  Widget _classTeacherCard(_Class c) {
+    return SoftCard(
+      onTap: () => context.push(
+        '/teacher/classes/class-teacher-details',
+        extra: {'classId': c.id, 'className': c.name},
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () {
-            context.push(
-              '/teacher/classes/class-teacher-details',
-              extra: {
-                'classId': classItem['classId'],
-                'className': classItem['className'],
-              },
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.all(15),
-            child: Row(
-              children: [
-                Container(
-                  width: 50,
-                  height: 50,
-                  decoration: BoxDecoration(
-                    color: Colors.green.withOpacity(.09),
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Icon(
-                    Icons.school_rounded,
-                    color: Colors.green,
-                    size: 25,
-                  ),
-                ),
-
-                const SizedBox(width: 13),
-
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        className,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: textDark,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
+      padding: const EdgeInsets.all(14),
+      borderColor: Colors.green.shade100,
+      child: Column(
+        children: [
+          Row(
+            children: [
+              IconBadge(Icons.school_rounded, color: Colors.green.shade600),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      c.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: StudentColors.textDark,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
                       ),
-
-                      const SizedBox(height: 5),
-
-                      Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 4,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.green.withOpacity(.08),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: const Text(
-                              'Class Teacher',
-                              style: TextStyle(
-                                color: Colors.green,
-                                fontSize: 9,
-                                fontWeight: FontWeight.bold,
-                              ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        _tag('Class teacher', Colors.green.shade700),
+                        if (c.students != null) ...[
+                          const SizedBox(width: 8),
+                          Text(
+                            '${c.students} student${c.students == 1 ? '' : 's'}',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 12,
                             ),
                           ),
                         ],
-                      ),
-                    ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 42,
+            child: FilledButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => TeacherClassAttendancePage(
+                    classId: c.id,
+                    className: c.name,
+                    subjectId: null,
+                    subjectName: 'Class attendance',
                   ),
                 ),
-
-                const Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 14,
-                  color: primary,
+              ),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.green.shade600,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ================================================================
-  // CLASS TEACHER LOADING
-  // ================================================================
-
-  Widget _classTeacherLoading() {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 25),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: const Row(
-        children: [
-          SizedBox(
-            width: 20,
-            height: 20,
-            child: CircularProgressIndicator(strokeWidth: 2, color: primary),
-          ),
-
-          SizedBox(width: 12),
-
-          Text(
-            'Loading class teacher assignments...',
-            style: TextStyle(color: textDark, fontSize: 11),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // CLASS TEACHER ERROR
-  // ================================================================
-
-  Widget _classTeacherError(BuildContext context, WidgetRef ref) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 25),
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: Colors.red.shade100),
-      ),
-      child: Row(
-        children: [
-          Icon(Icons.error_outline_rounded, color: Colors.red.shade300),
-
-          const SizedBox(width: 10),
-
-          const Expanded(
-            child: Text(
-              'Unable to load your class-teacher assignments.',
-              style: TextStyle(color: textDark, fontSize: 11),
-            ),
-          ),
-
-          IconButton(
-            onPressed: () {
-              ref.invalidate(teacherClassesProvider);
-            },
-            icon: const Icon(Icons.refresh_rounded, color: primary),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // EMPTY SUBJECTS
-  // ================================================================
-
-  Widget _emptySubjects() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(25),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(17),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-      child: Column(
-        children: [
-          Icon(Icons.menu_book_outlined, size: 38, color: Colors.grey.shade300),
-
-          const SizedBox(height: 10),
-
-          Text(
-            'No subjects assigned to you',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+              ),
+              icon: const Icon(Icons.fact_check_rounded, size: 18),
+              label: const Text(
+                'Take class register',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w800),
+              ),
             ),
           ),
         ],
       ),
     );
-  }
-
-  // ================================================================
-  // GROUP SUBJECTS BY SUBJECT NAME
-  // ================================================================
-
-  List<Map<String, dynamic>> _groupSubjects(dynamic data) {
-    if (data == null) {
-      return [];
-    }
-
-    List<dynamic> items;
-
-    if (data is List) {
-      items = data;
-    } else if (data is Map) {
-      final value = data['data'] ?? data['subjects'] ?? [];
-
-      if (value is List) {
-        items = value;
-      } else {
-        return [];
-      }
-    } else {
-      return [];
-    }
-
-    final Map<String, Map<String, dynamic>> grouped = {};
-
-    for (final item in items) {
-      if (item is! Map) {
-        continue;
-      }
-
-      final subjectId = item['subjectId']?.toString() ?? '';
-
-      final subjectName = item['subjectName']?.toString() ?? 'Unknown Subject';
-
-      final code = item['code']?.toString() ?? '';
-
-      final classId = item['classId']?.toString() ?? '';
-
-      final className = item['className']?.toString() ?? 'Unknown Class';
-
-      final key = subjectId.isNotEmpty ? subjectId : subjectName;
-
-      if (!grouped.containsKey(key)) {
-        grouped[key] = {
-          'subjectId': subjectId,
-          'subjectName': subjectName,
-          'code': code,
-          'classes': <Map<String, String>>[],
-        };
-      }
-
-      final classes = grouped[key]!['classes'] as List<Map<String, String>>;
-
-      final alreadyExists = classes.any(
-        (classItem) => classItem['classId'] == classId,
-      );
-
-      if (!alreadyExists) {
-        classes.add({'classId': classId, 'className': className});
-      }
-    }
-
-    return grouped.values.toList();
   }
 
   // ================================================================
   // SUBJECT CARD
   // ================================================================
 
-  Widget _subjectCard(
-    BuildContext context, {
-    required Map<String, dynamic> subject,
-  }) {
-    final subjectName = subject['subjectName']?.toString() ?? 'Subject';
-
-    final code = subject['code']?.toString() ?? '';
-
-    final classes =
-        (subject['classes'] as List?)?.cast<Map<String, String>>() ?? [];
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
+  Widget _subjectCard(_Subject s, Color color) {
+    return SoftCard(
+      padding: const EdgeInsets.all(14),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // ----------------------------------------------------------
-          // SUBJECT HEADER
-          // ----------------------------------------------------------
           Row(
             children: [
               Container(
-                width: 50,
-                height: 50,
+                width: 48,
+                height: 48,
+                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: primary.withOpacity(.09),
-                  borderRadius: BorderRadius.circular(14),
+                  gradient: LinearGradient(
+                    colors: [color, color.withValues(alpha: .75)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(15),
                 ),
-                child: const Icon(Icons.menu_book_rounded, color: primary),
+                child: Text(
+                  s.code.isNotEmpty
+                      ? s.code.toUpperCase()
+                      : studentInitials(s.name, fallback: '?'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
               ),
-
               const SizedBox(width: 13),
-
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      subjectName,
+                      s.name,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: textDark,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15,
+                        color: StudentColors.textDark,
+                        fontSize: 15.5,
+                        fontWeight: FontWeight.w800,
                       ),
                     ),
-
-                    const SizedBox(height: 4),
-
+                    const SizedBox(height: 2),
                     Text(
-                      code.isNotEmpty
-                          ? '$code • ${classes.length} classes'
-                          : '${classes.length} classes',
+                      'Taught in ${s.classes.length} class${s.classes.length == 1 ? '' : 'es'}',
                       style: TextStyle(
                         color: Colors.grey.shade600,
-                        fontSize: 11,
+                        fontSize: 12,
                       ),
                     ),
                   ],
@@ -594,112 +389,183 @@ class TeacherClassesPage extends ConsumerWidget {
               ),
             ],
           ),
-
-          const SizedBox(height: 14),
-
-          Divider(color: Colors.grey.shade200, height: 1),
-
           const SizedBox(height: 12),
-
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Text(
-              'Classes',
-              style: TextStyle(
-                color: Colors.grey.shade700,
-                fontSize: 11,
-                fontWeight: FontWeight.bold,
+          for (final c in s.classes) ...[
+            Material(
+              color: StudentColors.background,
+              borderRadius: BorderRadius.circular(13),
+              clipBehavior: Clip.antiAlias,
+              child: InkWell(
+                onTap: () => context.push(
+                  '/teacher/classes/details',
+                  extra: {
+                    'subjectId': s.id,
+                    'subjectName': s.name,
+                    'classId': c.id,
+                    'className': c.name,
+                    'isClassTeacher': false,
+                  },
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 11,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(Icons.groups_rounded, size: 18, color: color),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          c.name,
+                          style: const TextStyle(
+                            color: StudentColors.textDark,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        'Open',
+                        style: TextStyle(
+                          color: color,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      Icon(Icons.chevron_right_rounded, size: 18, color: color),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
-
-          const SizedBox(height: 8),
-
-          ...classes.map(
-            (classItem) =>
-                _classItem(context, subject: subject, classItem: classItem),
-          ),
+            const SizedBox(height: 8),
+          ],
         ],
       ),
     );
   }
 
   // ================================================================
-  // CLASS ITEM
+  // SMALL PIECES
   // ================================================================
 
-  Widget _classItem(
-    BuildContext context, {
-    required Map<String, dynamic> subject,
-    required Map<String, String> classItem,
-  }) {
-    final classId = classItem['classId'] ?? '';
+  Widget _tag(String text, Color color) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+    decoration: BoxDecoration(
+      color: color.withValues(alpha: .1),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Text(
+      text,
+      style: TextStyle(color: color, fontSize: 10.5, fontWeight: FontWeight.w800),
+    ),
+  );
 
-    final className = classItem['className'] ?? 'Class';
-
+  Widget _inlineError(String text, VoidCallback onRetry) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.fromLTRB(16, 8, 8, 8),
       decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(13),
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.red.shade100),
       ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(13),
-          onTap: () {
-            context.push(
-              '/teacher/classes/details',
-              extra: {
-                'subjectId': subject['subjectId'],
-                'subjectName': subject['subjectName'],
-                'classId': classId,
-                'className': className,
-                'isClassTeacher': false,
-              },
-            );
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-            child: Row(
-              children: [
-                Container(
-                  width: 34,
-                  height: 34,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.groups_outlined,
-                    color: primary,
-                    size: 19,
-                  ),
-                ),
-
-                const SizedBox(width: 10),
-
-                Expanded(
-                  child: Text(
-                    className,
-                    style: const TextStyle(
-                      color: textDark,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-
-                const Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  size: 13,
-                  color: primary,
-                ),
-              ],
+      child: Row(
+        children: [
+          Icon(Icons.error_outline_rounded, color: Colors.red.shade400),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: Colors.red.shade700, fontSize: 12.5),
             ),
           ),
-        ),
+          TextButton(onPressed: onRetry, child: const Text('Retry')),
+        ],
       ),
     );
   }
+
+  // ================================================================
+  // DATA
+  // ================================================================
+
+  List<_Class> _classTeacherClasses(dynamic data) {
+    final result = <_Class>[];
+    final seen = <String>{};
+
+    for (final item in sList(data, ['data', 'classes', 'teacherClasses'])) {
+      final id = sStr(item, ['classId', 'id']);
+      if (id == null || !seen.add(id)) continue;
+
+      final count = sNum(item, ['studentCount', 'studentsCount']);
+      final list = item is Map ? item['students'] : null;
+
+      result.add(
+        _Class(
+          id,
+          sStr(item, ['className', 'name']) ?? 'Class',
+          students: count?.toInt() ?? (list is List ? list.length : null),
+        ),
+      );
+    }
+
+    return result..sort((a, b) => a.name.compareTo(b.name));
+  }
+
+  List<_Subject> _groupSubjects(dynamic data) {
+    final grouped = <String, _Subject>{};
+
+    for (final item in sList(data, ['data', 'subjects'])) {
+      final subjectId = sStr(item, ['subjectId']) ?? '';
+      final name = sStr(item, ['subjectName']) ?? 'Subject';
+      final key = subjectId.isNotEmpty ? subjectId : name;
+
+      final subject = grouped.putIfAbsent(
+        key,
+        () => _Subject(
+          id: subjectId,
+          name: name,
+          code: sStr(item, ['code', 'subjectCode']) ?? '',
+          classes: [],
+        ),
+      );
+
+      final classId = sStr(item, ['classId']) ?? '';
+      if (classId.isNotEmpty && !subject.classes.any((c) => c.id == classId)) {
+        subject.classes.add(_Class(classId, sStr(item, ['className']) ?? 'Class'));
+      }
+    }
+
+    for (final s in grouped.values) {
+      s.classes.sort((a, b) => a.name.compareTo(b.name));
+    }
+
+    return grouped.values.toList()..sort((a, b) => a.name.compareTo(b.name));
+  }
+}
+
+class _Class {
+  _Class(this.id, this.name, {this.students});
+
+  final String id;
+  final String name;
+  final int? students;
+}
+
+class _Subject {
+  _Subject({
+    required this.id,
+    required this.name,
+    required this.code,
+    required this.classes,
+  });
+
+  final String id;
+  final String name;
+  final String code;
+  final List<_Class> classes;
+
+  _Subject copyWith({List<_Class>? classes}) =>
+      _Subject(id: id, name: name, code: code, classes: classes ?? this.classes);
 }

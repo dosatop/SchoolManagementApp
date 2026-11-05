@@ -30,7 +30,7 @@ class _LoginOrSignUpState extends State<LoginOrSignUp> {
   @override
   Widget build(BuildContext context) {
     return isLogin
-        ? LoginPage(onTogglePage: togglePage)
+        ? LoginPage()
         : SignUpPage(onTogglePage: togglePage);
   }
 }

@@ -463,6 +463,52 @@ class TeacherNotifier extends AsyncNotifier<void> {
     }
   }
 
+  
+  // ================================================================
+  // GRADE ASSIGNMENT SUBMISSION
+  // ================================================================
+
+  Future<bool> gradeSubmission({
+    required String assignmentId,
+    required String submissionId,
+    required double score,
+    String? feedback,
+  }) async {
+    try {
+      if (score < 0 || score > 10) {
+        throw ArgumentError('Score must be between 0 and 10.');
+      }
+
+      final repository = ref.read(teacherRepositoryProvider);
+
+      await repository.gradeSubmission(
+        assignmentId: assignmentId,
+        submissionId: submissionId,
+        score: score,
+        feedback: feedback,
+      );
+
+      // Refresh the assignment details to show the new grade.
+      ref.invalidate(
+        teacherAssignmentDetailsProvider(assignmentId),
+      );
+
+      // Also refresh the other single-assignment provider.
+      ref.invalidate(
+        teacherAssignmentProvider(assignmentId),
+      );
+
+      // Refresh the assignments list.
+      ref.invalidate(teacherAssignmentsProvider);
+
+      return true;
+    } catch (error, stackTrace) {
+      state = AsyncError(error, stackTrace);
+      return false;
+    }
+  }
+
+
   // ================================================================
   // UPDATE ASSIGNMENT
   // ================================================================

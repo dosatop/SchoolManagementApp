@@ -389,6 +389,36 @@ class TeacherApi {
     }
   }
 
+
+  // ================================================================
+  // GRADE ASSIGNMENT SUBMISSION
+  // ================================================================
+
+  Future<dynamic> gradeSubmission({
+    required String assignmentId,
+    required String submissionId,
+    required double score,
+    String? feedback,
+  }) async {
+    if (score < 0 || score > 10) {
+      throw ArgumentError('Score must be between 0 and 10.');
+    }
+
+    try {
+      final response = await dioClient.dio.put(
+        '/teacher/$assignmentId/submissions/$submissionId/grade',
+        data: {
+          'score': score,
+          if (feedback != null) 'feedback': feedback,
+        },
+      );
+
+      return response.data;
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
   // ================================================================
   // UPDATE ASSIGNMENT
   // ================================================================

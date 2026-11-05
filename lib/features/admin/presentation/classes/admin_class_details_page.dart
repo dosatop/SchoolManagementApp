@@ -3,6 +3,7 @@ import 'package:app/features/admin/models/classes/admin_assign_class_subject_req
 import 'package:app/features/admin/models/classes/admin_class_model.dart';
 import 'package:app/features/admin/providers/admin_class_provider.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
+import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -25,28 +26,131 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   static const Color orange = Color(0xFFF59E0B);
   static const Color red = Color(0xFFDC2626);
 
-  static const String session = '2026/2027';
-  static const String term = '2nd';
+  // Used only if the current academic session can't be loaded.
+  static const String _fallbackSession = '2026/2027';
+  static const String _fallbackTerm = '2nd';
 
   DateTime? _selectedDate;
 
   String? _unassigningSubjectId;
 
+  bool _unassigningClassTeacher = false;
+
+  // ================================================================
+  // LIVE CLASS
+  // ================================================================
+  //
+  // The class passed to the page is a snapshot from when it opened.
+  // After assigning/unassigning a class teacher or subjects the
+  // dashboard reloads, so read the fresh copy from there.
+  // ================================================================
+
+  AdminClassModel get _class {
+    final classes = ref.read(adminDashboardProvider).value?.classes;
+
+    if (classes != null) {
+      for (final c in classes) {
+        if (c.classId == widget.schoolClass.classId) return c;
+      }
+    }
+
+    return widget.schoolClass;
+  }
+
+  String get _classId => widget.schoolClass.classId;
+  String get _schoolId => widget.schoolClass.schoolId;
+
+  // ================================================================
+  // CURRENT SESSION / TERM
+  // ================================================================
+  //
+  // Read from currentAcademicSessionProvider instead of hard-coding.
+  // The model is read through toJson() so this works whatever the
+  // exact field names are.
+  // ================================================================
+
+  Map<String, dynamic>? get _sessionJson {
+    final value = ref.read(currentAcademicSessionProvider(_schoolId)).value;
+
+    if (value == null) return null;
+
+    try {
+      final json = (value as dynamic).toJson();
+      if (json is Map) return Map<String, dynamic>.from(json);
+    } catch (_) {}
+
+    return null;
+  }
+
+  String? _pick(Map<String, dynamic>? json, List<String> keys) {
+    if (json == null) return null;
+
+    for (final key in keys) {
+      final v = json[key];
+
+      if (v is Map) {
+        final inner = v['name'] ?? v['sessionName'] ?? v['termName'];
+        if (inner != null && inner.toString().trim().isNotEmpty) {
+          return inner.toString().trim();
+        }
+      } else if (v != null && v.toString().trim().isNotEmpty) {
+        return v.toString().trim();
+      }
+    }
+
+    return null;
+  }
+
+  String get session =>
+      _pick(_sessionJson, const [
+        'session',
+        'sessionName',
+        'academicSession',
+        'academicYear',
+        'name',
+      ]) ??
+      _fallbackSession;
+
+  String get term =>
+      _pick(_sessionJson, const [
+        'term',
+        'termName',
+        'currentTerm',
+        'academicTerm',
+      ]) ??
+      _fallbackTerm;
+
+  AdminClassAttendanceParams get _attendanceParams =>
+      AdminClassAttendanceParams(
+        studentIds: _class.students
+            .map((student) => student.studentId)
+            .toList(),
+        session: session,
+        term: term,
+      );
+
+  Future<void> _refreshAll() async {
+    ref.invalidate(currentAcademicSessionProvider(_schoolId));
+    ref.invalidate(adminClassSubjectDetailsProvider(_classId));
+    ref.invalidate(adminClassAttendanceProvider(_attendanceParams));
+    await ref.read(adminDashboardProvider.notifier).refresh();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final schoolClass = widget.schoolClass;
+    // Rebuild when the dashboard (fresh class data) or the current
+    // session changes.
+    ref.watch(adminDashboardProvider);
+    final sessionAsync = ref.watch(currentAcademicSessionProvider(_schoolId));
 
-    final attendanceAsync = ref.watch(
-      adminClassAttendanceProvider(
-        AdminClassAttendanceParams(
-          studentIds: schoolClass.students
-              .map((student) => student.studentId)
-              .toList(),
-          session: session,
-          term: term,
-        ),
-      ),
-    );
+    final schoolClass = _class;
+
+    // Don't load attendance with a guessed session while the real one
+    // is still loading; that would fetch every student twice.
+    final AsyncValue<List<AdminStudentAttendanceModel>> attendanceAsync =
+        sessionAsync.isLoading && !sessionAsync.hasValue
+        ? const AsyncLoading()
+        : ref.watch(adminClassAttendanceProvider(_attendanceParams));
 
     return Scaffold(
       backgroundColor: background,
@@ -79,46 +183,51 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
       // BODY
       // ================================================================
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 50),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ==========================================================
-              // CLASS HEADER
-              // ==========================================================
-              _classHeader(),
+        child: RefreshIndicator(
+          color: primary,
+          onRefresh: _refreshAll,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 50),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ==========================================================
+                // CLASS HEADER
+                // ==========================================================
+                _classHeader(),
 
-              const SizedBox(height: 24),
+                const SizedBox(height: 24),
 
-              // ==========================================================
-              // SUBJECTS
-              // ==========================================================
-              _buildSubjectsSection(),
+                // ==========================================================
+                // SUBJECTS
+                // ==========================================================
+                _buildSubjectsSection(),
 
-              const SizedBox(height: 28),
+                const SizedBox(height: 28),
 
-              // ==========================================================
-              // TEACHERS
-              // ==========================================================
-              _buildTeachersSection(),
+                // ==========================================================
+                // TEACHERS
+                // ==========================================================
+                _buildTeachersSection(),
 
-              const SizedBox(height: 28),
+                const SizedBox(height: 28),
 
-              // ==========================================================
-              // STUDENTS
-              // ==========================================================
-              _buildStudentsSection(
-                attendanceData: attendanceAsync.value ?? const [],
-              ),
+                // ==========================================================
+                // STUDENTS
+                // ==========================================================
+                _buildStudentsSection(
+                  attendanceData: attendanceAsync.value ?? const [],
+                ),
 
-              const SizedBox(height: 28),
+                const SizedBox(height: 28),
 
-              // ==========================================================
-              // ATTENDANCE
-              // ==========================================================
-              _buildAttendanceSection(attendanceAsync: attendanceAsync),
-            ],
+                // ==========================================================
+                // ATTENDANCE
+                // ==========================================================
+                _buildAttendanceSection(attendanceAsync: attendanceAsync),
+              ],
+            ),
           ),
         ),
       ),
@@ -159,7 +268,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   }
 
   Widget _buildSubjectsSection() {
-    final schoolClass = widget.schoolClass;
+    final schoolClass = _class;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -167,7 +276,12 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
         _sectionHeaderWithAction(
           title: 'Subjects',
           icon: Icons.menu_book_outlined,
-          count: schoolClass.subjects.length,
+          count:
+              ref
+                  .watch(adminClassSubjectDetailsProvider(_classId))
+                  .value
+                  ?.length ??
+              schoolClass.subjects.length,
           buttonText: 'Assign Subjects',
           buttonIcon: Icons.add_rounded,
           onPressed: () => _showAddSubjectModal(context),
@@ -181,11 +295,19 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   }
 
   Widget _buildTeachersSection() {
-    // final schoolClass = widget.schoolClass;
+    // final schoolClass = _class;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [const SizedBox(height: 10), _teachersSection()],
+      children: [
+        _sectionTitle(
+          title: 'Subject Teachers',
+          icon: Icons.co_present_outlined,
+          count: _class.teachers.length,
+        ),
+        const SizedBox(height: 10),
+        _teachersSection(),
+      ],
     );
   }
 
@@ -238,7 +360,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
                   final teachers = dashboard.teachers
                       .where(
                         (teacher) =>
-                            teacher.schoolId == widget.schoolClass.schoolId &&
+                            teacher.schoolId == _schoolId &&
                             teacher.classTeacher == null,
                       )
                       .toList();
@@ -448,25 +570,32 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
                                     await ref
                                         .read(adminClassProvider.notifier)
                                         .assignClassTeacher(
-                                          classId: widget.schoolClass.classId,
+                                          classId: _classId,
                                           teacherId: selectedTeacherId!,
                                         );
 
+                                    // Reload so the header shows the new
+                                    // class teacher.
+                                    await ref
+                                        .read(adminDashboardProvider.notifier)
+                                        .refresh();
+
                                     if (!modalContext.mounted) return;
+
+                                    final messenger = ScaffoldMessenger.of(
+                                      modalContext,
+                                    );
 
                                     Navigator.pop(modalContext);
 
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(
-                                        context,
-                                      ).showSnackBar(
-                                        const SnackBar(
-                                          content: Text(
-                                            'Teacher assigned successfully',
-                                          ),
+                                    messenger.showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Class teacher assigned successfully',
                                         ),
-                                      );
-                                    }
+                                        backgroundColor: green,
+                                      ),
+                                    );
                                   } catch (error) {
                                     if (!modalContext.mounted) return;
 
@@ -529,7 +658,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   Widget _buildStudentsSection({
     required List<AdminStudentAttendanceModel> attendanceData,
   }) {
-    final schoolClass = widget.schoolClass;
+    final schoolClass = _class;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -552,7 +681,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   // ================================================================
 
   Widget _classHeader() {
-    final schoolClass = widget.schoolClass;
+    final schoolClass = _class;
 
     final hasClassTeacher =
         schoolClass.classTeacherName != null &&
@@ -667,7 +796,9 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
           // ASSIGN / UNASSIGN BUTTON
           // ============================================================
           TextButton.icon(
-            onPressed: hasClassTeacher
+            onPressed: _unassigningClassTeacher
+                ? null
+                : hasClassTeacher
                 ? () => _confirmUnassignClassTeacher(
                     context: context,
                     classId: schoolClass.classId,
@@ -675,12 +806,21 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
                   )
                 : () => _showAssignTeacherModal(context),
 
-            icon: Icon(
-              hasClassTeacher
-                  ? Icons.person_remove_alt_1_rounded
-                  : Icons.person_add_alt_1_rounded,
-              size: 15,
-            ),
+            icon: _unassigningClassTeacher
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: red,
+                    ),
+                  )
+                : Icon(
+                    hasClassTeacher
+                        ? Icons.person_remove_alt_1_rounded
+                        : Icons.person_add_alt_1_rounded,
+                    size: 15,
+                  ),
 
             label: Text(
               hasClassTeacher ? 'Unassign Teacher' : 'Assign Teacher',
@@ -690,7 +830,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
             style: TextButton.styleFrom(
               foregroundColor: hasClassTeacher ? red : primary,
               backgroundColor: hasClassTeacher
-                  ? red.withValues()
+                  ? red.withValues(alpha: .08)
                   : primaryLight,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               shape: RoundedRectangleBorder(
@@ -734,7 +874,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   //             child: _statCard(
   //               icon: Icons.menu_book_outlined,
   //               label: 'Subjects',
-  //               value: '${widget.schoolClass.subjects.length}',
+  //               value: '${_class.subjects.length}',
   //               color: primary,
   //             ),
   //           ),
@@ -745,7 +885,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   //             child: _statCard(
   //               icon: Icons.people_outline_rounded,
   //               label: 'Teachers',
-  //               value: '${widget.schoolClass.teachers.length}',
+  //               value: '${_class.teachers.length}',
   //               color: green,
   //             ),
   //           ),
@@ -768,7 +908,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   //               icon: Icons.assignment_outlined,
   //               label: 'Results',
   //               value:
-  //                   '${widget.schoolClass.students.fold<int>(0, (total, student) => total + student.results.length)}',
+  //                   '${_class.students.fold<int>(0, (total, student) => total + student.results.length)}',
   //               color: Colors.purple,
   //             ),
   //           ),
@@ -1046,151 +1186,211 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   // ================================================================
 
   Widget _subjectsSection() {
-    final subjectsAsync = ref.watch(
-      adminClassSubjectDetailsProvider(widget.schoolClass.classId),
-    );
+    final subjectsAsync = ref.watch(adminClassSubjectDetailsProvider(_classId));
+
+    // Subjects already on the class model (from the dashboard/classes
+    // endpoint). Used when the dedicated endpoint fails.
+    final fallback = _class.subjects
+        .map((s) => (id: s.subjectId, name: s.subjectName, code: s.subjectCode))
+        .toList();
 
     return subjectsAsync.when(
-      loading: () => _subjectsLoading(),
+      loading: () =>
+          fallback.isNotEmpty ? _subjectGrid(fallback) : _subjectsLoading(),
 
       error: (error, stackTrace) {
-        return _emptyCard(
-          icon: Icons.error_outline_rounded,
-          text: 'Unable to load subjects.',
-        );
+        debugPrint('CLASS SUBJECTS ERROR ($_classId): $error');
+        debugPrintStack(stackTrace: stackTrace);
+
+        if (fallback.isNotEmpty) return _subjectGrid(fallback);
+
+        return _subjectsError(error);
       },
 
       data: (subjects) {
-        if (subjects.isEmpty) {
+        final items = subjects
+            .map(
+              (s) => (
+                id: s.subjectId.toString(),
+                name: s.subjectName.toString(),
+                code: (s.subjectCode ?? '').toString(),
+              ),
+            )
+            .toList();
+
+        // Endpoint returned nothing but the class model has subjects:
+        // trust the class model.
+        if (items.isEmpty && fallback.isNotEmpty) {
+          return _subjectGrid(fallback);
+        }
+
+        if (items.isEmpty) {
           return _emptyCard(
             icon: Icons.menu_book_outlined,
             text: 'No subjects assigned to this class.',
           );
         }
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final crossAxisCount = constraints.maxWidth >= 700
-                ? 4
-                : constraints.maxWidth >= 500
-                ? 3
-                : 2;
+        return _subjectGrid(items);
+      },
+    );
+  }
 
-            const spacing = 8.0;
+  Widget _subjectsError(Object error) {
+    final message = error.toString().replaceFirst('Exception: ', '').trim();
 
-            final itemWidth =
-                (constraints.maxWidth - ((crossAxisCount - 1) * spacing)) /
-                crossAxisCount;
-
-            return Wrap(
-              spacing: spacing,
-              runSpacing: spacing,
-              children: subjects.map((subject) {
-                final isUnassigning =
-                    _unassigningSubjectId == subject.subjectId;
-                return SizedBox(
-                  width: itemWidth,
-                  child: Container(
-                    height: 48,
-                    padding: const EdgeInsets.only(left: 11, right: 5),
-                    decoration: BoxDecoration(
-                      color: primaryLight,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: primary.withOpacity(.08)),
-                    ),
-                    child: Row(
-                      children: [
-                        // ==================================================
-                        // SUBJECT ICON
-                        // ==================================================
-                        const Icon(
-                          Icons.menu_book_outlined,
-                          color: primary,
-                          size: 15,
-                        ),
-
-                        const SizedBox(width: 7),
-
-                        // ==================================================
-                        // SUBJECT DETAILS
-                        // ==================================================
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                subject.subjectName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: primary,
-                                  fontSize: 10.5,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-
-                              if (subject.subjectCode.isNotEmpty) ...[
-                                const SizedBox(height: 2),
-
-                                Text(
-                                  subject.subjectCode,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: primary.withOpacity(.60),
-                                    fontSize: 8.5,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-
-                        // ==================================================
-                        // UNASSIGN BUTTON
-                        // ==================================================
-                        IconButton(
-                          tooltip: isUnassigning
-                              ? 'Unassigning subject'
-                              : 'Unassign subject',
-                          onPressed: isUnassigning
-                              ? null
-                              : () {
-                                  _confirmUnassignSubject(
-                                    context: context,
-                                    subjectId: subject.subjectId,
-                                    subjectName: subject.subjectName,
-                                  );
-                                },
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
-                          ),
-                          icon: isUnassigning
-                              ? const SizedBox(
-                                  width: 17,
-                                  height: 17,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: red,
-                                  ),
-                                )
-                              : Icon(
-                                  Icons.remove_circle_outline_rounded,
-                                  color: Colors.red.shade400,
-                                  size: 18,
-                                ),
-                        ),
-                      ],
-                    ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: red.withValues(alpha: .15)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline_rounded, color: red, size: 22),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Unable to load subjects',
+                  style: TextStyle(
+                    color: textDark,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
                   ),
-                );
-              }).toList(),
+                ),
+                if (message.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    message,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          TextButton(
+            onPressed: () =>
+                ref.invalidate(adminClassSubjectDetailsProvider(_classId)),
+            child: const Text('Retry'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _subjectGrid(List<({String id, String name, String code})> subjects) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final crossAxisCount = constraints.maxWidth >= 700
+            ? 4
+            : constraints.maxWidth >= 500
+            ? 3
+            : 2;
+
+        const spacing = 8.0;
+
+        final itemWidth =
+            (constraints.maxWidth - ((crossAxisCount - 1) * spacing)) /
+            crossAxisCount;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: subjects.map((subject) {
+            final isUnassigning = _unassigningSubjectId == subject.id;
+
+            return SizedBox(
+              width: itemWidth,
+              child: Container(
+                height: 48,
+                padding: const EdgeInsets.only(left: 11, right: 5),
+                decoration: BoxDecoration(
+                  color: primaryLight,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: primary.withValues(alpha: .08)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.menu_book_outlined,
+                      color: primary,
+                      size: 15,
+                    ),
+                    const SizedBox(width: 7),
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            subject.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: primary,
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          if (subject.code.isNotEmpty) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              subject.code,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: primary.withValues(alpha: .6),
+                                fontSize: 8.5,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      tooltip: isUnassigning
+                          ? 'Unassigning subject'
+                          : 'Unassign subject',
+                      onPressed: isUnassigning
+                          ? null
+                          : () => _confirmUnassignSubject(
+                              context: context,
+                              subjectId: subject.id,
+                              subjectName: subject.name,
+                            ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(
+                        minWidth: 32,
+                        minHeight: 32,
+                      ),
+                      icon: isUnassigning
+                          ? const SizedBox(
+                              width: 17,
+                              height: 17,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: red,
+                              ),
+                            )
+                          : Icon(
+                              Icons.remove_circle_outline_rounded,
+                              color: Colors.red.shade400,
+                              size: 18,
+                            ),
+                    ),
+                  ],
+                ),
+              ),
             );
-          },
+          }).toList(),
         );
       },
     );
@@ -1208,10 +1408,25 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
         return StatefulBuilder(
           builder: (context, setModalState) {
             final assignedSubjectsAsync = ref.watch(
-              adminClassSubjectDetailsProvider(widget.schoolClass.classId),
+              adminClassSubjectDetailsProvider(_classId),
             );
 
             final subjectsAsync = ref.watch(adminDashboardProvider);
+
+            // Already-assigned subjects: from the class-subjects endpoint
+            // when it works, plus the class model (so the sheet still
+            // works if that endpoint fails).
+            final assignedSubjectIds = <String>{
+              ..._class.subjects.map((s) => s.subjectId),
+              ...?assignedSubjectsAsync.value?.map(
+                (s) => s.subjectId.toString(),
+              ),
+            };
+
+            final waitingForAssigned =
+                assignedSubjectsAsync.isLoading &&
+                !assignedSubjectsAsync.hasValue &&
+                _class.subjects.isEmpty;
 
             return Container(
               padding: EdgeInsets.only(
@@ -1224,329 +1439,322 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
                 color: Colors.white,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
-              child: assignedSubjectsAsync.when(
-                loading: () => const SizedBox(
-                  height: 250,
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-
-                error: (error, stack) => const SizedBox(
-                  height: 250,
-                  child: Center(
-                    child: Text(
-                      'Unable to load assigned subjects.',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
-                    ),
-                  ),
-                ),
-
-                data: (assignedSubjects) {
-                  final assignedSubjectIds = assignedSubjects
-                      .map((subject) => subject.subjectId)
-                      .toSet();
-
-                  return subjectsAsync.when(
-                    loading: () => const SizedBox(
+              child: waitingForAssigned
+                  ? const SizedBox(
                       height: 250,
                       child: Center(child: CircularProgressIndicator()),
-                    ),
+                    )
+                  : subjectsAsync.when(
+                      loading: () => const SizedBox(
+                        height: 250,
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
 
-                    error: (error, stack) => const SizedBox(
-                      height: 250,
-                      child: Center(
-                        child: Text(
-                          'Unable to load subjects.',
-                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                      error: (error, stack) => const SizedBox(
+                        height: 250,
+                        child: Center(
+                          child: Text(
+                            'Unable to load subjects.',
+                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                          ),
                         ),
                       ),
-                    ),
 
-                    data: (dashboard) {
-                      // Get all subjects belonging to this school.
-                      final availableSubjects = dashboard.subjects
-                          .where(
-                            (subject) =>
-                                subject.schoolId ==
-                                    widget.schoolClass.schoolId &&
-                                !assignedSubjectIds.contains(subject.subjectId),
-                          )
-                          .toList();
-
-                      return Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // ==================================================
-                          // HANDLE
-                          // ==================================================
-                          Center(
-                            child: Container(
-                              width: 40,
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade300,
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                            ),
-                          ),
-
-                          const SizedBox(height: 20),
-
-                          // ==================================================
-                          // HEADER
-                          // ==================================================
-                          Row(
-                            children: [
-                              Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                  color: primaryLight,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: const Icon(
-                                  Icons.menu_book_outlined,
-                                  color: primary,
-                                ),
-                              ),
-
-                              const SizedBox(width: 12),
-
-                              const Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Add Subject',
-                                      style: TextStyle(
-                                        color: textDark,
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    SizedBox(height: 3),
-                                    Text(
-                                      'Assign a subject to this class',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-
-                              IconButton(
-                                onPressed: () {
-                                  Navigator.pop(modalContext);
-                                },
-                                icon: const Icon(Icons.close),
-                              ),
-                            ],
-                          ),
-
-                          const SizedBox(height: 24),
-
-                          // ==================================================
-                          // SUBJECT LABEL
-                          // ==================================================
-                          const Text(
-                            'Subject',
-                            style: TextStyle(
-                              color: textDark,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-
-                          const SizedBox(height: 8),
-
-                          // ==================================================
-                          // SUBJECT DROPDOWN
-                          // ==================================================
-                          if (availableSubjects.isEmpty)
-                            Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(
-                                color: Colors.grey.shade50,
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade200),
-                              ),
-                              child: const Text(
-                                'All available subjects are already assigned.',
-                                style: TextStyle(
-                                  color: Colors.grey,
-                                  fontSize: 12,
-                                ),
-                              ),
+                      data: (dashboard) {
+                        // Get all subjects belonging to this school.
+                        final availableSubjects = dashboard.subjects
+                            .where(
+                              (subject) =>
+                                  subject.schoolId == _schoolId &&
+                                  !assignedSubjectIds.contains(
+                                    subject.subjectId,
+                                  ),
                             )
-                          else
-                            DropdownButtonFormField<String>(
-                              value: selectedSubjectId,
-                              isExpanded: true,
-                              decoration: InputDecoration(
-                                hintText: 'Select subject',
-                                filled: true,
-                                fillColor: Colors.grey.shade50,
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                    color: Colors.grey.shade200,
-                                  ),
+                            .toList();
+
+                        return Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // ==================================================
+                            // HANDLE
+                            // ==================================================
+                            Center(
+                              child: Container(
+                                width: 40,
+                                height: 4,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade300,
+                                  borderRadius: BorderRadius.circular(10),
                                 ),
                               ),
-                              items: availableSubjects.map((subject) {
-                                return DropdownMenuItem<String>(
-                                  value: subject.subjectId,
-                                  child: Row(
+                            ),
+
+                            const SizedBox(height: 20),
+
+                            // ==================================================
+                            // HEADER
+                            // ==================================================
+                            Row(
+                              children: [
+                                Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    color: primaryLight,
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  child: const Icon(
+                                    Icons.menu_book_outlined,
+                                    color: primary,
+                                  ),
+                                ),
+
+                                const SizedBox(width: 12),
+
+                                const Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
-                                      Expanded(
-                                        child: Text(
-                                          subject.subjectName,
-                                          overflow: TextOverflow.ellipsis,
+                                      Text(
+                                        'Add Subject',
+                                        style: TextStyle(
+                                          color: textDark,
+                                          fontSize: 18,
+                                          fontWeight: FontWeight.bold,
                                         ),
                                       ),
-
-                                      if (subject.code.isNotEmpty) ...[
-                                        const SizedBox(width: 8),
-                                        Text(
-                                          subject.code,
-                                          style: TextStyle(
-                                            color: Colors.grey.shade500,
-                                            fontSize: 11,
-                                          ),
+                                      SizedBox(height: 3),
+                                      Text(
+                                        'Assign a subject to this class',
+                                        style: TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 12,
                                         ),
-                                      ],
+                                      ),
                                     ],
                                   ),
-                                );
-                              }).toList(),
-                              onChanged: isAddingSubject
-                                  ? null
-                                  : (value) {
-                                      setModalState(() {
-                                        selectedSubjectId = value;
-                                      });
-                                    },
+                                ),
+
+                                IconButton(
+                                  onPressed: () {
+                                    Navigator.pop(modalContext);
+                                  },
+                                  icon: const Icon(Icons.close),
+                                ),
+                              ],
                             ),
 
-                          const SizedBox(height: 24),
+                            const SizedBox(height: 24),
 
-                          // ==================================================
-                          // ADD BUTTON
-                          // ==================================================
-                          SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: ElevatedButton.icon(
-                              onPressed:
-                                  selectedSubjectId == null ||
-                                      availableSubjects.isEmpty ||
-                                      isAddingSubject
-                                  ? null
-                                  : () async {
-                                      setModalState(() {
-                                        isAddingSubject = true;
-                                      });
-
-                                      try {
-                                        await ref
-                                            .read(adminClassProvider.notifier)
-                                            .assignSubjectToClass(
-                                              data:
-                                                  AdminAssignClassSubjectRequest(
-                                                    classId: widget
-                                                        .schoolClass
-                                                        .classId,
-                                                    subjectId:
-                                                        selectedSubjectId!,
-                                                  ),
-                                            );
-
-                                        // Close modal.
-                                        if (modalContext.mounted) {
-                                          Navigator.pop(modalContext);
-                                        }
-
-                                        // Reload assigned subjects.
-                                        ref.invalidate(
-                                          adminClassSubjectDetailsProvider(
-                                            widget.schoolClass.classId,
-                                          ),
-                                        );
-
-                                        // Success message.
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(
-                                            context,
-                                          ).showSnackBar(
-                                            const SnackBar(
-                                              content: Text(
-                                                'Subject added successfully',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      } catch (error) {
-                                        if (modalContext.mounted) {
-                                          setModalState(() {
-                                            isAddingSubject = false;
-                                          });
-
-                                          ScaffoldMessenger.of(
-                                            modalContext,
-                                          ).showSnackBar(
-                                            SnackBar(
-                                              content: Text(
-                                                'Failed to add subject: $error',
-                                              ),
-                                            ),
-                                          );
-                                        }
-                                      }
-                                    },
-                              icon: isAddingSubject
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: Colors.white,
-                                      ),
-                                    )
-                                  : const Icon(Icons.add, size: 18),
-                              label: Text(
-                                isAddingSubject
-                                    ? 'Adding Subject...'
-                                    : 'Add Subject',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w700,
-                                ),
+                            // ==================================================
+                            // SUBJECT LABEL
+                            // ==================================================
+                            const Text(
+                              'Subject',
+                              style: TextStyle(
+                                color: textDark,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
                               ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: primary,
-                                foregroundColor: Colors.white,
-                                disabledBackgroundColor: Colors.grey.shade300,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(
+                            ),
+
+                            const SizedBox(height: 8),
+
+                            // ==================================================
+                            // SUBJECT DROPDOWN
+                            // ==================================================
+                            if (availableSubjects.isEmpty)
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade50,
                                   borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.grey.shade200,
+                                  ),
+                                ),
+                                child: const Text(
+                                  'All available subjects are already assigned.',
+                                  style: TextStyle(
+                                    color: Colors.grey,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              )
+                            else
+                              DropdownButtonFormField<String>(
+                                value: selectedSubjectId,
+                                isExpanded: true,
+                                decoration: InputDecoration(
+                                  hintText: 'Select subject',
+                                  filled: true,
+                                  fillColor: Colors.grey.shade50,
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade200,
+                                    ),
+                                  ),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(
+                                      color: Colors.grey.shade200,
+                                    ),
+                                  ),
+                                ),
+                                items: availableSubjects.map((subject) {
+                                  return DropdownMenuItem<String>(
+                                    value: subject.subjectId,
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            subject.subjectName,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+
+                                        if (subject.code.isNotEmpty) ...[
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            subject.code,
+                                            style: TextStyle(
+                                              color: Colors.grey.shade500,
+                                              fontSize: 11,
+                                            ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                                onChanged: isAddingSubject
+                                    ? null
+                                    : (value) {
+                                        setModalState(() {
+                                          selectedSubjectId = value;
+                                        });
+                                      },
+                              ),
+
+                            const SizedBox(height: 24),
+
+                            // ==================================================
+                            // ADD BUTTON
+                            // ==================================================
+                            SizedBox(
+                              width: double.infinity,
+                              height: 48,
+                              child: ElevatedButton.icon(
+                                onPressed:
+                                    selectedSubjectId == null ||
+                                        availableSubjects.isEmpty ||
+                                        isAddingSubject
+                                    ? null
+                                    : () async {
+                                        setModalState(() {
+                                          isAddingSubject = true;
+                                        });
+
+                                        try {
+                                          await ref
+                                              .read(adminClassProvider.notifier)
+                                              .assignSubjectToClass(
+                                                data:
+                                                    AdminAssignClassSubjectRequest(
+                                                      classId: widget
+                                                          .schoolClass
+                                                          .classId,
+                                                      subjectId:
+                                                          selectedSubjectId!,
+                                                    ),
+                                              );
+
+                                          // Close modal.
+                                          if (modalContext.mounted) {
+                                            Navigator.pop(modalContext);
+                                          }
+
+                                          // Reload assigned subjects and the
+                                          // teacher list.
+                                          ref.invalidate(
+                                            adminClassSubjectDetailsProvider(
+                                              _classId,
+                                            ),
+                                          );
+
+                                          ref
+                                              .read(
+                                                adminDashboardProvider.notifier,
+                                              )
+                                              .refresh();
+
+                                          // Success message.
+                                          if (context.mounted) {
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Subject added successfully',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        } catch (error) {
+                                          if (modalContext.mounted) {
+                                            setModalState(() {
+                                              isAddingSubject = false;
+                                            });
+
+                                            ScaffoldMessenger.of(
+                                              modalContext,
+                                            ).showSnackBar(
+                                              SnackBar(
+                                                content: Text(
+                                                  'Failed to add subject: $error',
+                                                ),
+                                              ),
+                                            );
+                                          }
+                                        }
+                                      },
+                                icon: isAddingSubject
+                                    ? const SizedBox(
+                                        width: 18,
+                                        height: 18,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Icon(Icons.add, size: 18),
+                                label: Text(
+                                  isAddingSubject
+                                      ? 'Adding Subject...'
+                                      : 'Add Subject',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: primary,
+                                  foregroundColor: Colors.white,
+                                  disabledBackgroundColor: Colors.grey.shade300,
+                                  elevation: 0,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                 ),
                               ),
                             ),
-                          ),
-                        ],
-                      );
-                    },
-                  );
-                },
-              ),
+                          ],
+                        );
+                      },
+                    ),
             );
           },
         );
@@ -1576,7 +1784,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
           ),
           content: Text(
             'Are you sure you want to unassign "$subjectName" '
-            'from ${widget.schoolClass.className}?',
+            'from ${_class.className}?',
             style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
           ),
           actions: [
@@ -1616,15 +1824,12 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
     try {
       await ref
           .read(adminClassProvider.notifier)
-          .unassignSubjectFromClass(
-            classId: widget.schoolClass.classId,
-            subjectId: subjectId,
-          );
+          .unassignSubjectFromClass(classId: _classId, subjectId: subjectId);
 
-      // Refresh assigned subjects.
-      ref.invalidate(
-        adminClassSubjectDetailsProvider(widget.schoolClass.classId),
-      );
+      // Refresh assigned subjects and the teacher list.
+      ref.invalidate(adminClassSubjectDetailsProvider(_classId));
+
+      ref.read(adminDashboardProvider.notifier).refresh();
 
       if (!context.mounted) return;
 
@@ -1653,19 +1858,14 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   }
 
   Widget _subjectsLoading() {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: List.generate(5, (index) {
-        return Container(
-          width: 100,
-          height: 35,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade200,
-            borderRadius: BorderRadius.circular(10),
-          ),
-        );
-      }),
+    return Shimmer(
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: List.generate(6, (index) {
+          return const ShimmerBox(width: 150, height: 48, radius: 10);
+        }),
+      ),
     );
   }
 
@@ -1674,7 +1874,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   // ================================================================
 
   Widget _teachersSection() {
-    final teachers = widget.schoolClass.teachers;
+    final teachers = _class.teachers;
 
     if (teachers.isEmpty) {
       return _emptyCard(
@@ -1792,7 +1992,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
   // ================================================================
 
   Widget _studentsSection(List<AdminStudentAttendanceModel> attendanceData) {
-    final students = widget.schoolClass.students;
+    final students = _class.students;
 
     if (students.isEmpty) {
       return _emptyCard(
@@ -1988,7 +2188,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
 
     if (_selectedDate == null ||
         !availableDates.any((date) => _isSameDay(date, _selectedDate!))) {
-      _selectedDate = availableDates.first;
+      _selectedDate = availableDates.last;
     }
 
     final selectedRecords = records.where((record) {
@@ -2020,7 +2220,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
     required List<DateTime> availableDates,
     required List<AdminAttendanceRecordModel> records,
   }) {
-    final selectedDate = _selectedDate ?? availableDates.first;
+    final selectedDate = _selectedDate ?? availableDates.last;
 
     final index = availableDates.indexWhere(
       (date) => _isSameDay(date, selectedDate),
@@ -2188,33 +2388,44 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
       },
     );
 
-    if (confirmed != true) return;
+    if (confirmed != true || !mounted) return;
+
+    final messenger = ScaffoldMessenger.of(context);
+
+    setState(() => _unassigningClassTeacher = true);
 
     try {
-      // await ref
-      //     .read(adminClassProvider.notifier)
-      //     .unassignClassTeacher(
-      //       classId: classId,
-      //     );
+      // DELETE /api/admin/classes/{classId}/class-teacher, then the
+      // dashboard reloads so the header updates.
+      await ref
+          .read(adminDashboardProvider.notifier)
+          .unassignClassTeacher(classId: classId);
 
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Class teacher unassigned successfully')),
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('$teacherName is no longer the class teacher'),
+          backgroundColor: green,
+        ),
       );
     } catch (error) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to unassign class teacher: $error')),
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to unassign class teacher: '
+            '${error.toString().replaceFirst('Exception: ', '')}',
+          ),
+          backgroundColor: red,
+        ),
       );
+    } finally {
+      if (mounted) setState(() => _unassigningClassTeacher = false);
     }
   }
 
   Future<void> _showDatePicker(List<DateTime> availableDates) async {
     if (availableDates.isEmpty) return;
 
-    final initialDate = _selectedDate ?? availableDates.first;
+    final initialDate = _selectedDate ?? availableDates.last;
 
     final picked = await showDatePicker(
       context: context,
@@ -2329,7 +2540,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
     final rows = <DataRow>[];
 
     for (final attendanceDataItem in attendanceData) {
-      final student = widget.schoolClass.students.firstWhere(
+      final student = _class.students.firstWhere(
         (student) => student.studentId == attendanceDataItem.studentId,
         orElse: () => AdminClassStudentModel(
           studentId: attendanceDataItem.studentId,
@@ -2398,7 +2609,9 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        attendance.subjectName ?? '-',
+                        (attendance.subjectName ?? '').trim().isEmpty
+                            ? 'Class register'
+                            : attendance.subjectName!,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -2514,16 +2727,24 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
 
   Widget _attendanceLoading() {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _sectionTitle(title: 'Attendance', icon: Icons.fact_check_outlined),
+        _sectionTitle(
+          title: 'Attendance Records',
+          icon: Icons.fact_check_outlined,
+        ),
 
         const SizedBox(height: 10),
 
-        _shimmerDateSelector(),
-
-        const SizedBox(height: 10),
-
-        _shimmerAttendanceTable(),
+        Shimmer(
+          child: Column(
+            children: [
+              _shimmerDateSelector(),
+              const SizedBox(height: 10),
+              _shimmerAttendanceTable(),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -2594,22 +2815,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
     required double height,
     required double borderRadius,
   }) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.35, end: 0.75),
-      duration: const Duration(milliseconds: 900),
-      curve: Curves.easeInOut,
-      builder: (context, opacity, child) {
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            color: Colors.grey.shade300.withOpacity(opacity),
-            borderRadius: BorderRadius.circular(borderRadius),
-          ),
-        );
-      },
-      onEnd: () {},
-    );
+    return ShimmerBox(width: width, height: height, radius: borderRadius);
   }
 
   // ================================================================
@@ -2652,17 +2858,7 @@ class _AdminClassDetailsPageState extends ConsumerState<AdminClassDetailsPage> {
 
           TextButton.icon(
             onPressed: () {
-              ref.invalidate(
-                adminClassAttendanceProvider(
-                  AdminClassAttendanceParams(
-                    studentIds: widget.schoolClass.students
-                        .map((student) => student.studentId)
-                        .toList(),
-                    session: session,
-                    term: term,
-                  ),
-                ),
-              );
+              ref.invalidate(adminClassAttendanceProvider(_attendanceParams));
             },
             icon: const Icon(Icons.refresh_rounded, size: 16),
             label: const Text('Retry'),

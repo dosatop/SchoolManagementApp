@@ -29,6 +29,7 @@ import 'package:app/features/admin/models/students/admin_department_model.dart';
 import 'package:app/features/admin/models/students/admin_edit_student_model.dart';
 import 'package:app/features/admin/models/students/admin_student_detail_model.dart';
 import 'package:app/features/admin/models/students/admin_student_model.dart';
+import 'package:app/features/admin/models/subjects/AdminAssignSubjectToClassesRequest.dart';
 
 import 'package:app/features/admin/models/subjects/admin_create_subject_model.dart'
     hide AdminClassSubjectModel;
@@ -42,6 +43,34 @@ class AdminApi {
   final DioClient dioClient;
 
   AdminApi(this.dioClient);
+
+
+  
+  // ================================================================
+  // RESPONSE HELPERS
+  // ================================================================
+ 
+  /// Returns the object inside `data` if present, otherwise the body itself.
+  Map<String, dynamic> _unwrapMap(dynamic body) {
+    if (body is Map) {
+      final inner = body['data'];
+      if (inner is Map) return Map<String, dynamic>.from(inner);
+      return Map<String, dynamic>.from(body);
+    }
+    throw Exception('Unexpected response from server.');
+  }
+ 
+  /// Returns the list inside `data` (or `items`) if present, otherwise
+  /// the body itself when it is already a list.
+  List<Map<String, dynamic>> _unwrapList(dynamic body) {
+    dynamic list = body;
+    if (body is Map) list = body['data'] ?? body['items'] ?? const [];
+    if (list is! List) return const [];
+    return list
+        .whereType<Map>()
+        .map((e) => Map<String, dynamic>.from(e))
+        .toList();
+  }
 
   // ================================================================
   // TEACHERS
@@ -460,6 +489,25 @@ class AdminApi {
     }
   }
 
+
+ Future<void> assignSubjectToMultipleClasses({
+  required String subjectId,
+  required List<String> classIds,
+  String? teacherId,
+}) async {
+  try {
+    await dioClient.dio.post(
+      '/admin/subjects/$subjectId/assign-multiple-classes',
+      data: {
+        'classIds': classIds,
+        'teacherId': teacherId,
+      },
+    );
+  } catch (e) {
+    rethrow;
+  }
+}
+
   // ================================================================
   // ASSIGN TEACHER TO SUBJECT
   // ================================================================
@@ -512,6 +560,15 @@ class AdminApi {
   }) async {
     try {
       await dioClient.dio.delete('/admin/teaching-subjects/$assignmentId');
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+
+  
+  Future<void> unassignClassTeacher(String classId) async {
+    try {
+      await dioClient.dio.delete('/admin/classes/$classId/class-teacher');
     } on DioException catch (error) {
       throw ApiErrorHandler.handle(error);
     }
@@ -643,42 +700,128 @@ Future<void> removeStudentFromParent({
   // ================================================================
   // DEPARTMENTS
   // ================================================================
-
+ 
   Future<List<AdminDepartmentModel>> getDepartments() async {
     try {
       final response = await dioClient.dio.get('/admin/departments');
-
-      final data = Map<String, dynamic>.from(response.data as Map);
-
-      final departments = data['data'] as List<dynamic>? ?? [];
-
-      return departments
-          .map(
-            (json) => AdminDepartmentModel.fromJson(
-              Map<String, dynamic>.from(json as Map),
-            ),
-          )
+ 
+      return _unwrapList(response.data)
+          .map(AdminDepartmentModel.fromJson)
           .toList();
     } on DioException catch (error) {
       throw ApiErrorHandler.handle(error);
     }
   }
-
+ 
+  Future<AdminDepartmentModel> getDepartment(String departmentId) async {
+    try {
+      final response =
+          await dioClient.dio.get('/admin/department/$departmentId');
+ 
+      return AdminDepartmentModel.fromJson(_unwrapMap(response.data));
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+ 
+  /// [data] is the CreateDepartmentRequest body, e.g. {'name': 'Science'}.
+  Future<AdminDepartmentModel> createDepartment(
+    Map<String, dynamic> data,
+  ) async {
+    try {
+      final response = await dioClient.dio.post(
+        '/admin/department',
+        data: data,
+      );
+ 
+      return AdminDepartmentModel.fromJson(_unwrapMap(response.data));
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+ 
+  /// The backend's PUT also takes a CreateDepartmentRequest, so send
+  /// the full body (not just the changed field).
+  Future<AdminDepartmentModel> updateDepartment({
+    required String departmentId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final response = await dioClient.dio.put(
+        '/admin/department/$departmentId',
+        data: data,
+      );
+ 
+      return AdminDepartmentModel.fromJson(_unwrapMap(response.data));
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+ 
+  Future<bool> deleteDepartment(String departmentId) async {
+    try {
+      await dioClient.dio.delete('/admin/department/$departmentId');
+      return true;
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+ 
   // ================================================================
   // TRADES
   // ================================================================
-
+ 
   Future<List<AdminTradeModel>> getTrades() async {
     try {
       final response = await dioClient.dio.get('/admin/trades');
-
-      final data = response.data as List;
-
-      return data
-          .map(
-            (json) => AdminTradeModel.fromJson(Map<String, dynamic>.from(json)),
-          )
-          .toList();
+ 
+      return _unwrapList(response.data).map(AdminTradeModel.fromJson).toList();
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+ 
+  Future<AdminTradeModel> getTrade(String tradeId) async {
+    try {
+      final response = await dioClient.dio.get('/admin/trade/$tradeId');
+ 
+      return AdminTradeModel.fromJson(_unwrapMap(response.data));
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+ 
+  /// [data] is the CreateTradeRequest body, e.g. {'name': 'Catering'}.
+  Future<AdminTradeModel> createTrade(Map<String, dynamic> data) async {
+    try {
+      final response = await dioClient.dio.post('/admin/trade', data: data);
+ 
+      return AdminTradeModel.fromJson(_unwrapMap(response.data));
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+ 
+  Future<AdminTradeModel> updateTrade({
+    required String tradeId,
+    required Map<String, dynamic> data,
+  }) async {
+    try {
+      final response = await dioClient.dio.put(
+        '/admin/trade/$tradeId',
+        data: data,
+      );
+ 
+      return AdminTradeModel.fromJson(_unwrapMap(response.data));
+    } on DioException catch (error) {
+      throw ApiErrorHandler.handle(error);
+    }
+  }
+ 
+  Future<bool> deleteTrade(String tradeId) async {
+    try {
+      await dioClient.dio.delete('/admin/trade/$tradeId');
+      return true;
     } on DioException catch (error) {
       throw ApiErrorHandler.handle(error);
     }
