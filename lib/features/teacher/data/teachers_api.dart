@@ -234,11 +234,7 @@ class TeacherApi {
     try {
       final response = await dioClient.dio.post(
         path,
-        data: {
-          'classId': classId,
-          'subjectId': subjectId,
-          'results': results,
-        },
+        data: {'classId': classId, 'subjectId': subjectId, 'results': results},
       );
 
       return response.data;
@@ -389,7 +385,6 @@ class TeacherApi {
     }
   }
 
-
   // ================================================================
   // GRADE ASSIGNMENT SUBMISSION
   // ================================================================
@@ -407,10 +402,7 @@ class TeacherApi {
     try {
       final response = await dioClient.dio.put(
         '/teacher/$assignmentId/submissions/$submissionId/grade',
-        data: {
-          'score': score,
-          if (feedback != null) 'feedback': feedback,
-        },
+        data: {'score': score, if (feedback != null) 'feedback': feedback},
       );
 
       return response.data;

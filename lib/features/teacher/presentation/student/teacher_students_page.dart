@@ -14,10 +14,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 //   • SUBJECT   — students in classes where I only TEACH a subject
 //                 (I see only my subjects for them)
 //
-// Data (no new endpoints):
-//   /teacher/students  -> every student I can see (with classId)
-//   /teacher/classes   -> my class-teacher classes
-//   /teacher/subjects  -> subject + class rows I teach
+// Data:
+//   /teacher/students  -> every student I teach, each with
+//                         isClassStudent + subjectsITeach (server
+//                         already checks department / trade)
+//   /teacher/classes   -> fallback for older responses
+//   /teacher/subjects  -> fallback for older responses
 // ==================================================================
 
 enum _Group { myClass, subject, all }
@@ -41,6 +43,7 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
 
   String _query = '';
   String? _classId;
+  String? _subject; // null = all my subjects
   _Group? _group; // null until data decides the default
 
   @override
@@ -92,7 +95,21 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
       if (!list.contains(name)) list.add(name);
     }
 
-    bool isMine(dynamic s) => classTeacherIds.contains(sStr(s, ['classId']));
+    // Prefer what the server says per student; fall back to matching
+    // classes only if the response is from an older backend.
+    bool isMine(dynamic s) {
+      final flag = s is Map ? s['isClassStudent'] : null;
+      if (flag is bool) return flag;
+      return classTeacherIds.contains(sStr(s, ['classId']));
+    }
+
+    List<String> subjectsOf(dynamic s) {
+      final list = s is Map ? s['subjectsITeach'] : null;
+      if (list is List) {
+        return list.map((e) => '$e').where((e) => e.isNotEmpty).toList();
+      }
+      return subjectsByClass[sStr(s, ['classId']) ?? ''] ?? const [];
+    }
 
     final mine = all.where(isMine).toList();
     final subjectOnly = all.where((s) => !isMine(s)).toList();
@@ -117,15 +134,28 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
     final classes = _classes(inGroup);
     final classId = classes.any((c) => c.id == _classId) ? _classId : null;
 
+    // Subjects I teach the students in this group (for the filter).
+    final subjectCounts = <String, int>{};
+    for (final s in inGroup) {
+      if (classId != null && sStr(s, ['classId']) != classId) continue;
+      for (final name in subjectsOf(s)) {
+        subjectCounts[name] = (subjectCounts[name] ?? 0) + 1;
+      }
+    }
+    final subjectNames = subjectCounts.keys.toList()..sort();
+    final subject = subjectNames.contains(_subject) ? _subject : null;
+
     final q = _query.toLowerCase();
     final visible = inGroup.where((s) {
       if (classId != null && sStr(s, ['classId']) != classId) return false;
+      if (subject != null && !subjectsOf(s).contains(subject)) return false;
       if (q.isEmpty) return true;
       return [
         sStr(s, ['studentName', 'fullName', 'name']),
         sStr(s, ['studentNumber', 'admissionNumber']),
         sStr(s, ['email']),
         sStr(s, ['className']),
+        ...subjectsOf(s),
       ].whereType<String>().join(' ').toLowerCase().contains(q);
     }).toList()..sort(_byClassThenName);
 
@@ -205,6 +235,26 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
                       PillTab(c.id, c.name, count: c.count),
                   ],
                 ),
+              if (subjectNames.length > 1 && group != _Group.myClass)
+                PillTabs<String?>(
+                  padding: const EdgeInsets.only(top: 10),
+                  selected: subject,
+                  onChanged: (v) => setState(() => _subject = v),
+                  tabs: [
+                    const PillTab<String?>(
+                      null,
+                      'All subjects',
+                      color: _subjectColor,
+                    ),
+                    for (final n in subjectNames)
+                      PillTab<String?>(
+                        n,
+                        n,
+                        count: subjectCounts[n],
+                        color: _subjectColor,
+                      ),
+                  ],
+                ),
               const SizedBox(height: 18),
               if (inGroup.isEmpty)
                 _emptyGroup(group)
@@ -229,7 +279,7 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
                   ),
                 )
               else
-                ..._grouped(visible, classTeacherIds, subjectsByClass),
+                ..._grouped(visible, isMine, subjectsOf),
             ],
           );
         }(),
@@ -401,7 +451,11 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(icon, size: 15, color: isSel ? c : Colors.grey.shade500),
+                    Icon(
+                      icon,
+                      size: 15,
+                      color: isSel ? c : Colors.grey.shade500,
+                    ),
                     const SizedBox(width: 5),
                     Text(
                       '$count',
@@ -417,7 +471,9 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
                 Text(
                   label,
                   style: TextStyle(
-                    color: isSel ? StudentColors.textDark : Colors.grey.shade600,
+                    color: isSel
+                        ? StudentColors.textDark
+                        : Colors.grey.shade600,
                     fontSize: 11.5,
                     fontWeight: FontWeight.w700,
                   ),
@@ -437,7 +493,13 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
       ),
       child: Row(
         children: [
-          option(_Group.myClass, 'My class', mine, Icons.star_rounded, _classColor),
+          option(
+            _Group.myClass,
+            'My class',
+            mine,
+            Icons.star_rounded,
+            _classColor,
+          ),
           option(
             _Group.subject,
             'Subject',
@@ -523,7 +585,9 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
       child: Row(
         children: [
           IconBadge(
-            g == _Group.myClass ? Icons.star_outline_rounded : Icons.menu_book_outlined,
+            g == _Group.myClass
+                ? Icons.star_outline_rounded
+                : Icons.menu_book_outlined,
             color: g == _Group.myClass ? _classColor : _subjectColor,
             size: 46,
             circle: true,
@@ -560,8 +624,8 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
 
   List<Widget> _grouped(
     List<dynamic> students,
-    Set<String> classTeacherIds,
-    Map<String, List<String>> subjectsByClass,
+    bool Function(dynamic) isMine,
+    List<String> Function(dynamic) subjectsOf,
   ) {
     final byClass = <String, List<dynamic>>{};
     for (final s in students) {
@@ -571,11 +635,12 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
     final widgets = <Widget>[];
 
     for (final entry in byClass.entries) {
-      final classId = entry.key;
       final list = entry.value;
       final className = sStr(list.first, ['className', 'class']) ?? 'No class';
-      final mine = classTeacherIds.contains(classId);
-      final subjects = subjectsByClass[classId] ?? const [];
+      final mine = list.any(isMine);
+      // Every subject I teach anyone in this class.
+      final subjects = {for (final s in list) ...subjectsOf(s)}.toList()
+        ..sort();
 
       widgets.add(
         Padding(
@@ -616,7 +681,9 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
       );
 
       for (var i = 0; i < list.length; i++) {
-        widgets.add(_studentCard(list[i], i, mine, subjects));
+        widgets.add(
+          _studentCard(list[i], i, isMine(list[i]), subjectsOf(list[i])),
+        );
         widgets.add(const SizedBox(height: 9));
       }
     }
@@ -687,14 +754,9 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
                           ),
                           const SizedBox(height: 3),
                           Text(
-                            [
-                              if (number != null) 'No. $number',
-                              mine
-                                  ? 'All subjects'
-                                  : subjects.isEmpty
-                                  ? 'Subject student'
-                                  : subjects.join(', '),
-                            ].join(' · '),
+                            number == null
+                                ? (mine ? 'Your class' : 'Subject student')
+                                : 'No. $number',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
@@ -702,6 +764,27 @@ class _TeacherStudentsPageState extends ConsumerState<TeacherStudentsPage> {
                               fontSize: 12,
                             ),
                           ),
+                          if (mine || subjects.isNotEmpty) ...[
+                            const SizedBox(height: 6),
+                            Wrap(
+                              spacing: 5,
+                              runSpacing: 5,
+                              children: [
+                                if (mine)
+                                  _tag(
+                                    Icons.star_rounded,
+                                    'Your class',
+                                    _classColor,
+                                  ),
+                                for (final s in subjects)
+                                  _tag(
+                                    Icons.menu_book_rounded,
+                                    s,
+                                    _subjectColor,
+                                  ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),

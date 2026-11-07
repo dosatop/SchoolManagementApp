@@ -30,7 +30,8 @@ class _AdminCreateStudentPageState
 
   String? _selectedClassId;
   String? _selectedDepartmentId;
-  String? _selectedTradeId;
+  String? _selectedTradeId; // optional
+  String? _selectedTradeSubjectId; // optional, needs a trade
 
   bool _isCreating = false;
   bool _obscurePassword = true;
@@ -83,17 +84,22 @@ class _AdminCreateStudentPageState
       return;
     }
 
-    // Trade is compulsory.
-    if (_selectedTradeId == null || _selectedTradeId!.isEmpty) {
+    // Senior classes need a department (the server enforces this too).
+    final notifier = ref.read(adminDashboardProvider.notifier);
+    final classes = notifier.getClassesForSchool(widget.schoolId);
+    if (_classAllowsDepartment(_selectedClassId, classes) &&
+        (_selectedDepartmentId == null || _selectedDepartmentId!.isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select a trade.'),
+          content: Text('Senior students need a department.'),
           backgroundColor: Colors.orange,
         ),
       );
 
       return;
     }
+
+    // Trade and trade subject are both optional.
 
     setState(() {
       _isCreating = true;
@@ -110,12 +116,16 @@ class _AdminCreateStudentPageState
               password: _passwordController.text,
               studentNumber: _studentNumberController.text.trim(),
 
-              // Department is optional and only available
-              // for classes that support departments.
+              // Required for Senior classes, null for Junior.
               departmentId: _selectedDepartmentId,
 
-              // Trade is compulsory.
+              // Optional.
               tradeId: _selectedTradeId,
+
+              // Optional — only sent with a trade.
+              tradeSubjectId: _selectedTradeId == null
+                  ? null
+                  : _selectedTradeSubjectId,
 
               // Class is compulsory.
               classRoomId: _selectedClassId!,
@@ -202,6 +212,14 @@ class _AdminCreateStudentPageState
     final departments = notifier.getDepartmentsForSchool(widget.schoolId);
     final trades = notifier.getTradesForSchool(widget.schoolId);
 
+    // Subjects that belong to the selected trade.
+    final tradeSubjects = _selectedTradeId == null
+        ? const <dynamic>[]
+        : (dashboardState.valueOrNull?.subjects ?? const [])
+              .cast<dynamic>()
+              .where((s) => s.tradeId == _selectedTradeId)
+              .toList();
+
     final selectedClass = _selectedClassId == null
         ? null
         : allClasses.cast<dynamic>().where((schoolClass) {
@@ -272,8 +290,8 @@ class _AdminCreateStudentPageState
                 const SizedBox(height: 6),
 
                 Text(
-                  'Register a new student and assign them '
-                  'to a class, department and trade.',
+                  'Register a new student, put them in a class and, '
+                  'if needed, a department and trade.',
                   style: TextStyle(
                     color: Colors.grey.shade600,
                     fontSize: 13,
@@ -519,6 +537,7 @@ class _AdminCreateStudentPageState
                                     // be selected again.
                                     _selectedDepartmentId = null;
                                     _selectedTradeId = null;
+                                    _selectedTradeSubjectId = null;
                                   });
                                 },
                           validator: (value) {
@@ -568,7 +587,7 @@ class _AdminCreateStudentPageState
                           value: _selectedDepartmentId,
                           isExpanded: true,
                           decoration: _inputDecoration(
-                            hint: 'Select department (optional)',
+                            hint: 'Select department',
                             icon: Icons.account_tree_outlined,
                           ),
                           items: departments.map((department) {
@@ -588,7 +607,12 @@ class _AdminCreateStudentPageState
                                     _selectedDepartmentId = value;
                                   });
                                 },
-                          validator: (_) => null,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Senior students need a department';
+                            }
+                            return null;
+                          },
                         ),
 
                       const SizedBox(height: 24),
@@ -596,12 +620,13 @@ class _AdminCreateStudentPageState
                       // ==================================================
                       // STEP 3 — TRADE
                       // ==================================================
-                      _sectionTitle('Step 3', 'Trade'),
+                      _sectionTitle('Step 3', 'Trade (optional)'),
 
                       const SizedBox(height: 5),
 
                       Text(
-                        'Trade is compulsory. You can choose any available trade.',
+                        'Pick a trade if the student has one. You can also '
+                        'assign or change it later from their profile.',
                         style: TextStyle(
                           color: Colors.grey.shade600,
                           fontSize: 11,
@@ -626,48 +651,107 @@ class _AdminCreateStudentPageState
                       else if (trades.isEmpty)
                         _emptyDropdown(
                           text:
-                              'No trades are available. A trade is required to create the student.',
-                          color: Colors.red,
+                              'No trades exist yet. You can still create the student without one.',
+                          color: Colors.orange,
                         )
-                      else
-                        DropdownButtonFormField<String>(
+                      else ...[
+                        DropdownButtonFormField<String?>(
                           value: _selectedTradeId,
                           isExpanded: true,
                           decoration: _inputDecoration(
-                            hint: 'Select trade',
+                            hint: 'No trade',
                             icon: Icons.construction_outlined,
                           ),
-                          items: trades.map((trade) {
-                            return DropdownMenuItem<String>(
-                              value: trade.tradeId,
-                              child: Text(
-                                trade.code.isEmpty
-                                    ? trade.tradeName
-                                    : '${trade.tradeName} (${trade.code})',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            );
-                          }).toList(),
+                          items: [
+                            const DropdownMenuItem<String?>(
+                              value: null,
+                              child: Text('No trade'),
+                            ),
+                            ...trades.map((trade) {
+                              return DropdownMenuItem<String?>(
+                                value: trade.tradeId,
+                                child: Text(
+                                  trade.code.isEmpty
+                                      ? trade.tradeName
+                                      : '${trade.tradeName} (${trade.code})',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              );
+                            }),
+                          ],
                           onChanged: _isCreating
                               ? null
                               : (value) {
                                   setState(() {
                                     _selectedTradeId = value;
+                                    // New trade → old subject no longer fits.
+                                    _selectedTradeSubjectId = null;
                                   });
                                 },
-                          validator: (value) {
-                            if (!classSelected) {
-                              return null;
-                            }
-
-                            if (value == null || value.isEmpty) {
-                              return 'Please select a trade';
-                            }
-
-                            return null;
-                          },
                         ),
+
+                        // ----------------------------------------------
+                        // TRADE SUBJECT (optional)
+                        // ----------------------------------------------
+                        if (_selectedTradeId != null) ...[
+                          const SizedBox(height: 18),
+                          _sectionTitle('Step 4', 'Trade subject (optional)'),
+                          const SizedBox(height: 5),
+                          Text(
+                            'Leave empty to give the student every subject '
+                            'in this trade.',
+                            style: TextStyle(
+                              color: Colors.grey.shade600,
+                              fontSize: 11,
+                              height: 1.4,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          if (tradeSubjects.isEmpty)
+                            _emptyDropdown(
+                              text:
+                                  'This trade has no subjects yet. The student '
+                                  'will still be added to the trade.',
+                              color: Colors.orange,
+                            )
+                          else
+                            DropdownButtonFormField<String?>(
+                              key: ValueKey('trade-subject-$_selectedTradeId'),
+                              value: _selectedTradeSubjectId,
+                              isExpanded: true,
+                              decoration: _inputDecoration(
+                                hint: 'All subjects in this trade',
+                                icon: Icons.menu_book_outlined,
+                              ),
+                              items: [
+                                const DropdownMenuItem<String?>(
+                                  value: null,
+                                  child: Text('All subjects in this trade'),
+                                ),
+                                ...tradeSubjects.map((subject) {
+                                  final String name =
+                                      (subject.subjectName ?? '').toString();
+                                  return DropdownMenuItem<String?>(
+                                    value: subject.subjectId as String,
+                                    child: Text(
+                                      name.isEmpty ? 'Subject' : name,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  );
+                                }),
+                              ],
+                              onChanged: _isCreating
+                                  ? null
+                                  : (value) {
+                                      setState(() {
+                                        _selectedTradeSubjectId = value;
+                                      });
+                                    },
+                            ),
+                        ],
+                      ],
                     ],
                   ),
                 ),
@@ -681,8 +765,7 @@ class _AdminCreateStudentPageState
                   width: double.infinity,
                   height: 54,
                   child: ElevatedButton(
-                    onPressed:
-                        _isCreating || allClasses.isEmpty || trades.isEmpty
+                    onPressed: _isCreating || allClasses.isEmpty
                         ? null
                         : _createStudent,
                     style: ElevatedButton.styleFrom(

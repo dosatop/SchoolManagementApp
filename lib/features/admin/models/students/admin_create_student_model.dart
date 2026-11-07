@@ -5,6 +5,7 @@ class AdminCreateStudentModel {
   final String studentNumber;
   final String? departmentId;
   final String? tradeId;
+  final String? tradeSubjectId;
   final String classRoomId;
 
   const AdminCreateStudentModel({
@@ -14,6 +15,7 @@ class AdminCreateStudentModel {
     required this.studentNumber,
     this.departmentId,
     this.tradeId,
+      this.tradeSubjectId,
     required this.classRoomId,
   });
 
@@ -25,6 +27,7 @@ class AdminCreateStudentModel {
       'studentNumber': studentNumber,
       'departmentId': departmentId,
       'tradeId': tradeId,
+      'tradeSubjectId': tradeSubjectId,
       'classRoomId': classRoomId,
     };
   }
