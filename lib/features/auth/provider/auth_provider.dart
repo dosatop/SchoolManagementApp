@@ -1,11 +1,9 @@
 import 'package:app/core/Dtos/auth_dtos/login_request.dart';
 import 'package:app/core/network/dio_provider.dart';
 import 'package:app/core/storage/storage_service.dart';
-import 'package:app/features/admin/providers/admin_provider.dart';
 import 'package:app/features/auth/data/auth_api.dart';
 import 'package:app/features/auth/data/auth_repository.dart';
 import 'package:app/features/auth/models/signup_request.dart';
-import 'package:app/features/students/provider/students_provider.dart';
 import 'package:app/features/user/models/user_model.dart';
 import 'package:app/features/user/provider/user_provider.dart';
 import 'package:flutter/foundation.dart';
@@ -14,6 +12,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // ====================================================================
 // AUTH PROVIDER
 // ====================================================================
+// Data providers (admin dashboard, student profile, …) WATCH this via
+// signedInAs(), so they reload by themselves on login / logout.
+// This file must NOT import or invalidate them — that would create a
+// circular dependency.
 
 final authProvider = AsyncNotifierProvider<AuthNotifier, AuthState>(
   AuthNotifier.new,
@@ -54,23 +56,6 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   Future<AuthState> build() async => AuthState.loggedOut();
 
   // ==================================================================
-  // CLEAR CACHED DATA FROM THE PREVIOUS ACCOUNT
-  // ==================================================================
-  // These providers are not auto-disposed, so without this a new login
-  // can show the previous account's data — or its cached 401/403
-  // ("Please sign in again"). Add teacher/parent providers here too.
-
-  void _clearAccountData() {
-    ref.invalidate(studentProfileProvider);
-    ref.invalidate(studentSubjectsProvider);
-    ref.invalidate(studentClassProvider);
-    ref.invalidate(studentAssignmentsProvider);
-    ref.invalidate(studentAttendanceProvider);
-    ref.invalidate(studentResultsProvider);
-    ref.invalidate(adminDashboardProvider);
-  }
-
-  // ==================================================================
   // LOGIN
   // ==================================================================
 
@@ -87,12 +72,10 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
       // StorageService, so drop the cached (old) token and re-read it.
       StorageService.resetCache();
 
-      // Nothing from the previous account may survive.
-      _clearAccountData();
-
       ref.read(userProvider.notifier).state = response;
 
-      // Only now let the router open the dashboard.
+      // Setting the new state makes every role-guarded provider reload
+      // for this account (and drop the previous account's data).
       state = AsyncData(
         AuthState(
           isAuthenticated: true,
@@ -144,8 +127,20 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
     StorageService.resetCache();
 
     ref.read(userProvider.notifier).state = null;
-    _clearAccountData();
 
+    // Logged-out state → every role-guarded provider clears itself.
     state = AsyncData(AuthState.loggedOut());
   }
 }
+
+// ====================================================================
+// ROLE GUARD
+// ====================================================================
+// Use at the top of a provider's build() so it never calls another
+// role's endpoints. Because it WATCHES authProvider, the provider also
+// re-runs automatically when someone logs in or out.
+//
+// Roles: 'SuperAdmin', 'Admin', 'Teacher', 'Parent', 'Student'.
+
+bool signedInAs(Ref ref, String role) =>
+    ref.watch(authProvider).valueOrNull?.role == role;

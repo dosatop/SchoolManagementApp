@@ -762,6 +762,44 @@ GoRouter appRouter(Ref ref) {
           );
         },
       ),
+      
+       GoRoute(
+        path: '/schools/:schoolId/teachers',
+        builder: (context, state) {
+          return SchoolTeachersPage(
+            schoolId: state.pathParameters['schoolId']!,
+            schoolName: state.extra as String? ?? 'School',
+          );
+        },
+      ),
+ 
+      GoRoute(
+        path: '/schools/:schoolId/students',
+        builder: (context, state) {
+          // extra is the school name, or a map when opened from a class.
+          final extra = state.extra;
+          final map = extra is Map ? extra : const {};
+ 
+          return SchoolStudentsPage(
+            schoolId: state.pathParameters['schoolId']!,
+            schoolName: extra is String
+                ? extra
+                : (map['schoolName'] as String?) ?? 'School',
+            initialClassId: map['classId'] as String?,
+            initialClassName: map['className'] as String?,
+          );
+        },
+      ),
+ 
+      GoRoute(
+        path: '/schools/:schoolId/classes',
+        builder: (context, state) {
+          return SchoolClassesPage(
+            schoolId: state.pathParameters['schoolId']!,
+            schoolName: state.extra as String? ?? 'School',
+          );
+        },
+      ),
 
       // ============================================================
       // ADMIN - TEACHERS

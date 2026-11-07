@@ -1,8 +1,27 @@
 import 'package:app/core/network/dio_provider.dart';
+import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/students/data/student_api.dart';
 import 'package:app/features/students/data/student_repository.dart';
 import 'package:app/features/students/models/student_model.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// ==================================================================
+// ROLE GUARD
+// ==================================================================
+// Every student provider checks this first, so /student/* is only
+// ever called for a signed-in Student. Watching auth also makes each
+// provider re-run automatically on login / logout.
+
+bool _isStudent(Ref ref) => signedInAs(ref, 'Student');
+
+/// Thrown (without any network call) when a non-student reads the
+/// profile. Only student pages read it, so nobody else ever sees it.
+class NotAStudentException implements Exception {
+  const NotAStudentException();
+
+  @override
+  String toString() => 'This account is not a student account.';
+}
 
 // ==================================================================
 // API + REPOSITORY
@@ -27,13 +46,17 @@ final studentProfileProvider =
 
 class StudentProfileNotifier extends AsyncNotifier<StudentModel> {
   @override
-  Future<StudentModel> build() {
+  Future<StudentModel> build() async {
+    if (!_isStudent(ref)) throw const NotAStudentException();
+
     return ref.read(studentRepositoryProvider).getStudentProfile();
   }
 
   /// Reloads the profile, keeping the current data on screen while
   /// loading. Throws on failure so pull-to-refresh can finish.
   Future<void> refresh() async {
+    if (ref.read(authProvider).valueOrNull?.role != 'Student') return;
+
     state = const AsyncLoading<StudentModel>().copyWithPrevious(state);
 
     state = await AsyncValue.guard(
@@ -79,6 +102,7 @@ class StudentTermParams {
 // ==================================================================
 
 final studentClassProvider = FutureProvider.autoDispose<dynamic>((ref) {
+  if (!_isStudent(ref)) return null;
   return ref.read(studentRepositoryProvider).getStudentClass();
 });
 
@@ -87,6 +111,7 @@ final studentClassProvider = FutureProvider.autoDispose<dynamic>((ref) {
 // ==================================================================
 
 final studentSubjectsProvider = FutureProvider.autoDispose<dynamic>((ref) {
+  if (!_isStudent(ref)) return null;
   return ref.read(studentRepositoryProvider).getStudentSubjects();
 });
 
@@ -96,6 +121,7 @@ final studentSubjectsProvider = FutureProvider.autoDispose<dynamic>((ref) {
 
 final studentResultsProvider = FutureProvider.autoDispose
     .family<dynamic, StudentTermParams>((ref, params) {
+      if (!_isStudent(ref)) return null;
       return ref
           .read(studentRepositoryProvider)
           .getStudentResults(session: params.session, term: params.term);
@@ -107,6 +133,7 @@ final studentResultsProvider = FutureProvider.autoDispose
 
 final studentAttendanceProvider = FutureProvider.autoDispose
     .family<dynamic, StudentTermParams>((ref, params) {
+      if (!_isStudent(ref)) return null;
       return ref
           .read(studentRepositoryProvider)
           .getStudentAttendance(session: params.session, term: params.term);
@@ -118,6 +145,7 @@ final studentAttendanceProvider = FutureProvider.autoDispose
 
 final studentAssignmentsProvider = FutureProvider.autoDispose
     .family<dynamic, StudentTermParams>((ref, params) {
+      if (!_isStudent(ref)) return null;
       return ref
           .read(studentRepositoryProvider)
           .getStudentAssignments(session: params.session, term: params.term);
@@ -129,6 +157,7 @@ final studentAssignmentsProvider = FutureProvider.autoDispose
 
 final studentAssignmentProvider = FutureProvider.autoDispose
     .family<dynamic, String>((ref, assignmentId) {
+      if (!_isStudent(ref)) return null;
       return ref
           .read(studentRepositoryProvider)
           .getStudentAssignment(assignmentId: assignmentId);

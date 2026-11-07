@@ -41,11 +41,6 @@ class _SuperAdminDashboardPageState
   final _search = TextEditingController();
   String _query = '';
 
-  @override
-  void initState() {
-    super.initState();
-    Future.microtask(() => ref.read(superAdminProvider.notifier).getSchools());
-  }
 
   @override
   void dispose() {

@@ -85,7 +85,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         .login(
           LoginRequest(
             email: _emailController.text.trim(),
-            password: _passwordController.text.trim(),
+            password: _passwordController.text,
           ),
         );
 

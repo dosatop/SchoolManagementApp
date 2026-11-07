@@ -26,10 +26,7 @@ import 'package:app/features/admin/models/subjects/admin_create_subject_model.da
 import 'package:app/features/admin/models/subjects/admin_edit_subject_model.dart';
 import 'package:app/features/admin/models/subjects/admin_subject_model.dart';
 import 'package:app/features/admin/models/subjects/admin_trade_model.dart';
-
-// ================================================================
-// DEPARTMENT MODEL
-// ================================================================
+import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -322,6 +319,18 @@ class AdminDashboardData {
     this.failedSections = const [],
   });
 
+  /// Empty dashboard — used when the signed-in user isn't an Admin,
+  /// so no /admin/* endpoint is ever called for them.
+  static const empty = AdminDashboardData(
+    teachers: [],
+    students: [],
+    classes: [],
+    subjects: [],
+    parents: [],
+    trades: [],
+    departments: [],
+  );
+
   // ================================================================
   // COUNTS
   // ================================================================
@@ -387,6 +396,10 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
 
   @override
   Future<AdminDashboardData> build() async {
+    // Only admins load the dashboard. Watching auth also makes this
+    // re-run when someone logs in or out.
+    if (!signedInAs(ref, 'Admin')) return AdminDashboardData.empty;
+
     return _loadDashboard();
   }
 
@@ -395,6 +408,11 @@ class AdminDashboardNotifier extends AsyncNotifier<AdminDashboardData> {
   // ================================================================
 
   Future<AdminDashboardData> _loadDashboard() async {
+    // Same guard for refresh() (can't watch outside build, so read).
+    if (ref.read(authProvider).valueOrNull?.role != 'Admin') {
+      return AdminDashboardData.empty;
+    }
+
     final repository = ref.read(adminRepositoryProvider);
     final failed = <String>[];
 
