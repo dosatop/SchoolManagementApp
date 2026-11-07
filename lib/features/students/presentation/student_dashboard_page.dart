@@ -123,6 +123,8 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
       },
       child: Scaffold(
         backgroundColor: StudentColors.background,
+        // iOS: pages scroll underneath the glass bar.
+        extendBody: isCupertino(context),
         body: IndexedStack(
           index: _currentIndex,
           children: [
@@ -230,7 +232,12 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
-            padding: const EdgeInsets.fromLTRB(18, 14, 18, 32),
+            padding: EdgeInsets.fromLTRB(
+              18,
+              14,
+              18,
+              32 + glassBottomInset(context),
+            ),
             children: [
               if (profileError != null)
                 _ProfileErrorCard(error: profileError, onRetry: _refresh)

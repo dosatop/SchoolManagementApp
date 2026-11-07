@@ -164,6 +164,8 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
       },
       child: Scaffold(
         backgroundColor: background,
+        // iOS: pages scroll underneath the glass bar.
+        extendBody: isCupertino(context),
         appBar: _currentIndex == 0 ? null : _tabAppBar(),
         body: IndexedStack(
           index: _currentIndex,
@@ -307,7 +309,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           _hero(dashboard, loading),
 
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+            padding: EdgeInsets.fromLTRB(
+              20,
+              22,
+              20,
+              32 + glassBottomInset(context),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1058,7 +1065,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        32 + glassBottomInset(context),
+      ),
       children: [
         Text(
           'Everything in ${schoolName == 'My School' ? 'your school' : schoolName}, in one place.',
@@ -1145,7 +1157,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        32 + glassBottomInset(context),
+      ),
       children: [
         Text(
           'Add new records to your school.',
@@ -1240,7 +1257,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 32),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        20,
+        20,
+        32 + glassBottomInset(context),
+      ),
       children: [
         // Header card
         Container(
