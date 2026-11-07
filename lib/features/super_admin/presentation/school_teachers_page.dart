@@ -1,6 +1,7 @@
 import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:app/features/super_admin/presentation/widgets/school_people_ui.dart';
-   import 'package:app/features/super_admin/provider/schools_page.dart';
+import 'package:app/features/super_admin/presentation/widgets/school_people_forms.dart';
+import 'package:app/features/super_admin/provider/schools_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -69,6 +70,17 @@ class _SchoolTeachersPageState extends ConsumerState<SchoolTeachersPage> {
         refreshing: async.isLoading && teachers != null,
         onRefresh: _refresh,
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showAddTeacherSheet(context, widget.schoolId),
+        backgroundColor: SpColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+        label: const Text(
+          'Add teacher',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
       body: Builder(
         builder: (context) {
           if (teachers == null && async.hasError) {
@@ -114,7 +126,7 @@ class _SchoolTeachersPageState extends ConsumerState<SchoolTeachersPage> {
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
         children: [
           if (error != null) SpErrorBanner(message: schoolPeopleError(error)),
           SpSummaryCard(
@@ -151,11 +163,14 @@ class _SchoolTeachersPageState extends ConsumerState<SchoolTeachersPage> {
                 : '${visible.length} of ${all.length}',
           ),
           if (all.isEmpty)
-            const SpMessageView(
+            SpMessageView(
               compact: true,
               icon: Icons.person_off_outlined,
               title: 'No teachers yet',
-              message: "This school's admin hasn't added any teachers.",
+              message: 'Add the first teacher for this school.',
+              actionLabel: 'Add teacher',
+              actionIcon: Icons.person_add_alt_1_rounded,
+              onAction: () => showAddTeacherSheet(context, widget.schoolId),
             )
           else if (visible.isEmpty)
             const SpMessageView(

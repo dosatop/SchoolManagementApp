@@ -106,7 +106,8 @@ import 'package:app/features/super_admin/presentation/school_management_page.dar
 import 'package:app/features/super_admin/presentation/school_admins_page.dart';
 import 'package:app/features/super_admin/presentation/school_students_page.dart';
 import 'package:app/features/super_admin/presentation/school_teachers_page.dart';
-import 'package:app/features/super_admin/presentation/schools_page.dart';
+import 'package:app/features/super_admin/presentation/schools_list_page.dart';
+import 'package:app/features/super_admin/provider/schools_page.dart';
 import 'package:app/features/super_admin/presentation/super_admin_daashboard.dart';
 
 // Syllabus
@@ -212,8 +213,8 @@ GoRouter appRouter(Ref ref) {
     refreshListenable: authChanges,
     redirect: (context, state) {
       final authState = ref.read(authProvider);
-    
-    if (authState.isLoading) {
+
+      if (authState.isLoading) {
         // Don't flash onboarding while checking the saved login.
         if (state.matchedLocation == '/' && OnboardingStore.seen) {
           return '/login';
@@ -765,8 +766,8 @@ GoRouter appRouter(Ref ref) {
           );
         },
       ),
-      
-       GoRoute(
+
+      GoRoute(
         path: '/schools/:schoolId/teachers',
         builder: (context, state) {
           return SchoolTeachersPage(
@@ -775,14 +776,14 @@ GoRouter appRouter(Ref ref) {
           );
         },
       ),
- 
+
       GoRoute(
         path: '/schools/:schoolId/students',
         builder: (context, state) {
           // extra is the school name, or a map when opened from a class.
           final extra = state.extra;
           final map = extra is Map ? extra : const {};
- 
+
           return SchoolStudentsPage(
             schoolId: state.pathParameters['schoolId']!,
             schoolName: extra is String
@@ -793,7 +794,7 @@ GoRouter appRouter(Ref ref) {
           );
         },
       ),
- 
+
       GoRoute(
         path: '/schools/:schoolId/classes',
         builder: (context, state) {
@@ -971,12 +972,12 @@ GoRouter appRouter(Ref ref) {
       ),
 
       GoRoute(
-  path: '/admin/:schoolId/departments-trades',
-  builder: (context, state) => AdminDepartmentsTradesPage(
-    schoolId: state.pathParameters['schoolId']!,
-    initialTab: state.uri.queryParameters['tab'] == 'trades' ? 1 : 0,
-  ),
-),
+        path: '/admin/:schoolId/departments-trades',
+        builder: (context, state) => AdminDepartmentsTradesPage(
+          schoolId: state.pathParameters['schoolId']!,
+          initialTab: state.uri.queryParameters['tab'] == 'trades' ? 1 : 0,
+        ),
+      ),
 
       // ============================================================
       // ADMIN - PARENTS

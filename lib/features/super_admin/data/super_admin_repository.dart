@@ -41,19 +41,19 @@ class SuperAdminRepository {
   Future<Map<String, dynamic>> createSchoolAdmin(
     String schoolId,
     CreateSchoolAdminRequest request,
-  ) async {
-    return await api.createSchoolAdmin(schoolId, request);
+  ) {
+    return api.createSchoolAdmin(schoolId, request);
   }
 
-  Future<List<SchoolAdminModel>> getSchoolAdmins(String schoolId) async {
-    return await api.getSchoolAdmins(schoolId);
+  Future<List<SchoolAdminModel>> getSchoolAdmins(String schoolId) {
+    return api.getSchoolAdmins(schoolId);
   }
 
   // ==================================================================
   // OLD SCHOOL ENDPOINTS (kept as they were)
   // ==================================================================
 
-  Future<List<TeacherModel>> getTeachers(String schoolId) async {
+  Future<List<TeacherModel>> getTeachers(String schoolId) {
     return api.getTeachers(schoolId);
   }
 
@@ -114,5 +114,59 @@ class SuperAdminRepository {
 
   Future<List<SchoolClass>> getSchoolClasses(String schoolId) {
     return api.getSchoolClasses(schoolId);
+  }
+
+  Future<SchoolFormOptions> getSchoolFormOptions(String schoolId) {
+    return api.getSchoolFormOptions(schoolId);
+  }
+
+  Future<void> createSchoolTeacher(
+    String schoolId, {
+    required String fullName,
+    required String email,
+    required String password,
+    String? phoneNumber,
+  }) {
+    return api.createSchoolTeacher(
+      schoolId,
+      fullName: fullName,
+      email: email,
+      password: password,
+      phoneNumber: phoneNumber,
+    );
+  }
+
+  Future<void> createSchoolStudent(
+    String schoolId, {
+    required String fullName,
+    required String email,
+    required String password,
+    required String classId,
+    String? phoneNumber,
+    String? studentNumber,
+    String? departmentId,
+    String? tradeId,
+    String? tradeSubjectId,
+  }) {
+    return api.createSchoolStudent(
+      schoolId,
+      fullName: fullName,
+      email: email,
+      password: password,
+      classId: classId,
+      phoneNumber: phoneNumber,
+      studentNumber: studentNumber,
+      departmentId: departmentId,
+      tradeId: tradeId,
+      tradeSubjectId: tradeSubjectId,
+    );
+  }
+
+  Future<void> createSchoolClass(
+    String schoolId, {
+    required String name,
+    int? level,
+  }) {
+    return api.createSchoolClass(schoolId, name: name, level: level);
   }
 }

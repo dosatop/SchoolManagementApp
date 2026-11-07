@@ -1,6 +1,7 @@
 import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:app/features/super_admin/presentation/widgets/school_people_ui.dart';
-   import 'package:app/features/super_admin/provider/schools_page.dart';
+import 'package:app/features/super_admin/presentation/widgets/school_people_forms.dart';
+import 'package:app/features/super_admin/provider/schools_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -63,6 +64,17 @@ class _SchoolStudentsPageState extends ConsumerState<SchoolStudentsPage> {
         schoolName: widget.schoolName,
         refreshing: async.isLoading && students != null,
         onRefresh: _refresh,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showAddStudentSheet(context, widget.schoolId, classId: _filter == _all || _filter == _noClass ? null : _filter),
+        backgroundColor: SpColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        icon: const Icon(Icons.person_add_alt_1_rounded),
+        label: const Text(
+          'Add student',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
       ),
       body: Builder(
         builder: (context) {
@@ -132,11 +144,14 @@ class _SchoolStudentsPageState extends ConsumerState<SchoolStudentsPage> {
     final children = <Widget>[];
     if (all.isEmpty) {
       children.add(
-        const SpMessageView(
+        SpMessageView(
           compact: true,
           icon: Icons.person_off_outlined,
           title: 'No students yet',
-          message: "This school's admin hasn't added any students.",
+          message: 'Add the first student for this school.',
+          actionLabel: 'Add student',
+          actionIcon: Icons.person_add_alt_1_rounded,
+          onAction: () => showAddStudentSheet(context, widget.schoolId),
         ),
       );
     } else if (visible.isEmpty) {
@@ -196,7 +211,7 @@ class _SchoolStudentsPageState extends ConsumerState<SchoolStudentsPage> {
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
         children: [
           if (error != null) SpErrorBanner(message: schoolPeopleError(error)),
           SpSummaryCard(

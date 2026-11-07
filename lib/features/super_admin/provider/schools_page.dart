@@ -5,6 +5,7 @@ import 'package:app/features/super_admin/data/super_admin_repository.dart';
 import 'package:app/features/super_admin/models/create_school_request.dart';
 import 'package:app/features/super_admin/models/school_model.dart';
 import 'package:app/features/super_admin/models/school_people_models.dart';
+import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ====================================================================
@@ -29,13 +30,8 @@ final superAdminProvider =
     );
 
 class SuperAdminNotifier extends AsyncNotifier<List<SchoolModel>> {
-  // ----------------------------------------------------------------
-  // Initial load
-  // ----------------------------------------------------------------
-  // Loads the schools as soon as something watches this provider, so
-  // the page no longer needs to call getSchools() in initState.
-  // Only a super admin ever calls /api/schools.
-
+  // Loads as soon as something watches it. Only a super admin ever
+  // calls /api/schools.
   @override
   Future<List<SchoolModel>> build() async {
     if (!signedInAs(ref, 'SuperAdmin')) return [];
@@ -43,12 +39,7 @@ class SuperAdminNotifier extends AsyncNotifier<List<SchoolModel>> {
     return ref.read(superAdminRepositoryProvider).getSchools();
   }
 
-  // ----------------------------------------------------------------
-  // Get Schools (refresh)
-  // ----------------------------------------------------------------
-  // Keeps the current list on screen while reloading; only shows the
-  // loading state the very first time.
-
+  // Refresh — keeps the current list on screen while reloading.
   Future<List<SchoolModel>> getSchools() async {
     state = const AsyncLoading<List<SchoolModel>>().copyWithPrevious(state);
 
@@ -59,7 +50,6 @@ class SuperAdminNotifier extends AsyncNotifier<List<SchoolModel>> {
 
       return schools;
     } catch (error, stackTrace) {
-      // Keep the old list if there was one; just surface the error.
       state = AsyncError<List<SchoolModel>>(
         error,
         stackTrace,
@@ -69,12 +59,7 @@ class SuperAdminNotifier extends AsyncNotifier<List<SchoolModel>> {
     }
   }
 
-  // ----------------------------------------------------------------
-  // Create School
-  // ----------------------------------------------------------------
-  // Doesn't touch the list while saving (so the dashboard behind the
-  // create page doesn't flash). Reloads the list afterwards.
-
+  // Doesn't touch the list while saving; reloads it afterwards.
   Future<String?> createSchool(CreateSchoolRequest request) async {
     try {
       await ref.read(superAdminRepositoryProvider).createSchool(request);
@@ -82,7 +67,6 @@ class SuperAdminNotifier extends AsyncNotifier<List<SchoolModel>> {
       return schoolPeopleError(error);
     }
 
-    // The school was created — a failed reload shouldn't report failure.
     await getSchools();
 
     return null;
@@ -113,11 +97,119 @@ final schoolClassesProvider = FutureProvider.autoDispose
       return ref.read(superAdminRepositoryProvider).getSchoolClasses(schoolId);
     });
 
+/// Departments + trades (with their subjects) for the Add student form.
+final schoolFormOptionsProvider = FutureProvider.autoDispose
+    .family<SchoolFormOptions, String>((ref, schoolId) async {
+      if (!signedInAs(ref, 'SuperAdmin')) return SchoolFormOptions.empty;
+      return ref
+          .read(superAdminRepositoryProvider)
+          .getSchoolFormOptions(schoolId);
+    });
+
+// ====================================================================
+// CREATE ACTIONS
+// ====================================================================
+// Each returns null on success, or a message to show.
+// On success the affected lists (and the school counts on the
+// dashboard / management page) reload automatically.
+
+final schoolPeopleActionsProvider = Provider<SchoolPeopleActions>(
+  SchoolPeopleActions.new,
+);
+
+class SchoolPeopleActions {
+  SchoolPeopleActions(this._ref);
+
+  final Ref _ref;
+
+  SuperAdminRepository get _repo => _ref.read(superAdminRepositoryProvider);
+
+  Future<String?> createTeacher(
+    String schoolId, {
+    required String fullName,
+    required String email,
+    required String password,
+    String? phoneNumber,
+  }) async {
+    try {
+      await _repo.createSchoolTeacher(
+        schoolId,
+        fullName: fullName,
+        email: email,
+        password: password,
+        phoneNumber: phoneNumber,
+      );
+    } catch (error) {
+      return schoolPeopleError(error);
+    }
+
+    _ref.invalidate(schoolTeachersProvider(schoolId));
+    _refreshSchools();
+    return null;
+  }
+
+  Future<String?> createStudent(
+    String schoolId, {
+    required String fullName,
+    required String email,
+    required String password,
+    required String classId,
+    String? phoneNumber,
+    String? studentNumber,
+    String? departmentId,
+    String? tradeId,
+    String? tradeSubjectId,
+  }) async {
+    try {
+      await _repo.createSchoolStudent(
+        schoolId,
+        fullName: fullName,
+        email: email,
+        password: password,
+        classId: classId,
+        phoneNumber: phoneNumber,
+        studentNumber: studentNumber,
+        departmentId: departmentId,
+        tradeId: tradeId,
+        tradeSubjectId: tradeSubjectId,
+      );
+    } catch (error) {
+      return schoolPeopleError(error);
+    }
+
+    _ref.invalidate(schoolStudentsProvider(schoolId));
+    _ref.invalidate(schoolClassesProvider(schoolId)); // student counts
+    _refreshSchools();
+    return null;
+  }
+
+  Future<String?> createClass(
+    String schoolId, {
+    required String name,
+    int? level,
+  }) async {
+    try {
+      await _repo.createSchoolClass(schoolId, name: name, level: level);
+    } catch (error) {
+      return schoolPeopleError(error);
+    }
+
+    _ref.invalidate(schoolClassesProvider(schoolId));
+    _refreshSchools();
+    return null;
+  }
+
+  // Updates the counts on the dashboard / School Management page.
+  void _refreshSchools() {
+    _ref.read(superAdminProvider.notifier).getSchools();
+  }
+}
+
 // ====================================================================
 // FRIENDLY ERROR
 // ====================================================================
-// Turns a Dio error into the server's message (e.g. "Email already
-// exists") instead of the long DioException text.
+// Turns a Dio error into the server's message (e.g. "A user with this
+// email already exists.") instead of the long DioException text.
 
 String schoolPeopleError(Object error) {
   try {
@@ -125,13 +217,21 @@ String schoolPeopleError(Object error) {
     if (data is Map) {
       final message = data['message'] ?? data['Message'];
       if (message != null && '$message'.trim().isNotEmpty) return '$message';
+
+      // ASP.NET validation errors: { errors: { Email: ["..."] } }
+      final errors = data['errors'];
+      if (errors is Map && errors.isNotEmpty) {
+        final first = errors.values.first;
+        if (first is List && first.isNotEmpty) return '${first.first}';
+        return '$first';
+      }
     }
     final status = (error as dynamic).response?.statusCode;
     if (status == 404) {
-      return 'This list is not available yet. Make sure the server has '
-          'the school people endpoints.';
+      return 'This is not available yet. Make sure the server has the '
+          'latest super admin endpoints.';
     }
-    if (status == 403) return "You don't have permission to view this.";
+    if (status == 403) return "You don't have permission to do this.";
   } catch (_) {}
 
   final text = error.toString().replaceFirst('Exception: ', '').trim();

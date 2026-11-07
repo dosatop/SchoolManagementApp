@@ -17,6 +17,8 @@ class SuperAdminApi {
 
   SuperAdminApi(this.dioClient);
 
+  String _school(String schoolId) => '/super-admin/schools/$schoolId';
+
   // ==================================================================
   // SCHOOLS
   // ==================================================================
@@ -45,7 +47,7 @@ class SuperAdminApi {
     CreateSchoolAdminRequest request,
   ) async {
     final response = await dioClient.dio.post(
-      '/super-admin/schools/$schoolId/admin',
+      '${_school(schoolId)}/admin',
       data: request.toJson(),
     );
 
@@ -155,15 +157,12 @@ class SuperAdminApi {
   // ==================================================================
   // SUPER ADMIN — SCHOOL TEACHERS / STUDENTS / CLASSES
   // ==================================================================
-  // SuperAdminController:
-  //   GET api/super-admin/schools/{schoolId}/teachers
-  //   GET api/super-admin/schools/{schoolId}/students   (?classId=)
-  //   GET api/super-admin/schools/{schoolId}/classes
+  // SuperAdminController (api/super-admin/schools/{schoolId}/...):
+  //   GET/POST teachers · GET/POST students · GET/POST classes
+  //   GET options (departments + trades for the Add student form)
 
   Future<List<SchoolTeacher>> getSchoolTeachers(String schoolId) async {
-    final response = await dioClient.dio.get(
-      '/super-admin/schools/$schoolId/teachers',
-    );
+    final response = await dioClient.dio.get('${_school(schoolId)}/teachers');
 
     return parseList(response.data, 'teachers', SchoolTeacher.fromJson);
   }
@@ -173,7 +172,7 @@ class SuperAdminApi {
     String? classId,
   }) async {
     final response = await dioClient.dio.get(
-      '/super-admin/schools/$schoolId/students',
+      '${_school(schoolId)}/students',
       queryParameters: classId == null ? null : {'classId': classId},
     );
 
@@ -181,10 +180,71 @@ class SuperAdminApi {
   }
 
   Future<List<SchoolClass>> getSchoolClasses(String schoolId) async {
-    final response = await dioClient.dio.get(
-      '/super-admin/schools/$schoolId/classes',
-    );
+    final response = await dioClient.dio.get('${_school(schoolId)}/classes');
 
     return parseList(response.data, 'classes', SchoolClass.fromJson);
+  }
+
+  Future<SchoolFormOptions> getSchoolFormOptions(String schoolId) async {
+    final response = await dioClient.dio.get('${_school(schoolId)}/options');
+
+    return SchoolFormOptions.fromJson(response.data);
+  }
+
+  Future<void> createSchoolTeacher(
+    String schoolId, {
+    required String fullName,
+    required String email,
+    required String password,
+    String? phoneNumber,
+  }) async {
+    await dioClient.dio.post(
+      '${_school(schoolId)}/teachers',
+      data: {
+        'fullName': fullName,
+        'email': email,
+        'password': password,
+        'phoneNumber': phoneNumber,
+      },
+    );
+  }
+
+  Future<void> createSchoolStudent(
+    String schoolId, {
+    required String fullName,
+    required String email,
+    required String password,
+    required String classId,
+    String? phoneNumber,
+    String? studentNumber,
+    String? departmentId,
+    String? tradeId,
+    String? tradeSubjectId,
+  }) async {
+    await dioClient.dio.post(
+      '${_school(schoolId)}/students',
+      data: {
+        'fullName': fullName,
+        'email': email,
+        'password': password,
+        'classId': classId,
+        'phoneNumber': phoneNumber,
+        'studentNumber': studentNumber,
+        'departmentId': departmentId,
+        'tradeId': tradeId,
+        'tradeSubjectId': tradeSubjectId,
+      },
+    );
+  }
+
+  Future<void> createSchoolClass(
+    String schoolId, {
+    required String name,
+    int? level,
+  }) async {
+    await dioClient.dio.post(
+      '${_school(schoolId)}/classes',
+      data: {'name': name, 'level': level},
+    );
   }
 }

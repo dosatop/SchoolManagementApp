@@ -1,6 +1,7 @@
 import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:app/features/super_admin/presentation/widgets/school_people_ui.dart';
-   import 'package:app/features/super_admin/provider/schools_page.dart';
+import 'package:app/features/super_admin/presentation/widgets/school_people_forms.dart';
+import 'package:app/features/super_admin/provider/schools_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -55,6 +56,17 @@ class _SchoolClassesPageState extends ConsumerState<SchoolClassesPage> {
         refreshing: async.isLoading && classes != null,
         onRefresh: _refresh,
       ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => showAddClassSheet(context, widget.schoolId),
+        backgroundColor: SpColors.primary,
+        foregroundColor: Colors.white,
+        elevation: 2,
+        icon: const Icon(Icons.add_rounded),
+        label: const Text(
+          'New class',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
       body: Builder(
         builder: (context) {
           if (classes == null && async.hasError) {
@@ -97,7 +109,7 @@ class _SchoolClassesPageState extends ConsumerState<SchoolClassesPage> {
         physics: const AlwaysScrollableScrollPhysics(
           parent: BouncingScrollPhysics(),
         ),
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
         children: [
           if (error != null) SpErrorBanner(message: schoolPeopleError(error)),
           SpSummaryCard(
@@ -133,11 +145,14 @@ class _SchoolClassesPageState extends ConsumerState<SchoolClassesPage> {
                 : '${visible.length} of ${all.length}',
           ),
           if (all.isEmpty)
-            const SpMessageView(
+            SpMessageView(
               compact: true,
               icon: Icons.class_outlined,
               title: 'No classes yet',
-              message: "This school's admin hasn't created any classes.",
+              message: 'Create the first class for this school.',
+              actionLabel: 'New class',
+              actionIcon: Icons.add_rounded,
+              onAction: () => showAddClassSheet(context, widget.schoolId),
             )
           else if (visible.isEmpty)
             const SpMessageView(
@@ -460,7 +475,7 @@ class _ClassSheet extends ConsumerWidget {
               style: const TextStyle(color: SpColors.red, fontSize: 12.5),
             ),
           )
-        else if (students.isEmpty)
+        else if (students.isEmpty) ...[
           const SpCard(
             child: Row(
               children: [
@@ -474,8 +489,10 @@ class _ClassSheet extends ConsumerWidget {
                 ),
               ],
             ),
-          )
-        else ...[
+          ),
+          const SizedBox(height: 12),
+          _AddStudentButton(schoolId: schoolId, classId: c.id),
+        ] else ...[
           SpGroup(
             children: [
               for (final s in students.take(_preview))
@@ -509,8 +526,41 @@ class _ClassSheet extends ConsumerWidget {
               ),
             ),
           ),
+          const SizedBox(height: 10),
+          _AddStudentButton(schoolId: schoolId, classId: c.id),
         ],
       ],
+    );
+  }
+}
+
+class _AddStudentButton extends StatelessWidget {
+  const _AddStudentButton({required this.schoolId, required this.classId});
+
+  final String schoolId;
+  final String classId;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 50,
+      child: OutlinedButton.icon(
+        onPressed: () =>
+            showAddStudentSheet(context, schoolId, classId: classId),
+        icon: const Icon(Icons.person_add_alt_1_rounded, size: 20),
+        label: const Text('Add student to this class'),
+        style: OutlinedButton.styleFrom(
+          foregroundColor: SpColors.primary,
+          side: const BorderSide(color: SpColors.primary),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
     );
   }
 }

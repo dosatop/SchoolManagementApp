@@ -319,3 +319,65 @@ class SchoolClass {
     );
   }
 }
+
+// ====================================================================
+// FORM OPTIONS (Add student form)
+// ====================================================================
+
+class SchoolOption {
+  final String id;
+  final String name;
+
+  const SchoolOption({required this.id, required this.name});
+}
+
+class SchoolTradeOption {
+  final String id;
+  final String name;
+  final List<SchoolOption> subjects;
+
+  const SchoolTradeOption({
+    required this.id,
+    required this.name,
+    this.subjects = const [],
+  });
+}
+
+class SchoolFormOptions {
+  final List<SchoolOption> departments;
+  final List<SchoolTradeOption> trades;
+
+  const SchoolFormOptions({
+    this.departments = const [],
+    this.trades = const [],
+  });
+
+  static const empty = SchoolFormOptions();
+
+  factory SchoolFormOptions.fromJson(dynamic json) => SchoolFormOptions(
+    departments: _list(
+      json,
+      ['departments'],
+      (d) => SchoolOption(
+        id: _str(d, ['departmentId', 'id']),
+        name: _str(d, ['departmentName', 'name'], 'Department'),
+      ),
+    ),
+    trades: _list(
+      json,
+      ['trades'],
+      (t) => SchoolTradeOption(
+        id: _str(t, ['tradeId', 'id']),
+        name: _str(t, ['tradeName', 'name'], 'Trade'),
+        subjects: _list(
+          t,
+          ['subjects'],
+          (s) => SchoolOption(
+            id: _str(s, ['subjectId', 'id']),
+            name: _str(s, ['subjectName', 'name'], 'Subject'),
+          ),
+        ),
+      ),
+    ),
+  );
+}

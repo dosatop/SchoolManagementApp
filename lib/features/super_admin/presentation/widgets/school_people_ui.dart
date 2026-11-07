@@ -714,6 +714,7 @@ class SpMessageView extends StatelessWidget {
     this.color = SpColors.primary,
     this.actionLabel,
     this.onAction,
+    this.actionIcon = Icons.refresh_rounded,
     this.compact = false,
   });
 
@@ -723,6 +724,7 @@ class SpMessageView extends StatelessWidget {
   final Color color;
   final String? actionLabel;
   final VoidCallback? onAction;
+  final IconData actionIcon;
 
   /// Inside a list (no full-height centering).
   final bool compact;
@@ -767,7 +769,7 @@ class SpMessageView extends StatelessWidget {
             const SizedBox(height: 18),
             FilledButton.icon(
               onPressed: onAction,
-              icon: const Icon(Icons.refresh_rounded, size: 18),
+              icon: Icon(actionIcon, size: 18),
               label: Text(actionLabel!),
               style: FilledButton.styleFrom(
                 backgroundColor: SpColors.primary,
