@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/students/presentation/student_assignments_page.dart';
 import 'package:app/features/students/presentation/student_profile_page.dart';
@@ -7,6 +8,7 @@ import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/students/presentation/widgets/student_ui.dart';
 import 'package:app/features/students/provider/students_provider.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -130,59 +132,44 @@ class _StudentDashboardPageState extends ConsumerState<StudentDashboardPage> {
             const StudentProfilePage(),
           ],
         ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .05),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: NavigationBar(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.white,
-            indicatorColor: StudentColors.primaryLight,
-            elevation: 0,
-            height: 68,
-            labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-            selectedIndex: _currentIndex,
-            onDestinationSelected: _goToTab,
-            destinations: [
-              const NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded, color: _primary),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Badge(
-                  isLabelVisible: pending > 0,
-                  label: Text('$pending'),
-                  backgroundColor: Colors.orange.shade700,
-                  child: const Icon(Icons.assignment_outlined),
-                ),
-                selectedIcon: Badge(
-                  isLabelVisible: pending > 0,
-                  label: Text('$pending'),
-                  backgroundColor: Colors.orange.shade700,
-                  child: const Icon(Icons.assignment_rounded, color: _primary),
-                ),
-                label: 'Tasks',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.insights_outlined),
-                selectedIcon: Icon(Icons.insights_rounded, color: _primary),
-                label: 'Results',
-              ),
-              const NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded, color: _primary),
-                label: 'Profile',
-              ),
-            ],
-          ),
+        // iOS → Cupertino tab bar, Android → Material 3 navigation bar.
+        bottomNavigationBar: AdaptiveNavBar(
+          currentIndex: _currentIndex,
+          onTap: _goToTab,
+          activeColor: _primary,
+          indicatorColor: StudentColors.primaryLight,
+          items: [
+            const AdaptiveNavItem(
+              label: 'Home',
+              icon: Icons.home_outlined,
+              activeIcon: Icons.home_rounded,
+              iosIcon: CupertinoIcons.house,
+              iosActiveIcon: CupertinoIcons.house_fill,
+            ),
+            AdaptiveNavItem(
+              label: 'Tasks',
+              icon: Icons.assignment_outlined,
+              activeIcon: Icons.assignment_rounded,
+              iosIcon: CupertinoIcons.doc_text,
+              iosActiveIcon: CupertinoIcons.doc_text_fill,
+              badge: pending,
+              badgeColor: Colors.orange.shade700,
+            ),
+            const AdaptiveNavItem(
+              label: 'Results',
+              icon: Icons.insights_outlined,
+              activeIcon: Icons.insights_rounded,
+              iosIcon: CupertinoIcons.chart_bar,
+              iosActiveIcon: CupertinoIcons.chart_bar_fill,
+            ),
+            const AdaptiveNavItem(
+              label: 'Profile',
+              icon: Icons.person_outline_rounded,
+              activeIcon: Icons.person_rounded,
+              iosIcon: CupertinoIcons.person,
+              iosActiveIcon: CupertinoIcons.person_fill,
+            ),
+          ],
         ),
       ),
     );

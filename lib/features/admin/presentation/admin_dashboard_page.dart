@@ -1,6 +1,8 @@
+import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -212,6 +214,8 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     );
   }
 
+  // iOS → Cupertino tab bar, Android → Material 3 navigation bar.
+  // The theme below only styles the Android bar (Exo labels).
   Widget _bottomBar() {
     return NavigationBarTheme(
       data: NavigationBarThemeData(
@@ -239,36 +243,45 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           ),
         ),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: Colors.grey.shade200)),
-        ),
-        child: NavigationBar(
-          selectedIndex: _currentIndex,
-          onDestinationSelected: (i) => setState(() => _currentIndex = i),
-          destinations: const [
-            NavigationDestination(
-              icon: Icon(Icons.space_dashboard_outlined),
-              selectedIcon: Icon(Icons.space_dashboard_rounded),
-              label: 'Dashboard',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.grid_view_outlined),
-              selectedIcon: Icon(Icons.grid_view_rounded),
-              label: 'Manage',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.add_circle_outline_rounded),
-              selectedIcon: Icon(Icons.add_circle_rounded),
-              label: 'Create',
-            ),
-            NavigationDestination(
-              icon: Icon(Icons.person_outline_rounded),
-              selectedIcon: Icon(Icons.person_rounded),
-              label: 'Profile',
-            ),
-          ],
-        ),
+      child: AdaptiveNavBar(
+        currentIndex: _currentIndex,
+        activeColor: primary,
+        indicatorColor: primaryLight,
+        onTap: (i) {
+          if (i == _currentIndex) return;
+          HapticFeedback.selectionClick();
+          setState(() => _currentIndex = i);
+        },
+        items: const [
+          AdaptiveNavItem(
+            label: 'Dashboard',
+            icon: Icons.space_dashboard_outlined,
+            activeIcon: Icons.space_dashboard_rounded,
+            iosIcon: CupertinoIcons.square_grid_2x2,
+            iosActiveIcon: CupertinoIcons.square_grid_2x2_fill,
+          ),
+          AdaptiveNavItem(
+            label: 'Manage',
+            icon: Icons.grid_view_outlined,
+            activeIcon: Icons.grid_view_rounded,
+            iosIcon: CupertinoIcons.folder,
+            iosActiveIcon: CupertinoIcons.folder_fill,
+          ),
+          AdaptiveNavItem(
+            label: 'Create',
+            icon: Icons.add_circle_outline_rounded,
+            activeIcon: Icons.add_circle_rounded,
+            iosIcon: CupertinoIcons.plus_circle,
+            iosActiveIcon: CupertinoIcons.plus_circle_fill,
+          ),
+          AdaptiveNavItem(
+            label: 'Profile',
+            icon: Icons.person_outline_rounded,
+            activeIcon: Icons.person_rounded,
+            iosIcon: CupertinoIcons.person,
+            iosActiveIcon: CupertinoIcons.person_fill,
+          ),
+        ],
       ),
     );
   }
