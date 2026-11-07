@@ -55,11 +55,39 @@ bool isCupertino(BuildContext context) {
   return platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
 }
 
+// Bar geometry (shared by the bar and the page padding).
+const double _kBarHeight = 66;
+const double _kBarGap = 12; // breathing room between page and bar
+
+/// Bottom margin under the floating bar (just above the home indicator).
+double _barBottomMargin(BuildContext context) {
+  final safe = MediaQuery.viewPaddingOf(context).bottom;
+  return safe > 0 ? safe - 8 : 14;
+}
+
+/// Total space the floating glass bar takes at the bottom of the
+/// screen, plus a small gap. 0 on Android.
+double glassBarSpace(BuildContext context) => isCupertino(context)
+    ? _kBarHeight + _barBottomMargin(context) + _kBarGap
+    : 0;
+
 /// Extra bottom space a list needs to clear the glass bar.
-/// Inside [SlidingIndexedStack] (default) this is already handled and
-/// returns 0, so existing `+ glassBottomInset(context)` calls are safe.
-double glassBottomInset(BuildContext context) =>
-    isCupertino(context) ? MediaQuery.paddingOf(context).bottom : 0;
+/// Returns 0 inside [SlidingIndexedStack] (it already makes the space),
+/// so existing `+ glassBottomInset(context)` calls never double up.
+double glassBottomInset(BuildContext context) {
+  if (context.dependOnInheritedWidgetOfExactType<_GlassSpaceHandled>() !=
+      null) {
+    return 0;
+  }
+  return glassBarSpace(context);
+}
+
+class _GlassSpaceHandled extends InheritedWidget {
+  const _GlassSpaceHandled({required super.child});
+
+  @override
+  bool updateShouldNotify(covariant InheritedWidget oldWidget) => false;
+}
 
 class AdaptiveNavBar extends StatelessWidget {
   const AdaptiveNavBar({
@@ -181,9 +209,10 @@ class _LiquidGlassBar extends StatefulWidget {
 
 class _LiquidGlassBarState extends State<_LiquidGlassBar>
     with SingleTickerProviderStateMixin {
-  static const double _height = 66;
-  static const double _radius = 33;
+  static const double _height = _kBarHeight;
+  static const double _radius = _kBarHeight / 2;
   static const double _inset = 4;
+  static const double _magnify = 1.28;
 
   /// Slightly under-damped → a small wobble when the lens lands.
   static const _spring = SpringDescription(
@@ -271,16 +300,10 @@ class _LiquidGlassBarState extends State<_LiquidGlassBar>
 
   @override
   Widget build(BuildContext context) {
-    final safeBottom = MediaQuery.paddingOf(context).bottom;
     final dark = Theme.of(context).brightness == Brightness.dark;
 
     return Padding(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        0,
-        16,
-        safeBottom > 0 ? safeBottom - 8 : 14,
-      ),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, _barBottomMargin(context)),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(_radius),
@@ -351,53 +374,109 @@ class _LiquidGlassBarState extends State<_LiquidGlassBar>
 
                           final lit = position.round().clamp(0, _last);
 
+                          // Lens rectangle (stretched while moving).
+                          final rowWidth = tabWidth * widget.items.length;
+                          final rowHeight = _height - _inset * 2;
+                          final centerX = _inset + tabWidth * (position + .5);
+                          final lensRect = Rect.fromCenter(
+                            center: Offset(centerX, _height / 2),
+                            width: tabWidth * scaleX,
+                            height: rowHeight * scaleY,
+                          );
+                          final lensRadius = lensRect.height / 2;
+
+                          Widget tabsRow({required bool magnified}) => Row(
+                            children: [
+                              for (var i = 0; i < widget.items.length; i++)
+                                Expanded(
+                                  child: _GlassTab(
+                                    item: widget.items[i],
+                                    focus: (1 - (position - i).abs()).clamp(
+                                      0.0,
+                                      1.0,
+                                    ),
+                                    selected: i == lit,
+                                    magnified: magnified,
+                                    activeColor: widget.activeColor,
+                                    dark: dark,
+                                    onTap: () {
+                                      if (i != widget.currentIndex) {
+                                        widget.onTap(i);
+                                      }
+                                    },
+                                  ),
+                                ),
+                            ],
+                          );
+
                           return Stack(
                             clipBehavior: Clip.none,
                             children: [
-                              // ---------------- lens ----------------
-                              Positioned(
-                                left: _inset + tabWidth * position,
-                                top: _inset,
-                                bottom: _inset,
-                                width: tabWidth,
-                                child: Transform(
-                                  alignment: Alignment.center,
-                                  transform: Matrix4.diagonal3Values(
-                                    scaleX,
-                                    scaleY,
-                                    1,
-                                  ),
+                              // 1. Normal tabs (fade out under the lens).
+                              Padding(
+                                padding: const EdgeInsets.all(_inset),
+                                child: tabsRow(magnified: false),
+                              ),
+
+                              // 2. The glass drop itself.
+                              Positioned.fromRect(
+                                rect: lensRect,
+                                child: IgnorePointer(
                                   child: _Lens(
+                                    radius: lensRadius,
                                     dark: dark,
                                     tint: widget.activeColor,
                                   ),
                                 ),
                               ),
 
-                              // ---------------- tabs ----------------
-                              Padding(
-                                padding: const EdgeInsets.all(_inset),
-                                child: Row(
-                                  children: [
-                                    for (var i = 0;
-                                        i < widget.items.length;
-                                        i++)
-                                      Expanded(
-                                        child: _GlassTab(
-                                          item: widget.items[i],
-                                          focus: (1 - (position - i).abs())
-                                              .clamp(0.0, 1.0),
-                                          selected: i == lit,
-                                          activeColor: widget.activeColor,
-                                          dark: dark,
-                                          onTap: () {
-                                            if (i != widget.currentIndex) {
-                                              widget.onTap(i);
-                                            }
-                                          },
+                              // 3. MAGNIFIED copy of the tabs, seen
+                              //    only through the lens.
+                              Positioned.fromRect(
+                                rect: lensRect,
+                                child: IgnorePointer(
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(
+                                      lensRadius,
+                                    ),
+                                    child: Stack(
+                                      clipBehavior: Clip.none,
+                                      children: [
+                                        Positioned(
+                                          left: _inset - lensRect.left,
+                                          top: _inset - lensRect.top,
+                                          width: rowWidth,
+                                          height: rowHeight,
+                                          child: Transform.scale(
+                                            scale: _magnify,
+                                            // Zoom around the lens centre.
+                                            alignment: Alignment(
+                                              (centerX - _inset) /
+                                                      rowWidth *
+                                                      2 -
+                                                  1,
+                                              0,
+                                            ),
+                                            child: tabsRow(magnified: true),
+                                          ),
                                         ),
-                                      ),
-                                  ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+
+                              // 4. Glass rim on top of everything.
+                              Positioned.fromRect(
+                                rect: lensRect,
+                                child: IgnorePointer(
+                                  child: CustomPaint(
+                                    painter: _GlassRimPainter(
+                                      radius: lensRadius,
+                                      dark: dark,
+                                      strong: true,
+                                    ),
+                                  ),
                                 ),
                               ),
                             ],
@@ -421,18 +500,17 @@ class _LiquidGlassBarState extends State<_LiquidGlassBar>
 // ------------------------------------------------------------------
 
 class _Lens extends StatelessWidget {
-  const _Lens({required this.dark, required this.tint});
+  const _Lens({required this.radius, required this.dark, required this.tint});
 
+  final double radius;
   final bool dark;
   final Color tint;
-
-  static const double _r = 29;
 
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(_r),
+        borderRadius: BorderRadius.circular(radius),
         boxShadow: [
           BoxShadow(
             color: tint.withValues(alpha: dark ? .30 : .16),
@@ -442,41 +520,30 @@ class _Lens extends StatelessWidget {
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(_r),
+        borderRadius: BorderRadius.circular(radius),
         child: BackdropFilter(
-          // What's under the lens looks brighter and more vivid,
-          // like looking through a drop of water.
-          filter: ColorFilter.matrix(_vibrancy(1.35, dark ? 18 : 22)),
-          child: CustomPaint(
-            foregroundPainter: _GlassRimPainter(
-              radius: _r,
-              dark: dark,
-              strong: true,
-            ),
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: dark
-                      ? [
-                          Colors.white.withValues(alpha: .20),
-                          Colors.white.withValues(alpha: .06),
-                        ]
-                      : [
-                          Color.alphaBlend(
-                            tint.withValues(alpha: .05),
-                            Colors.white.withValues(alpha: .72),
-                          ),
-                          Color.alphaBlend(
-                            tint.withValues(alpha: .08),
-                            Colors.white.withValues(alpha: .34),
-                          ),
-                        ],
-                ),
+          // Brighter, more vivid behind the drop.
+          filter: ColorFilter.matrix(_vibrancy(1.35, dark ? 18 : 24)),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              // Clear in the middle, denser at the edges — like a lens.
+              gradient: RadialGradient(
+                radius: 1.1,
+                colors: dark
+                    ? [
+                        Colors.white.withValues(alpha: .10),
+                        Colors.white.withValues(alpha: .22),
+                      ]
+                    : [
+                        Colors.white.withValues(alpha: .55),
+                        Color.alphaBlend(
+                          tint.withValues(alpha: .10),
+                          Colors.white.withValues(alpha: .80),
+                        ),
+                      ],
               ),
-              child: const SizedBox.expand(),
             ),
+            child: const SizedBox.expand(),
           ),
         ),
       ),
@@ -493,6 +560,7 @@ class _GlassTab extends StatefulWidget {
     required this.item,
     required this.focus,
     required this.selected,
+    required this.magnified,
     required this.activeColor,
     required this.dark,
     required this.onTap,
@@ -503,6 +571,11 @@ class _GlassTab extends StatefulWidget {
   /// 0 = lens far away, 1 = lens right on top.
   final double focus;
   final bool selected;
+
+  /// true = the copy drawn inside the lens (always in the active
+  /// colour); false = the normal tab, which fades out as the lens
+  /// covers it so you only see the magnified version.
+  final bool magnified;
   final Color activeColor;
   final bool dark;
   final VoidCallback onTap;
@@ -521,12 +594,39 @@ class _GlassTabState extends State<_GlassTab> {
     final inactive = widget.dark
         ? Colors.white.withValues(alpha: .78)
         : const Color(0xFF3C3C43).withValues(alpha: .80);
-    final color = Color.lerp(inactive, widget.activeColor, widget.focus)!;
+    final color = widget.magnified
+        ? widget.activeColor
+        : Color.lerp(inactive, widget.activeColor, widget.focus * .4)!;
 
-    final icon = widget.selected
+    final icon = widget.focus > .5 || widget.selected
         ? (item.iosActiveIcon ?? item.iosIcon ?? item.activeIcon)
         : (item.iosIcon ?? item.icon);
 
+    final content = Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        _badged(Icon(icon, size: 23, color: color), item),
+        const SizedBox(height: 2),
+        Text(
+          item.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: color,
+            fontSize: 10.5,
+            fontWeight: widget.magnified || widget.focus > .5
+                ? FontWeight.w700
+                : FontWeight.w500,
+            letterSpacing: -.1,
+          ),
+        ),
+      ],
+    );
+
+    // Copy inside the lens: just draw it.
+    if (widget.magnified) return content;
+
+    // Normal tab: tappable, fades out as the lens covers it.
     return Semantics(
       button: true,
       selected: widget.selected,
@@ -541,28 +641,9 @@ class _GlassTabState extends State<_GlassTab> {
           scale: _pressed ? .88 : 1,
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOut,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Transform.scale(
-                scale: 1 + .10 * widget.focus,
-                child: _badged(Icon(icon, size: 23, color: color), item),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                item.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 10.5,
-                  fontWeight: widget.focus > .5
-                      ? FontWeight.w700
-                      : FontWeight.w500,
-                  letterSpacing: -.1,
-                ),
-              ),
-            ],
+          child: Opacity(
+            opacity: (1 - widget.focus * 1.4).clamp(0.0, 1.0),
+            child: content,
           ),
         ),
       ),
@@ -736,17 +817,15 @@ class _SlidingIndexedStackState extends State<SlidingIndexedStack>
       },
     );
 
-    // Stop pages above the floating bar. With extendBody, Scaffold
-    // reports the bar's height as bottom padding — turn that into real
-    // space, then remove it so inner lists don't add it twice.
+    // Stop pages above the floating bar (worked out from the bar's own
+    // size, so it doesn't depend on what Scaffold reports).
     if (widget.stopAboveBar && isCupertino(context)) {
-      final barHeight = MediaQuery.paddingOf(context).bottom;
       stack = Padding(
-        padding: EdgeInsets.only(bottom: barHeight),
+        padding: EdgeInsets.only(bottom: glassBarSpace(context)),
         child: MediaQuery.removePadding(
           context: context,
           removeBottom: true,
-          child: stack,
+          child: _GlassSpaceHandled(child: stack),
         ),
       );
     }
