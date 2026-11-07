@@ -4,7 +4,12 @@ import 'package:app/features/super_admin/data/super_admin_api.dart';
 import 'package:app/features/super_admin/data/super_admin_repository.dart';
 import 'package:app/features/super_admin/models/create_school_request.dart';
 import 'package:app/features/super_admin/models/school_model.dart';
+import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+// ====================================================================
+// REPOSITORY
+// ====================================================================
 
 final superAdminRepositoryProvider = Provider<SuperAdminRepository>((ref) {
   final dioClient = ref.read(dioClientProvider);
@@ -13,6 +18,10 @@ final superAdminRepositoryProvider = Provider<SuperAdminRepository>((ref) {
 
   return SuperAdminRepository(api: api);
 });
+
+// ====================================================================
+// SCHOOLS
+// ====================================================================
 
 final superAdminProvider =
     AsyncNotifierProvider<SuperAdminNotifier, List<SchoolModel>>(
@@ -70,7 +79,7 @@ class SuperAdminNotifier extends AsyncNotifier<List<SchoolModel>> {
     try {
       await ref.read(superAdminRepositoryProvider).createSchool(request);
     } catch (error) {
-      return error.toString();
+      return schoolPeopleError(error);
     }
 
     // The school was created — a failed reload shouldn't report failure.
@@ -78,4 +87,56 @@ class SuperAdminNotifier extends AsyncNotifier<List<SchoolModel>> {
 
     return null;
   }
+}
+
+// ====================================================================
+// SCHOOL TEACHERS / STUDENTS / CLASSES
+// ====================================================================
+// One per school, auto-disposed when the page closes.
+// Guarded: never calls the API unless signed in as SuperAdmin.
+
+final schoolTeachersProvider = FutureProvider.autoDispose
+    .family<List<SchoolTeacher>, String>((ref, schoolId) async {
+      if (!signedInAs(ref, 'SuperAdmin')) return const [];
+      return ref.read(superAdminRepositoryProvider).getSchoolTeachers(schoolId);
+    });
+
+final schoolStudentsProvider = FutureProvider.autoDispose
+    .family<List<SchoolStudent>, String>((ref, schoolId) async {
+      if (!signedInAs(ref, 'SuperAdmin')) return const [];
+      return ref.read(superAdminRepositoryProvider).getSchoolStudents(schoolId);
+    });
+
+final schoolClassesProvider = FutureProvider.autoDispose
+    .family<List<SchoolClass>, String>((ref, schoolId) async {
+      if (!signedInAs(ref, 'SuperAdmin')) return const [];
+      return ref.read(superAdminRepositoryProvider).getSchoolClasses(schoolId);
+    });
+
+// ====================================================================
+// FRIENDLY ERROR
+// ====================================================================
+// Turns a Dio error into the server's message (e.g. "Email already
+// exists") instead of the long DioException text.
+
+String schoolPeopleError(Object error) {
+  try {
+    final data = (error as dynamic).response?.data;
+    if (data is Map) {
+      final message = data['message'] ?? data['Message'];
+      if (message != null && '$message'.trim().isNotEmpty) return '$message';
+    }
+    final status = (error as dynamic).response?.statusCode;
+    if (status == 404) {
+      return 'This list is not available yet. Make sure the server has '
+          'the school people endpoints.';
+    }
+    if (status == 403) return "You don't have permission to view this.";
+  } catch (_) {}
+
+  final text = error.toString().replaceFirst('Exception: ', '').trim();
+  if (text.isEmpty || text.contains('DioException')) {
+    return 'Something went wrong. Check your connection and try again.';
+  }
+  return text;
 }

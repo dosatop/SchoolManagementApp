@@ -9,6 +9,7 @@ import 'package:app/features/super_admin/models/create_school_admin_request.dart
 import 'package:app/features/super_admin/models/create_school_request.dart';
 import 'package:app/features/super_admin/models/school_admin_model.dart';
 import 'package:app/features/super_admin/models/school_model.dart';
+import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:app/features/teacher/models/create_teacher_request.dart';
 import 'package:app/features/teacher/models/teacher_model.dart';
 
@@ -16,6 +17,10 @@ class SuperAdminRepository {
   final SuperAdminApi api;
 
   SuperAdminRepository({required this.api});
+
+  // ==================================================================
+  // SCHOOLS
+  // ==================================================================
 
   Future<Map<String, dynamic>> createSchool(CreateSchoolRequest request) {
     return api.createSchool(request);
@@ -29,6 +34,10 @@ class SuperAdminRepository {
         .toList();
   }
 
+  // ==================================================================
+  // SCHOOL ADMINS
+  // ==================================================================
+
   Future<Map<String, dynamic>> createSchoolAdmin(
     String schoolId,
     CreateSchoolAdminRequest request,
@@ -39,6 +48,10 @@ class SuperAdminRepository {
   Future<List<SchoolAdminModel>> getSchoolAdmins(String schoolId) async {
     return await api.getSchoolAdmins(schoolId);
   }
+
+  // ==================================================================
+  // OLD SCHOOL ENDPOINTS (kept as they were)
+  // ==================================================================
 
   Future<List<TeacherModel>> getTeachers(String schoolId) async {
     return api.getTeachers(schoolId);
@@ -82,5 +95,24 @@ class SuperAdminRepository {
     CreateSubjectRequest request,
   ) {
     return api.createSubject(schoolId, request);
+  }
+
+  // ==================================================================
+  // SUPER ADMIN — SCHOOL TEACHERS / STUDENTS / CLASSES
+  // ==================================================================
+
+  Future<List<SchoolTeacher>> getSchoolTeachers(String schoolId) {
+    return api.getSchoolTeachers(schoolId);
+  }
+
+  Future<List<SchoolStudent>> getSchoolStudents(
+    String schoolId, {
+    String? classId,
+  }) {
+    return api.getSchoolStudents(schoolId, classId: classId);
+  }
+
+  Future<List<SchoolClass>> getSchoolClasses(String schoolId) {
+    return api.getSchoolClasses(schoolId);
   }
 }

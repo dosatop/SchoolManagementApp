@@ -1,6 +1,6 @@
 import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:app/features/super_admin/presentation/widgets/school_people_ui.dart';
-import 'package:app/features/super_admin/provider/school_people_provider.dart';
+   import 'package:app/features/super_admin/provider/schools_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';

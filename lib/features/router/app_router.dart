@@ -101,8 +101,11 @@ import 'package:app/features/study/presentation/study_details_page.dart';
 import 'package:app/features/super_admin/models/school_model.dart';
 import 'package:app/features/super_admin/presentation/create_school_admin_page.dart';
 import 'package:app/features/super_admin/presentation/create_school_page.dart';
+import 'package:app/features/super_admin/presentation/school_classes_page.dart';
 import 'package:app/features/super_admin/presentation/school_management_page.dart';
 import 'package:app/features/super_admin/presentation/school_admins_page.dart';
+import 'package:app/features/super_admin/presentation/school_students_page.dart';
+import 'package:app/features/super_admin/presentation/school_teachers_page.dart';
 import 'package:app/features/super_admin/presentation/schools_page.dart';
 import 'package:app/features/super_admin/presentation/super_admin_daashboard.dart';
 

@@ -8,6 +8,7 @@ import 'package:app/features/students/models/student_model.dart';
 import 'package:app/features/super_admin/models/create_school_admin_request.dart';
 import 'package:app/features/super_admin/models/create_school_request.dart';
 import 'package:app/features/super_admin/models/school_admin_model.dart';
+import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:app/features/teacher/models/create_teacher_request.dart';
 import 'package:app/features/teacher/models/teacher_model.dart';
 
@@ -15,6 +16,10 @@ class SuperAdminApi {
   final DioClient dioClient;
 
   SuperAdminApi(this.dioClient);
+
+  // ==================================================================
+  // SCHOOLS
+  // ==================================================================
 
   Future<Map<String, dynamic>> createSchool(CreateSchoolRequest request) async {
     final response = await dioClient.dio.post(
@@ -30,6 +35,10 @@ class SuperAdminApi {
 
     return List<dynamic>.from(response.data);
   }
+
+  // ==================================================================
+  // SCHOOL ADMINS
+  // ==================================================================
 
   Future<Map<String, dynamic>> createSchoolAdmin(
     String schoolId,
@@ -50,6 +59,10 @@ class SuperAdminApi {
         .map((json) => SchoolAdminModel.fromJson(json as Map<String, dynamic>))
         .toList();
   }
+
+  // ==================================================================
+  // OLD SCHOOL ENDPOINTS (kept as they were)
+  // ==================================================================
 
   Future<List<TeacherModel>> getTeachers(String schoolId) async {
     final response = await dioClient.dio.get('/schools/$schoolId/teachers');
@@ -128,14 +141,50 @@ class SuperAdminApi {
   }
 
   Future<Map<String, dynamic>> createSubject(
-  String schoolId,
-  CreateSubjectRequest request,
-) async {
-  final response = await dioClient.dio.post(
-    '/schools/$schoolId/subjects',
-    data: request.toJson(),
-  );
+    String schoolId,
+    CreateSubjectRequest request,
+  ) async {
+    final response = await dioClient.dio.post(
+      '/schools/$schoolId/subjects',
+      data: request.toJson(),
+    );
 
-  return Map<String, dynamic>.from(response.data);
-}
+    return Map<String, dynamic>.from(response.data);
+  }
+
+  // ==================================================================
+  // SUPER ADMIN — SCHOOL TEACHERS / STUDENTS / CLASSES
+  // ==================================================================
+  // SuperAdminController:
+  //   GET api/super-admin/schools/{schoolId}/teachers
+  //   GET api/super-admin/schools/{schoolId}/students   (?classId=)
+  //   GET api/super-admin/schools/{schoolId}/classes
+
+  Future<List<SchoolTeacher>> getSchoolTeachers(String schoolId) async {
+    final response = await dioClient.dio.get(
+      '/super-admin/schools/$schoolId/teachers',
+    );
+
+    return parseList(response.data, 'teachers', SchoolTeacher.fromJson);
+  }
+
+  Future<List<SchoolStudent>> getSchoolStudents(
+    String schoolId, {
+    String? classId,
+  }) async {
+    final response = await dioClient.dio.get(
+      '/super-admin/schools/$schoolId/students',
+      queryParameters: classId == null ? null : {'classId': classId},
+    );
+
+    return parseList(response.data, 'students', SchoolStudent.fromJson);
+  }
+
+  Future<List<SchoolClass>> getSchoolClasses(String schoolId) async {
+    final response = await dioClient.dio.get(
+      '/super-admin/schools/$schoolId/classes',
+    );
+
+    return parseList(response.data, 'classes', SchoolClass.fromJson);
+  }
 }
