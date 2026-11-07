@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/parents/models/parent_child_model.dart';
 import 'package:app/features/parents/parent_provider.dart';
 import 'package:app/features/parents/presentation/parent_assignment_page.dart';
@@ -6,6 +7,7 @@ import 'package:app/features/parents/presentation/parent_child_result_page.dart'
 import 'package:app/features/parents/presentation/parent_profile_page.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/user/provider/user_provider.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -72,13 +74,18 @@ class _ParentDashboardPageState extends ConsumerState<ParentDashboardPage> {
       },
       child: Scaffold(
         backgroundColor: StudentColors.background,
-        body: IndexedStack(
+        // iOS: the glass bar floats over the page.
+        extendBody: isCupertino(context),
+        // Slides between tabs, keeps opened tabs alive, and stops every
+        // page above the floating bar.
+        body: SlidingIndexedStack(
           index: _tab,
           children: [
             for (var i = 0; i < pages.length; i++)
               _opened.contains(i) ? pages[i] : const SizedBox.shrink(),
           ],
         ),
+        // iOS → liquid glass, Android → Material 3 (styled by the theme).
         bottomNavigationBar: NavigationBarTheme(
           data: NavigationBarThemeData(
             backgroundColor: Colors.white,
@@ -105,41 +112,48 @@ class _ParentDashboardPageState extends ConsumerState<ParentDashboardPage> {
               ),
             ),
           ),
-          child: Container(
-            decoration: BoxDecoration(
-              border: Border(top: BorderSide(color: Colors.grey.shade200)),
-            ),
-            child: NavigationBar(
-              selectedIndex: _tab,
-              onDestinationSelected: _goTo,
-              destinations: const [
-                NavigationDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home_rounded),
-                  label: 'Home',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.bar_chart_outlined),
-                  selectedIcon: Icon(Icons.bar_chart_rounded),
-                  label: 'Results',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.fact_check_outlined),
-                  selectedIcon: Icon(Icons.fact_check_rounded),
-                  label: 'Attendance',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.assignment_outlined),
-                  selectedIcon: Icon(Icons.assignment_rounded),
-                  label: 'Tasks',
-                ),
-                NavigationDestination(
-                  icon: Icon(Icons.person_outline_rounded),
-                  selectedIcon: Icon(Icons.person_rounded),
-                  label: 'Profile',
-                ),
-              ],
-            ),
+          child: AdaptiveNavBar(
+            currentIndex: _tab,
+            onTap: _goTo,
+            activeColor: StudentColors.primary,
+            indicatorColor: StudentColors.primaryLight,
+            items: const [
+              AdaptiveNavItem(
+                label: 'Home',
+                icon: Icons.home_outlined,
+                activeIcon: Icons.home_rounded,
+                iosIcon: CupertinoIcons.house,
+                iosActiveIcon: CupertinoIcons.house_fill,
+              ),
+              AdaptiveNavItem(
+                label: 'Results',
+                icon: Icons.bar_chart_outlined,
+                activeIcon: Icons.bar_chart_rounded,
+                iosIcon: CupertinoIcons.chart_bar,
+                iosActiveIcon: CupertinoIcons.chart_bar_fill,
+              ),
+              AdaptiveNavItem(
+                label: 'Attendance',
+                icon: Icons.fact_check_outlined,
+                activeIcon: Icons.fact_check_rounded,
+                iosIcon: CupertinoIcons.checkmark_square,
+                iosActiveIcon: CupertinoIcons.checkmark_square_fill,
+              ),
+              AdaptiveNavItem(
+                label: 'Tasks',
+                icon: Icons.assignment_outlined,
+                activeIcon: Icons.assignment_rounded,
+                iosIcon: CupertinoIcons.doc_text,
+                iosActiveIcon: CupertinoIcons.doc_text_fill,
+              ),
+              AdaptiveNavItem(
+                label: 'Profile',
+                icon: Icons.person_outline_rounded,
+                activeIcon: Icons.person_rounded,
+                iosIcon: CupertinoIcons.person,
+                iosActiveIcon: CupertinoIcons.person_fill,
+              ),
+            ],
           ),
         ),
       ),
@@ -151,6 +165,8 @@ class _ParentDashboardPageState extends ConsumerState<ParentDashboardPage> {
   // ================================================================
 
   void _goTo(int index) {
+    if (index == _tab) return;
+    HapticFeedback.selectionClick();
     setState(() {
       _tab = index;
       _opened.add(index);

@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/students/presentation/widgets/student_ui.dart';
 import 'package:app/features/teacher/presentation/assignment/teacher_assignments_page.dart';
@@ -8,6 +9,7 @@ import 'package:app/features/teacher/presentation/student/teacher_students_page.
 import 'package:app/features/teacher/presentation/teacher/teacher_profile_page.dart';
 import 'package:app/features/teacher/presentation/teacher_timetable_page.dart';
 import 'package:app/features/teacher/provider/teachers_provider.dart';
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,7 +86,11 @@ class _TeacherDashboardPageState extends ConsumerState<TeacherDashboardPage> {
       },
       child: Scaffold(
         backgroundColor: StudentColors.background,
-        body: IndexedStack(
+        // iOS: the glass bar floats over the page.
+        extendBody: isCupertino(context),
+        // Slides between tabs, keeps each tab alive, and stops every
+        // page above the floating bar.
+        body: SlidingIndexedStack(
           index: _currentIndex,
           children: [
             _TeacherHomePage(onNavigate: _goToTab),
@@ -93,48 +99,42 @@ class _TeacherDashboardPageState extends ConsumerState<TeacherDashboardPage> {
             const TeacherProfilePage(),
           ],
         ),
-        bottomNavigationBar: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: .05),
-                blurRadius: 16,
-                offset: const Offset(0, -4),
-              ),
-            ],
-          ),
-          child: NavigationBar(
-            backgroundColor: Colors.white,
-            surfaceTintColor: Colors.white,
-            indicatorColor: StudentColors.primaryLight,
-            elevation: 0,
-            height: 68,
-            selectedIndex: _currentIndex,
-            onDestinationSelected: _goToTab,
-            destinations: const [
-              NavigationDestination(
-                icon: Icon(Icons.home_outlined),
-                selectedIcon: Icon(Icons.home_rounded, color: _primary),
-                label: 'Home',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.class_outlined),
-                selectedIcon: Icon(Icons.class_rounded, color: _primary),
-                label: 'Classes',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.assignment_outlined),
-                selectedIcon: Icon(Icons.assignment_rounded, color: _primary),
-                label: 'Tasks',
-              ),
-              NavigationDestination(
-                icon: Icon(Icons.person_outline_rounded),
-                selectedIcon: Icon(Icons.person_rounded, color: _primary),
-                label: 'Profile',
-              ),
-            ],
-          ),
+        // iOS → liquid glass, Android → Material 3.
+        bottomNavigationBar: AdaptiveNavBar(
+          currentIndex: _currentIndex,
+          onTap: _goToTab,
+          activeColor: _primary,
+          indicatorColor: StudentColors.primaryLight,
+          items: const [
+            AdaptiveNavItem(
+              label: 'Home',
+              icon: Icons.home_outlined,
+              activeIcon: Icons.home_rounded,
+              iosIcon: CupertinoIcons.house,
+              iosActiveIcon: CupertinoIcons.house_fill,
+            ),
+            AdaptiveNavItem(
+              label: 'Classes',
+              icon: Icons.class_outlined,
+              activeIcon: Icons.class_rounded,
+              iosIcon: CupertinoIcons.book,
+              iosActiveIcon: CupertinoIcons.book_fill,
+            ),
+            AdaptiveNavItem(
+              label: 'Tasks',
+              icon: Icons.assignment_outlined,
+              activeIcon: Icons.assignment_rounded,
+              iosIcon: CupertinoIcons.doc_text,
+              iosActiveIcon: CupertinoIcons.doc_text_fill,
+            ),
+            AdaptiveNavItem(
+              label: 'Profile',
+              icon: Icons.person_outline_rounded,
+              activeIcon: Icons.person_rounded,
+              iosIcon: CupertinoIcons.person,
+              iosActiveIcon: CupertinoIcons.person_fill,
+            ),
+          ],
         ),
       ),
     );
