@@ -1,22 +1,27 @@
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 
 // ==================================================================
 // ADAPTIVE NAV BAR
 // ==================================================================
-// iOS / macOS      → floating frosted-glass bar (content scrolls
-//                    underneath and shows through, blurred)
+// iOS / macOS      → floating "liquid glass" bar (tap OR slide it)
 // Android / others → Material 3 NavigationBar
 //
-// For the glass to show anything, the page's Scaffold needs:
-//   extendBody: isCupertino(context)
-// and scrolling lists should end with:
-//   bottom: <your padding> + glassBottomInset(context)
+// In the dashboard:
+//   Scaffold(
+//     extendBody: isCupertino(context),
+//     body: SlidingIndexedStack(index: ..., children: [...]),
+//     bottomNavigationBar: AdaptiveNavBar(...),
+//   )
 //
-// To preview the iOS look on Android, set
+// SlidingIndexedStack slides between pages AND stops every page
+// above the floating bar, so nothing is hidden behind it.
+//
+// Preview the iOS look on Android with
 //   ThemeData(platform: TargetPlatform.iOS)
-// in MaterialApp while developing.
 // ==================================================================
 
 class AdaptiveNavItem {
@@ -50,11 +55,9 @@ bool isCupertino(BuildContext context) {
   return platform == TargetPlatform.iOS || platform == TargetPlatform.macOS;
 }
 
-/// Extra bottom space a scrolling list needs so its last item can
-/// scroll clear of the floating glass bar. 0 on Android.
-///
-/// With `extendBody: true`, Scaffold reports the bar's height as
-/// bottom padding to everything inside the body.
+/// Extra bottom space a list needs to clear the glass bar.
+/// Inside [SlidingIndexedStack] (default) this is already handled and
+/// returns 0, so existing `+ glassBottomInset(context)` calls are safe.
 double glassBottomInset(BuildContext context) =>
     isCupertino(context) ? MediaQuery.paddingOf(context).bottom : 0;
 
@@ -79,7 +82,7 @@ class AdaptiveNavBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (isCupertino(context)) {
-      return _GlassTabBar(
+      return _LiquidGlassBar(
         items: items,
         currentIndex: currentIndex,
         onTap: onTap,
@@ -136,19 +139,31 @@ Widget _badged(Widget icon, AdaptiveNavItem item) {
 }
 
 // ==================================================================
-// iOS LIQUID GLASS BAR
-// ==================================================================
-// What makes it look like iOS 26 / WhatsApp rather than plain blur:
-//   1. Vibrancy  — the backdrop is blurred AND colour-boosted, so
-//                  what's behind looks rich, not milky.
-//   2. Specular  — a light-catching rim: bright at the top edge,
-//                  fading round to the bottom, plus a soft sheen.
-//   3. The lens  — the selected tab is its own glass bubble that
-//                  glides between tabs with a little spring.
+// COLOUR MATRIX
 // ==================================================================
 
-class _GlassTabBar extends StatelessWidget {
-  const _GlassTabBar({
+/// Saturation (1 = unchanged) and brightness (0 = unchanged, ±255).
+List<double> _vibrancy(double saturation, [double brightness = 0]) {
+  const r = 0.2126, g = 0.7152, b = 0.0722;
+  final i = 1 - saturation;
+  return [
+    r * i + saturation, g * i, b * i, 0, brightness, //
+    r * i, g * i + saturation, b * i, 0, brightness, //
+    r * i, g * i, b * i + saturation, 0, brightness, //
+    0, 0, 0, 1, 0,
+  ];
+}
+
+// ==================================================================
+// iOS LIQUID GLASS BAR
+// ==================================================================
+// • Tap a tab → the lens springs there.
+// • Slide your finger along the bar → the lens follows, stretching
+//   like liquid, then snaps to the nearest tab when you let go.
+// ==================================================================
+
+class _LiquidGlassBar extends StatefulWidget {
+  const _LiquidGlassBar({
     required this.items,
     required this.currentIndex,
     required this.onTap,
@@ -160,20 +175,98 @@ class _GlassTabBar extends StatelessWidget {
   final ValueChanged<int> onTap;
   final Color activeColor;
 
-  static const double _height = 64;
-  static const double _radius = 32;
+  @override
+  State<_LiquidGlassBar> createState() => _LiquidGlassBarState();
+}
+
+class _LiquidGlassBarState extends State<_LiquidGlassBar>
+    with SingleTickerProviderStateMixin {
+  static const double _height = 66;
+  static const double _radius = 33;
   static const double _inset = 4;
 
-  /// Saturation matrix (1 = unchanged, >1 = more vivid).
-  static List<double> _saturation(double s) {
-    const r = 0.2126, g = 0.7152, b = 0.0722;
-    final i = 1 - s;
-    return [
-      r * i + s, g * i, b * i, 0, 0, //
-      r * i, g * i + s, b * i, 0, 0, //
-      r * i, g * i, b * i + s, 0, 0, //
-      0, 0, 0, 1, 0,
-    ];
+  /// Slightly under-damped → a small wobble when the lens lands.
+  static const _spring = SpringDescription(
+    mass: 1,
+    stiffness: 420,
+    damping: 24,
+  );
+
+  /// Lens position in "tabs" (0 = first tab, 1.5 = between 2nd & 3rd).
+  late final AnimationController _pos;
+
+  bool _dragging = false;
+  double _dragSpeed = 0; // for the stretch while dragging
+
+  @override
+  void initState() {
+    super.initState();
+    _pos = AnimationController.unbounded(
+      vsync: this,
+      value: widget.currentIndex.toDouble(),
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _LiquidGlassBar old) {
+    super.didUpdateWidget(old);
+    if (old.currentIndex != widget.currentIndex && !_dragging) {
+      _springTo(widget.currentIndex);
+    }
+  }
+
+  @override
+  void dispose() {
+    _pos.dispose();
+    super.dispose();
+  }
+
+  void _springTo(int index, [double? velocity]) {
+    _pos.animateWith(
+      SpringSimulation(
+        _spring,
+        _pos.value,
+        index.toDouble(),
+        velocity ?? _pos.velocity,
+      ),
+    );
+  }
+
+  int get _last => widget.items.length - 1;
+
+  // ---------------- slide ----------------
+
+  void _dragStart(DragStartDetails d, double tabWidth) {
+    _dragging = true;
+    _pos.stop();
+    // Jump the lens under the finger so it feels "picked up".
+    final under = ((d.localPosition.dx - _inset) / tabWidth - .5);
+    _pos.value = under.clamp(0, _last.toDouble());
+  }
+
+  void _dragUpdate(DragUpdateDetails d, double tabWidth) {
+    final delta = d.delta.dx / tabWidth;
+    setState(() {
+      _pos.value = (_pos.value + delta).clamp(-.15, _last + .15);
+      _dragSpeed = (delta * 60).abs();
+    });
+
+    // Switch the page live as the lens crosses into another tab.
+    final nearest = _pos.value.round().clamp(0, _last);
+    if (nearest != widget.currentIndex) widget.onTap(nearest);
+  }
+
+  void _dragEnd(DragEndDetails d, double tabWidth) {
+    _dragging = false;
+    final velocity = (d.primaryVelocity ?? 0) / tabWidth;
+
+    // A flick carries the lens a little further.
+    final target = (_pos.value + velocity * .10).round().clamp(0, _last);
+
+    setState(() => _dragSpeed = 0);
+    _springTo(target, velocity);
+
+    if (target != widget.currentIndex) widget.onTap(target);
   }
 
   @override
@@ -183,24 +276,24 @@ class _GlassTabBar extends StatelessWidget {
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
-        18,
+        16,
         0,
-        18,
-        safeBottom > 0 ? safeBottom - 6 : 14,
+        16,
+        safeBottom > 0 ? safeBottom - 8 : 14,
       ),
       child: DecoratedBox(
-        // Shadow that lifts the glass off the page.
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(_radius),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: dark ? .35 : .10),
-              blurRadius: 32,
-              offset: const Offset(0, 12),
+              color: Colors.black.withValues(alpha: dark ? .40 : .14),
+              blurRadius: 36,
+              spreadRadius: -4,
+              offset: const Offset(0, 14),
             ),
             BoxShadow(
-              color: Colors.black.withValues(alpha: dark ? .2 : .04),
-              blurRadius: 4,
+              color: Colors.black.withValues(alpha: dark ? .25 : .05),
+              blurRadius: 3,
               offset: const Offset(0, 1),
             ),
           ],
@@ -208,71 +301,109 @@ class _GlassTabBar extends StatelessWidget {
         child: ClipRRect(
           borderRadius: BorderRadius.circular(_radius),
           child: BackdropFilter(
-            // 1. Vibrancy: boost colour first, then blur it.
+            // Vivid, deep blur — most of the "liquid" look.
             filter: ImageFilter.compose(
-              outer: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
-              inner: ColorFilter.matrix(_saturation(1.9)),
+              outer: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
+              inner: ColorFilter.matrix(_vibrancy(2.2, dark ? -6 : 8)),
             ),
             child: CustomPaint(
-              // 2. Specular rim drawn on top of everything.
-              foregroundPainter: _SpecularRimPainter(
-                radius: _radius,
-                dark: dark,
-              ),
+              foregroundPainter: _GlassRimPainter(radius: _radius, dark: dark),
               child: Container(
                 height: _height,
                 decoration: BoxDecoration(
-                  // Very light tint — mostly see-through.
+                  // Thin tint so what's behind really shows through.
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
                     colors: dark
                         ? [
-                            Colors.white.withValues(alpha: .14),
-                            Colors.white.withValues(alpha: .06),
+                            Colors.white.withValues(alpha: .12),
+                            Colors.white.withValues(alpha: .04),
                           ]
                         : [
-                            Colors.white.withValues(alpha: .52),
-                            Colors.white.withValues(alpha: .30),
+                            Colors.white.withValues(alpha: .42),
+                            Colors.white.withValues(alpha: .20),
                           ],
                   ),
                 ),
                 child: LayoutBuilder(
                   builder: (context, c) {
-                    final tabWidth = (c.maxWidth - _inset * 2) / items.length;
+                    final tabWidth =
+                        (c.maxWidth - _inset * 2) / widget.items.length;
 
-                    return Stack(
-                      children: [
-                        // 3. The lens, gliding to the selected tab.
-                        AnimatedPositioned(
-                          duration: const Duration(milliseconds: 420),
-                          curve: Curves.easeOutBack,
-                          left: _inset + tabWidth * currentIndex,
-                          top: _inset,
-                          bottom: _inset,
-                          width: tabWidth,
-                          child: _Lens(dark: dark, tint: activeColor),
-                        ),
+                    return GestureDetector(
+                      behavior: HitTestBehavior.translucent,
+                      onHorizontalDragStart: (d) => _dragStart(d, tabWidth),
+                      onHorizontalDragUpdate: (d) => _dragUpdate(d, tabWidth),
+                      onHorizontalDragEnd: (d) => _dragEnd(d, tabWidth),
+                      child: AnimatedBuilder(
+                        animation: _pos,
+                        builder: (context, _) {
+                          final position = _pos.value;
 
-                        // Tabs
-                        Padding(
-                          padding: const EdgeInsets.all(_inset),
-                          child: Row(
+                          // Stretch with speed: wider + flatter while moving.
+                          final speed = _dragging
+                              ? _dragSpeed
+                              : _pos.velocity.abs();
+                          final stretch = (speed / 9).clamp(0.0, 1.0);
+                          final scaleX = 1 + .32 * stretch;
+                          final scaleY = 1 - .10 * stretch;
+
+                          final lit = position.round().clamp(0, _last);
+
+                          return Stack(
+                            clipBehavior: Clip.none,
                             children: [
-                              for (var i = 0; i < items.length; i++)
-                                Expanded(
-                                  child: _GlassTab(
-                                    item: items[i],
-                                    selected: i == currentIndex,
-                                    activeColor: activeColor,
+                              // ---------------- lens ----------------
+                              Positioned(
+                                left: _inset + tabWidth * position,
+                                top: _inset,
+                                bottom: _inset,
+                                width: tabWidth,
+                                child: Transform(
+                                  alignment: Alignment.center,
+                                  transform: Matrix4.diagonal3Values(
+                                    scaleX,
+                                    scaleY,
+                                    1,
+                                  ),
+                                  child: _Lens(
                                     dark: dark,
-                                    onTap: () => onTap(i),
+                                    tint: widget.activeColor,
                                   ),
                                 ),
+                              ),
+
+                              // ---------------- tabs ----------------
+                              Padding(
+                                padding: const EdgeInsets.all(_inset),
+                                child: Row(
+                                  children: [
+                                    for (var i = 0;
+                                        i < widget.items.length;
+                                        i++)
+                                      Expanded(
+                                        child: _GlassTab(
+                                          item: widget.items[i],
+                                          focus: (1 - (position - i).abs())
+                                              .clamp(0.0, 1.0),
+                                          selected: i == lit,
+                                          activeColor: widget.activeColor,
+                                          dark: dark,
+                                          onTap: () {
+                                            if (i != widget.currentIndex) {
+                                              widget.onTap(i);
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
                             ],
-                          ),
-                        ),
-                      ],
+                          );
+                        },
+                      ),
                     );
                   },
                 ),
@@ -286,7 +417,7 @@ class _GlassTabBar extends StatelessWidget {
 }
 
 // ------------------------------------------------------------------
-// LENS (selected-tab bubble)
+// LENS — a brighter, clearer drop of glass
 // ------------------------------------------------------------------
 
 class _Lens extends StatelessWidget {
@@ -295,42 +426,59 @@ class _Lens extends StatelessWidget {
   final bool dark;
   final Color tint;
 
+  static const double _r = 29;
+
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(28),
-        // Brighter glass than the bar, with a whisper of the brand colour.
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: dark
-              ? [
-                  Colors.white.withValues(alpha: .22),
-                  Colors.white.withValues(alpha: .10),
-                ]
-              : [
-                  Color.alphaBlend(
-                    tint.withValues(alpha: .06),
-                    Colors.white.withValues(alpha: .92),
-                  ),
-                  Color.alphaBlend(
-                    tint.withValues(alpha: .10),
-                    Colors.white.withValues(alpha: .62),
-                  ),
-                ],
-        ),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: dark ? .25 : .9),
-          width: .8,
-        ),
+        borderRadius: BorderRadius.circular(_r),
         boxShadow: [
           BoxShadow(
-            color: tint.withValues(alpha: dark ? .25 : .12),
-            blurRadius: 12,
-            offset: const Offset(0, 3),
+            color: tint.withValues(alpha: dark ? .30 : .16),
+            blurRadius: 14,
+            offset: const Offset(0, 4),
           ),
         ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(_r),
+        child: BackdropFilter(
+          // What's under the lens looks brighter and more vivid,
+          // like looking through a drop of water.
+          filter: ColorFilter.matrix(_vibrancy(1.35, dark ? 18 : 22)),
+          child: CustomPaint(
+            foregroundPainter: _GlassRimPainter(
+              radius: _r,
+              dark: dark,
+              strong: true,
+            ),
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: dark
+                      ? [
+                          Colors.white.withValues(alpha: .20),
+                          Colors.white.withValues(alpha: .06),
+                        ]
+                      : [
+                          Color.alphaBlend(
+                            tint.withValues(alpha: .05),
+                            Colors.white.withValues(alpha: .72),
+                          ),
+                          Color.alphaBlend(
+                            tint.withValues(alpha: .08),
+                            Colors.white.withValues(alpha: .34),
+                          ),
+                        ],
+                ),
+              ),
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -343,6 +491,7 @@ class _Lens extends StatelessWidget {
 class _GlassTab extends StatefulWidget {
   const _GlassTab({
     required this.item,
+    required this.focus,
     required this.selected,
     required this.activeColor,
     required this.dark,
@@ -350,6 +499,9 @@ class _GlassTab extends StatefulWidget {
   });
 
   final AdaptiveNavItem item;
+
+  /// 0 = lens far away, 1 = lens right on top.
+  final double focus;
   final bool selected;
   final Color activeColor;
   final bool dark;
@@ -365,20 +517,19 @@ class _GlassTabState extends State<_GlassTab> {
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    final selected = widget.selected;
 
     final inactive = widget.dark
-        ? Colors.white.withValues(alpha: .75)
-        : const Color(0xFF3C3C43).withValues(alpha: .75);
-    final color = selected ? widget.activeColor : inactive;
+        ? Colors.white.withValues(alpha: .78)
+        : const Color(0xFF3C3C43).withValues(alpha: .80);
+    final color = Color.lerp(inactive, widget.activeColor, widget.focus)!;
 
-    final icon = selected
+    final icon = widget.selected
         ? (item.iosActiveIcon ?? item.iosIcon ?? item.activeIcon)
         : (item.iosIcon ?? item.icon);
 
     return Semantics(
       button: true,
-      selected: selected,
+      selected: widget.selected,
       label: item.label,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
@@ -386,33 +537,29 @@ class _GlassTabState extends State<_GlassTab> {
         onTapCancel: () => setState(() => _pressed = false),
         onTapUp: (_) => setState(() => _pressed = false),
         onTap: widget.onTap,
-        // Squeeze slightly while pressed, like pressing on glass.
         child: AnimatedScale(
-          scale: _pressed ? .9 : 1,
+          scale: _pressed ? .88 : 1,
           duration: const Duration(milliseconds: 140),
           curve: Curves.easeOut,
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              AnimatedScale(
-                scale: selected ? 1.08 : 1,
-                duration: const Duration(milliseconds: 320),
-                curve: Curves.easeOutBack,
+              Transform.scale(
+                scale: 1 + .10 * widget.focus,
                 child: _badged(Icon(icon, size: 23, color: color), item),
               ),
               const SizedBox(height: 2),
-              AnimatedDefaultTextStyle(
-                duration: const Duration(milliseconds: 200),
+              Text(
+                item.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: color,
                   fontSize: 10.5,
-                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  fontWeight: widget.focus > .5
+                      ? FontWeight.w700
+                      : FontWeight.w500,
                   letterSpacing: -.1,
-                ),
-                child: Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
@@ -424,59 +571,221 @@ class _GlassTabState extends State<_GlassTab> {
 }
 
 // ------------------------------------------------------------------
-// SPECULAR RIM
+// RIM — thick, light-catching glass edge
 // ------------------------------------------------------------------
-// A light-catching edge: bright along the top, almost gone at the
-// sides, a faint return glow at the bottom — plus a soft sheen
-// across the upper half.
 
-class _SpecularRimPainter extends CustomPainter {
-  _SpecularRimPainter({required this.radius, required this.dark});
+class _GlassRimPainter extends CustomPainter {
+  _GlassRimPainter({
+    required this.radius,
+    required this.dark,
+    this.strong = false,
+  });
 
   final double radius;
   final bool dark;
+  final bool strong;
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
-    final rrect = RRect.fromRectAndRadius(
-      rect.deflate(.5),
+    final outer = RRect.fromRectAndRadius(
+      rect.deflate(.6),
       Radius.circular(radius),
     );
+    final inner = RRect.fromRectAndRadius(
+      rect.deflate(2.2),
+      Radius.circular(math.max(0, radius - 1.6)),
+    );
 
-    // Rim
-    final rim = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.1
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          Colors.white.withValues(alpha: dark ? .45 : .95),
-          Colors.white.withValues(alpha: dark ? .06 : .18),
-          Colors.white.withValues(alpha: dark ? .18 : .55),
-        ],
-        stops: const [0, .55, 1],
-      ).createShader(rect);
-    canvas.drawRRect(rrect, rim);
+    final a = strong ? 1.0 : .85;
 
-    // Sheen across the top half
-    final sheen = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.center,
-        colors: [
-          Colors.white.withValues(alpha: dark ? .10 : .35),
-          Colors.white.withValues(alpha: 0),
-        ],
-      ).createShader(rect);
+    // Outer rim: bright top-left, fades, glows back bottom-right.
+    canvas.drawRRect(
+      outer,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..shader = LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.white.withValues(alpha: (dark ? .55 : 1) * a),
+            Colors.white.withValues(alpha: (dark ? .05 : .15) * a),
+            Colors.white.withValues(alpha: (dark ? .30 : .70) * a),
+          ],
+          stops: const [0, .5, 1],
+        ).createShader(rect),
+    );
+
+    // Inner rim: gives the glass thickness.
+    canvas.drawRRect(
+      inner,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1
+        ..shader = LinearGradient(
+          begin: Alignment.bottomRight,
+          end: Alignment.topLeft,
+          colors: [
+            Colors.white.withValues(alpha: (dark ? .18 : .45) * a),
+            Colors.white.withValues(alpha: 0),
+          ],
+        ).createShader(rect),
+    );
+
+    // Curved sheen across the top.
     canvas.save();
-    canvas.clipRRect(rrect);
-    canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height * .55), sheen);
+    canvas.clipRRect(outer);
+    final sheenRect = Rect.fromLTWH(
+      size.width * .04,
+      -size.height * .55,
+      size.width * .92,
+      size.height * 1.05,
+    );
+    canvas.drawOval(
+      sheenRect,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.white.withValues(alpha: 0),
+            Colors.white.withValues(alpha: (dark ? .10 : .32) * a),
+          ],
+        ).createShader(sheenRect),
+    );
     canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _SpecularRimPainter old) =>
-      old.dark != dark || old.radius != radius;
+  bool shouldRepaint(covariant _GlassRimPainter old) =>
+      old.dark != dark || old.radius != radius || old.strong != strong;
+}
+
+// ==================================================================
+// SLIDING INDEXED STACK
+// ==================================================================
+// Drop-in replacement for IndexedStack:
+//   • keeps every tab alive (scroll position, loaded data)
+//   • slides + fades between tabs in the direction you moved
+//   • stopAboveBar (default true): every page ends ABOVE the
+//     floating glass bar, so you always see the full page.
+//     Set false to let content scroll underneath the glass instead.
+// ==================================================================
+
+class SlidingIndexedStack extends StatefulWidget {
+  const SlidingIndexedStack({
+    super.key,
+    required this.index,
+    required this.children,
+    this.stopAboveBar = true,
+    this.duration = const Duration(milliseconds: 340),
+  });
+
+  final int index;
+  final List<Widget> children;
+  final bool stopAboveBar;
+  final Duration duration;
+
+  @override
+  State<SlidingIndexedStack> createState() => _SlidingIndexedStackState();
+}
+
+class _SlidingIndexedStackState extends State<SlidingIndexedStack>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: widget.duration,
+    value: 1,
+  );
+
+  late int _previous = widget.index;
+  int _direction = 1;
+
+  @override
+  void didUpdateWidget(covariant SlidingIndexedStack old) {
+    super.didUpdateWidget(old);
+    if (old.index != widget.index) {
+      _previous = old.index;
+      _direction = widget.index > old.index ? 1 : -1;
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    Widget stack = AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = Curves.easeOutCubic.transform(_c.value);
+        final animating = _c.value < 1;
+
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            for (var i = 0; i < widget.children.length; i++)
+              _layer(i, t, animating),
+          ],
+        );
+      },
+    );
+
+    // Stop pages above the floating bar. With extendBody, Scaffold
+    // reports the bar's height as bottom padding — turn that into real
+    // space, then remove it so inner lists don't add it twice.
+    if (widget.stopAboveBar && isCupertino(context)) {
+      final barHeight = MediaQuery.paddingOf(context).bottom;
+      stack = Padding(
+        padding: EdgeInsets.only(bottom: barHeight),
+        child: MediaQuery.removePadding(
+          context: context,
+          removeBottom: true,
+          child: stack,
+        ),
+      );
+    }
+
+    return stack;
+  }
+
+  // Every child always gets the same wrapper, so its State is kept.
+  Widget _layer(int i, double t, bool animating) {
+    final active = i == widget.index;
+    final outgoing = animating && i == _previous && _previous != widget.index;
+    final visible = active || outgoing;
+
+    var dx = 0.0;
+    var opacity = 1.0;
+
+    if (active && animating) {
+      dx = _direction * .10 * (1 - t);
+      opacity = t;
+    } else if (outgoing) {
+      dx = -_direction * .06 * t;
+      opacity = 1 - t;
+    }
+
+    return Offstage(
+      offstage: !visible,
+      child: TickerMode(
+        enabled: visible,
+        child: IgnorePointer(
+          ignoring: !active,
+          child: Opacity(
+            opacity: opacity.clamp(0.0, 1.0),
+            child: FractionalTranslation(
+              translation: Offset(dx, 0),
+              child: widget.children[i],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
