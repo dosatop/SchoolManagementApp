@@ -420,4 +420,37 @@ class SuperAdminApi {
       '${_school(schoolId)}/subjects/$subjectId/classes/$classId',
     );
   }
+
+  // ==================================================================
+  // SUPER ADMIN — SCHOOL ADMINS (list / edit / delete)
+  // ==================================================================
+
+  Future<List<SchoolAdmin>> getSchoolAdminAccounts(String schoolId) async {
+    final response = await dioClient.dio.get('${_school(schoolId)}/admins');
+
+    return parseList(response.data, 'admins', SchoolAdmin.fromJson);
+  }
+
+  Future<void> updateSchoolAdmin(
+    String schoolId,
+    String adminId, {
+    required String fullName,
+    required String email,
+    String? phoneNumber,
+    String? newPassword,
+  }) async {
+    await dioClient.dio.put(
+      '${_school(schoolId)}/admins/$adminId',
+      data: {
+        'fullName': fullName,
+        'email': email,
+        'phoneNumber': phoneNumber,
+        'newPassword': newPassword,
+      },
+    );
+  }
+
+  Future<void> deleteSchoolAdmin(String schoolId, String adminId) async {
+    await dioClient.dio.delete('${_school(schoolId)}/admins/$adminId');
+  }
 }

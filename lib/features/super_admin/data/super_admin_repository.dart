@@ -315,4 +315,34 @@ class SuperAdminRepository {
   ) {
     return api.removeSubjectFromClass(schoolId, subjectId, classId);
   }
+
+  // ==================================================================
+  // SUPER ADMIN — SCHOOL ADMINS (list / edit / delete)
+  // ==================================================================
+
+  Future<List<SchoolAdmin>> getSchoolAdminAccounts(String schoolId) {
+    return api.getSchoolAdminAccounts(schoolId);
+  }
+
+  Future<void> updateSchoolAdmin(
+    String schoolId,
+    String adminId, {
+    required String fullName,
+    required String email,
+    String? phoneNumber,
+    String? newPassword,
+  }) {
+    return api.updateSchoolAdmin(
+      schoolId,
+      adminId,
+      fullName: fullName,
+      email: email,
+      phoneNumber: phoneNumber,
+      newPassword: newPassword,
+    );
+  }
+
+  Future<void> deleteSchoolAdmin(String schoolId, String adminId) {
+    return api.deleteSchoolAdmin(schoolId, adminId);
+  }
 }

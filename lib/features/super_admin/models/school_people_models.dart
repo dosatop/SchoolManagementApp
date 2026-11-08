@@ -505,3 +505,31 @@ class SchoolSubject {
     teachers: _list(json, ['teachers'], SubjectClassTeacher.fromJson),
   );
 }
+
+// ====================================================================
+// SCHOOL ADMIN
+// ====================================================================
+
+class SchoolAdmin {
+  final String id;
+  final String fullName;
+  final String? email;
+  final String? phoneNumber;
+  final bool isLockedOut;
+
+  const SchoolAdmin({
+    required this.id,
+    required this.fullName,
+    this.email,
+    this.phoneNumber,
+    this.isLockedOut = false,
+  });
+
+  factory SchoolAdmin.fromJson(dynamic json) => SchoolAdmin(
+    id: _str(json, ['id', 'adminId', 'userId']),
+    fullName: _str(json, ['fullName', 'name'], 'Unnamed administrator'),
+    email: _strOrNull(json, ['email']),
+    phoneNumber: _strOrNull(json, ['phoneNumber', 'phone']),
+    isLockedOut: _bool(json, ['isLockedOut']) ?? false,
+  );
+}

@@ -96,6 +96,14 @@ final schoolClassesProvider = FutureProvider.autoDispose
       return ref.read(superAdminRepositoryProvider).getSchoolClasses(schoolId);
     });
 
+final schoolAdminAccountsProvider = FutureProvider.autoDispose
+    .family<List<SchoolAdmin>, String>((ref, schoolId) async {
+      if (!signedInAs(ref, 'SuperAdmin')) return const [];
+      return ref
+          .read(superAdminRepositoryProvider)
+          .getSchoolAdminAccounts(schoolId);
+    });
+
 final schoolSubjectsProvider = FutureProvider.autoDispose
     .family<List<SchoolSubject>, String>((ref, schoolId) async {
       if (!signedInAs(ref, 'SuperAdmin')) return const [];
@@ -305,6 +313,37 @@ class SchoolPeopleActions {
   }) => _run(() => _repo.removeClassTeacher(schoolId, classId), () {
     _ref.invalidate(schoolClassesProvider(schoolId));
     _ref.invalidate(schoolTeachersProvider(schoolId));
+  });
+
+  // ================================================================
+  // SCHOOL ADMINS
+  // ================================================================
+
+  Future<String?> updateAdmin(
+    String schoolId, {
+    required String adminId,
+    required String fullName,
+    required String email,
+    String? phoneNumber,
+    String? newPassword,
+  }) => _run(
+    () => _repo.updateSchoolAdmin(
+      schoolId,
+      adminId,
+      fullName: fullName,
+      email: email,
+      phoneNumber: phoneNumber,
+      newPassword: newPassword,
+    ),
+    () => _ref.invalidate(schoolAdminAccountsProvider(schoolId)),
+  );
+
+  Future<String?> deleteAdmin(
+    String schoolId, {
+    required String adminId,
+  }) => _run(() => _repo.deleteSchoolAdmin(schoolId, adminId), () {
+    _ref.invalidate(schoolAdminAccountsProvider(schoolId));
+    _refreshSchools(); // admin count
   });
 
   // ================================================================

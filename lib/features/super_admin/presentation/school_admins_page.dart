@@ -1,6 +1,7 @@
+import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:app/features/super_admin/presentation/create_school_admin_page.dart';
+import 'package:app/features/super_admin/presentation/widgets/school_people_forms.dart';
 import 'package:app/features/super_admin/presentation/widgets/school_people_ui.dart';
-import 'package:app/features/super_admin/provider/school_admins_provider.dart';
 import 'package:app/features/super_admin/provider/schools_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // SUPER ADMIN — SCHOOL ADMINISTRATORS
 // ====================================================================
 // Route: /schools/:schoolId/admins   (extra: school name)
-// Tap an admin to see their details (contact, role, account info).
+// Tap an admin to see their details, edit them or delete them.
+// Uses the super admin endpoints (GET/PUT/DELETE .../admins).
 
 class SchoolAdminsPage extends ConsumerStatefulWidget {
   const SchoolAdminsPage({
@@ -35,8 +37,11 @@ class _SchoolAdminsPageState extends ConsumerState<SchoolAdminsPage> {
     super.dispose();
   }
 
-  Future<void> _refresh() =>
-      ref.read(schoolAdminsProvider(widget.schoolId).notifier).refresh();
+  Future<void> _refresh() async {
+    try {
+      await ref.refresh(schoolAdminAccountsProvider(widget.schoolId).future);
+    } catch (_) {}
+  }
 
   Future<void> _createAdmin() async {
     await Navigator.of(context).push(
@@ -49,14 +54,14 @@ class _SchoolAdminsPageState extends ConsumerState<SchoolAdminsPage> {
     );
 
     if (!mounted) return;
-    _refresh();
+    ref.invalidate(schoolAdminAccountsProvider(widget.schoolId));
     // Admin count on the School Management page / dashboard.
     ref.read(superAdminProvider.notifier).getSchools();
   }
 
   @override
   Widget build(BuildContext context) {
-    final async = ref.watch(schoolAdminsProvider(widget.schoolId));
+    final async = ref.watch(schoolAdminAccountsProvider(widget.schoolId));
     final admins = async.valueOrNull;
 
     return Scaffold(
@@ -88,15 +93,15 @@ class _SchoolAdminsPageState extends ConsumerState<SchoolAdminsPage> {
               title: 'Could not load administrators',
               message: schoolPeopleError(async.error!),
               actionLabel: 'Try again',
-              onAction: () =>
-                  ref.invalidate(schoolAdminsProvider(widget.schoolId)),
+              onAction: _refresh,
             );
           }
           if (admins == null) return const SpLoadingList();
 
-          final list = admins.map(_AdminView.from).toList()
+          final list = [...admins]
             ..sort(
-              (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+              (a, b) =>
+                  a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()),
             );
 
           return _content(list, async.hasError ? async.error : null);
@@ -105,11 +110,11 @@ class _SchoolAdminsPageState extends ConsumerState<SchoolAdminsPage> {
     );
   }
 
-  Widget _content(List<_AdminView> all, Object? error) {
-    final withPhone = all.where((a) => a.phone != null).length;
+  Widget _content(List<SchoolAdmin> all, Object? error) {
+    final withPhone = all.where((a) => a.phoneNumber != null).length;
 
     final visible = all
-        .where((a) => spMatches(_query, [a.name, a.email, a.phone]))
+        .where((a) => spMatches(_query, [a.fullName, a.email, a.phoneNumber]))
         .toList();
 
     return RefreshIndicator(
@@ -129,10 +134,7 @@ class _SchoolAdminsPageState extends ConsumerState<SchoolAdminsPage> {
                 ? 'Administrator for this school'
                 : 'Administrators for this school',
             stats: [
-              SpStat(
-                'With email',
-                '${all.where((a) => a.email != null).length}',
-              ),
+              SpStat('With email', '${all.where((a) => a.email != null).length}'),
               SpStat('With phone', '$withPhone'),
             ],
           ),
@@ -179,7 +181,9 @@ class _SchoolAdminsPageState extends ConsumerState<SchoolAdminsPage> {
                     context,
                     initialSize: .6,
                     builder: (context, controller) => _AdminSheet(
+                      schoolId: widget.schoolId,
                       admin: a,
+                      isLastAdmin: all.length == 1,
                       schoolName: widget.schoolName,
                       controller: controller,
                     ),
@@ -193,96 +197,13 @@ class _SchoolAdminsPageState extends ConsumerState<SchoolAdminsPage> {
 }
 
 // ====================================================================
-// VIEW MODEL
-// ====================================================================
-// Reads SchoolAdminModel safely: only fullName / email / phoneNumber
-// are required; id, createdAt, isActive… are shown if the model has
-// them.
-
-class _AdminView {
-  final String? id;
-  final String name;
-  final String? email;
-  final String? phone;
-  final DateTime? createdAt;
-  final bool? isActive;
-
-  const _AdminView({
-    this.id,
-    required this.name,
-    this.email,
-    this.phone,
-    this.createdAt,
-    this.isActive,
-  });
-
-  static String? _text(dynamic Function() read) {
-    try {
-      final v = read();
-      if (v == null) return null;
-      final s = '$v'.trim();
-      return s.isEmpty ? null : s;
-    } catch (_) {
-      return null; // the model doesn't have this field
-    }
-  }
-
-  static DateTime? _date(dynamic Function() read) {
-    try {
-      final v = read();
-      if (v is DateTime) return v.toLocal();
-      if (v is String) return DateTime.tryParse(v)?.toLocal();
-    } catch (_) {}
-    return null;
-  }
-
-  static bool? _bool(dynamic Function() read) {
-    try {
-      final v = read();
-      if (v is bool) return v;
-    } catch (_) {}
-    return null;
-  }
-
-  factory _AdminView.from(dynamic admin) {
-    final a = admin as dynamic;
-    return _AdminView(
-      id: _text(() => a.id),
-      name: _text(() => a.fullName) ?? 'Unnamed administrator',
-      email: _text(() => a.email),
-      phone: _text(() => a.phoneNumber),
-      createdAt: _date(() => a.createdAt),
-      isActive: _bool(() => a.isActive),
-    );
-  }
-}
-
-String _formatDate(DateTime d) {
-  const months = [
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
-  ];
-  return '${d.day} ${months[d.month - 1]} ${d.year}';
-}
-
-// ====================================================================
 // ADMIN CARD
 // ====================================================================
 
 class _AdminCard extends StatelessWidget {
   const _AdminCard({required this.admin, required this.onTap});
 
-  final _AdminView admin;
+  final SchoolAdmin admin;
   final VoidCallback onTap;
 
   @override
@@ -293,14 +214,14 @@ class _AdminCard extends StatelessWidget {
       onTap: onTap,
       child: Row(
         children: [
-          SpAvatar(name: a.name),
+          SpAvatar(name: a.fullName),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  a.name,
+                  a.fullName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -314,10 +235,7 @@ class _AdminCard extends StatelessWidget {
                   a.email ?? 'No email',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: SpColors.textSoft,
-                    fontSize: 12,
-                  ),
+                  style: const TextStyle(color: SpColors.textSoft, fontSize: 12),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -329,15 +247,15 @@ class _AdminCard extends StatelessWidget {
                       color: SpColors.orange,
                       icon: Icons.admin_panel_settings_rounded,
                     ),
-                    if (a.phone != null)
+                    if (a.phoneNumber != null)
                       SpTag(
-                        a.phone!,
+                        a.phoneNumber!,
                         color: SpColors.green,
                         icon: Icons.phone_rounded,
                       ),
-                    if (a.isActive == false)
+                    if (a.isLockedOut)
                       const SpTag(
-                        'Inactive',
+                        'Locked',
                         color: SpColors.red,
                         icon: Icons.block_rounded,
                       ),
@@ -358,19 +276,23 @@ class _AdminCard extends StatelessWidget {
 // ADMIN DETAILS SHEET
 // ====================================================================
 
-class _AdminSheet extends StatelessWidget {
+class _AdminSheet extends ConsumerWidget {
   const _AdminSheet({
+    required this.schoolId,
     required this.admin,
+    required this.isLastAdmin,
     required this.schoolName,
     required this.controller,
   });
 
-  final _AdminView admin;
+  final String schoolId;
+  final SchoolAdmin admin;
+  final bool isLastAdmin;
   final String schoolName;
   final ScrollController controller;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final a = admin;
 
     return ListView(
@@ -378,7 +300,7 @@ class _AdminSheet extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
       children: [
         SpSheetHeader(
-          name: a.name,
+          name: a.fullName,
           subtitle: 'Administrator · $schoolName',
           tags: [
             const SpTag(
@@ -386,13 +308,11 @@ class _AdminSheet extends StatelessWidget {
               color: SpColors.orange,
               icon: Icons.admin_panel_settings_rounded,
             ),
-            if (a.isActive != null)
-              SpTag(
-                a.isActive! ? 'Active' : 'Inactive',
-                color: a.isActive! ? SpColors.green : SpColors.red,
-                icon: a.isActive!
-                    ? Icons.check_circle_rounded
-                    : Icons.block_rounded,
+            if (a.isLockedOut)
+              const SpTag(
+                'Locked out',
+                color: SpColors.red,
+                icon: Icons.lock_rounded,
               ),
           ],
         ),
@@ -409,8 +329,8 @@ class _AdminSheet extends StatelessWidget {
             SpInfoRow(
               icon: Icons.phone_outlined,
               label: 'Phone',
-              value: a.phone ?? 'Not provided',
-              copyable: a.phone != null,
+              value: a.phoneNumber ?? 'Not provided',
+              copyable: a.phoneNumber != null,
               color: SpColors.green,
             ),
           ],
@@ -431,21 +351,13 @@ class _AdminSheet extends StatelessWidget {
               value: 'Administrator',
               color: SpColors.orange,
             ),
-            if (a.createdAt != null)
-              SpInfoRow(
-                icon: Icons.event_outlined,
-                label: 'Added on',
-                value: _formatDate(a.createdAt!),
-                color: SpColors.blue,
-              ),
-            if (a.id != null)
-              SpInfoRow(
-                icon: Icons.fingerprint_rounded,
-                label: 'Account ID',
-                value: a.id!,
-                copyable: true,
-                color: SpColors.textSoft,
-              ),
+            SpInfoRow(
+              icon: Icons.fingerprint_rounded,
+              label: 'Account ID',
+              value: a.id,
+              copyable: true,
+              color: SpColors.textSoft,
+            ),
           ],
         ),
 
@@ -467,6 +379,33 @@ class _AdminSheet extends StatelessWidget {
           ],
         ),
 
+        SpSheetActions(
+          onEdit: () async {
+            final navigator = Navigator.of(context);
+            final saved = await showEditAdminSheet(context, schoolId, a);
+            if (saved) navigator.pop(); // list reloads with the changes
+          },
+          deleteLabel: 'Delete admin',
+          onDelete: () async {
+            final navigator = Navigator.of(context);
+            final deleted = await confirmAndRun(
+              context,
+              title: 'Delete ${a.fullName}?',
+              message: isLastAdmin
+                  ? '${a.fullName} is the only administrator of '
+                        '$schoolName. Nobody will be able to manage the '
+                        'school until you add a new one.'
+                  : 'Their login will be removed and they will no longer be '
+                        'able to manage $schoolName. This cannot be undone.',
+              confirmLabel: 'Delete admin',
+              successMessage: 'Administrator deleted',
+              action: () => ref
+                  .read(schoolPeopleActionsProvider)
+                  .deleteAdmin(schoolId, adminId: a.id),
+            );
+            if (deleted) navigator.pop();
+          },
+        ),
         const SizedBox(height: 14),
         const Text(
           'Long-press a row to copy it.',

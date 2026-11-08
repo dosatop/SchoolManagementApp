@@ -75,8 +75,48 @@ Future<bool> showEditTeacherSheet(
   SchoolTeacher teacher,
 ) => _openForm(
   context,
-  _EditTeacherForm(schoolId: schoolId, teacher: teacher),
+  _EditAccountForm(
+    title: 'Edit teacher',
+    fullName: teacher.fullName,
+    email: teacher.email,
+    phoneNumber: teacher.phoneNumber,
+    onSave: (container, name, email, phone, password) => container
+        .read(schoolPeopleActionsProvider)
+        .updateTeacher(
+          schoolId,
+          teacherId: teacher.id,
+          fullName: name,
+          email: email,
+          phoneNumber: phone,
+          newPassword: password,
+        ),
+  ),
   'Teacher updated',
+);
+
+Future<bool> showEditAdminSheet(
+  BuildContext context,
+  String schoolId,
+  SchoolAdmin admin,
+) => _openForm(
+  context,
+  _EditAccountForm(
+    title: 'Edit administrator',
+    fullName: admin.fullName,
+    email: admin.email,
+    phoneNumber: admin.phoneNumber,
+    onSave: (container, name, email, phone, password) => container
+        .read(schoolPeopleActionsProvider)
+        .updateAdmin(
+          schoolId,
+          adminId: admin.id,
+          fullName: name,
+          email: email,
+          phoneNumber: phone,
+          newPassword: password,
+        ),
+  ),
+  'Administrator updated',
 );
 
 // ====================================================================
@@ -822,26 +862,42 @@ class _AddClassFormState extends ConsumerState<_AddClassForm> {
 }
 
 // ====================================================================
-// EDIT TEACHER
+// EDIT ACCOUNT (teacher / admin): name, email, phone, new password
 // ====================================================================
 
-class _EditTeacherForm extends ConsumerStatefulWidget {
-  const _EditTeacherForm({required this.schoolId, required this.teacher});
+typedef _SaveAccount =
+    Future<String?> Function(
+      WidgetRef ref,
+      String fullName,
+      String email,
+      String? phoneNumber,
+      String? newPassword,
+    );
 
-  final String schoolId;
-  final SchoolTeacher teacher;
+class _EditAccountForm extends ConsumerStatefulWidget {
+  const _EditAccountForm({
+    required this.title,
+    required this.fullName,
+    required this.email,
+    required this.phoneNumber,
+    required this.onSave,
+  });
+
+  final String title;
+  final String fullName;
+  final String? email;
+  final String? phoneNumber;
+  final _SaveAccount onSave;
 
   @override
-  ConsumerState<_EditTeacherForm> createState() => _EditTeacherFormState();
+  ConsumerState<_EditAccountForm> createState() => _EditAccountFormState();
 }
 
-class _EditTeacherFormState extends ConsumerState<_EditTeacherForm> {
+class _EditAccountFormState extends ConsumerState<_EditAccountForm> {
   final _formKey = GlobalKey<FormState>();
-  late final _name = TextEditingController(text: widget.teacher.fullName);
-  late final _email = TextEditingController(text: widget.teacher.email ?? '');
-  late final _phone = TextEditingController(
-    text: widget.teacher.phoneNumber ?? '',
-  );
+  late final _name = TextEditingController(text: widget.fullName);
+  late final _email = TextEditingController(text: widget.email ?? '');
+  late final _phone = TextEditingController(text: widget.phoneNumber ?? '');
   final _password = TextEditingController();
 
   bool _saving = false;
@@ -865,16 +921,13 @@ class _EditTeacherFormState extends ConsumerState<_EditTeacherForm> {
       _error = null;
     });
 
-    final error = await ref
-        .read(schoolPeopleActionsProvider)
-        .updateTeacher(
-          widget.schoolId,
-          teacherId: widget.teacher.id,
-          fullName: _name.text.trim(),
-          email: _email.text.trim(),
-          phoneNumber: _blankToNull(_phone.text),
-          newPassword: _blankToNull(_password.text),
-        );
+    final error = await widget.onSave(
+      ref,
+      _name.text.trim(),
+      _email.text.trim(),
+      _blankToNull(_phone.text),
+      _blankToNull(_password.text),
+    );
 
     if (!mounted) return;
 
@@ -893,7 +946,7 @@ class _EditTeacherFormState extends ConsumerState<_EditTeacherForm> {
     return _FormSheet(
       icon: Icons.edit_rounded,
       color: SpColors.primary,
-      title: 'Edit teacher',
+      title: widget.title,
       subtitle: 'Changing the email changes how they sign in.',
       buttonLabel: 'Save changes',
       saving: _saving,
