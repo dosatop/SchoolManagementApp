@@ -96,6 +96,12 @@ final schoolClassesProvider = FutureProvider.autoDispose
       return ref.read(superAdminRepositoryProvider).getSchoolClasses(schoolId);
     });
 
+final schoolSubjectsProvider = FutureProvider.autoDispose
+    .family<List<SchoolSubject>, String>((ref, schoolId) async {
+      if (!signedInAs(ref, 'SuperAdmin')) return const [];
+      return ref.read(superAdminRepositoryProvider).getSchoolSubjects(schoolId);
+    });
+
 /// Departments + trades (with their subjects) for the Add student form.
 final schoolFormOptionsProvider = FutureProvider.autoDispose
     .family<SchoolFormOptions, String>((ref, schoolId) async {
@@ -300,6 +306,92 @@ class SchoolPeopleActions {
     _ref.invalidate(schoolClassesProvider(schoolId));
     _ref.invalidate(schoolTeachersProvider(schoolId));
   });
+
+  // ================================================================
+  // SUBJECTS
+  // ================================================================
+
+  void _subjectsChanged(String schoolId) {
+    _ref.invalidate(schoolSubjectsProvider(schoolId));
+    _ref.invalidate(schoolClassesProvider(schoolId)); // subject counts
+    _ref.invalidate(schoolTeachersProvider(schoolId)); // subjects taught
+    _ref.invalidate(schoolFormOptionsProvider(schoolId)); // trade subjects
+  }
+
+  Future<String?> createSubject(
+    String schoolId, {
+    required String name,
+    String? code,
+    required int type,
+    String? departmentId,
+    String? tradeId,
+  }) => _run(
+    () => _repo.createSchoolSubject(
+      schoolId,
+      name: name,
+      code: code,
+      type: type,
+      departmentId: departmentId,
+      tradeId: tradeId,
+    ),
+    () {
+      _subjectsChanged(schoolId);
+      _refreshSchools();
+    },
+  );
+
+  Future<String?> updateSubject(
+    String schoolId, {
+    required String subjectId,
+    required String name,
+    String? code,
+    required int type,
+    String? departmentId,
+    String? tradeId,
+  }) => _run(
+    () => _repo.updateSchoolSubject(
+      schoolId,
+      subjectId,
+      name: name,
+      code: code,
+      type: type,
+      departmentId: departmentId,
+      tradeId: tradeId,
+    ),
+    () => _subjectsChanged(schoolId),
+  );
+
+  Future<String?> deleteSubject(
+    String schoolId, {
+    required String subjectId,
+  }) => _run(() => _repo.deleteSchoolSubject(schoolId, subjectId), () {
+    _subjectsChanged(schoolId);
+    _refreshSchools();
+  });
+
+  Future<String?> assignSubject(
+    String schoolId, {
+    required String subjectId,
+    required List<String> classIds,
+    String? teacherId,
+  }) => _run(
+    () => _repo.assignSchoolSubject(
+      schoolId,
+      subjectId,
+      classIds: classIds,
+      teacherId: teacherId,
+    ),
+    () => _subjectsChanged(schoolId),
+  );
+
+  Future<String?> removeSubjectFromClass(
+    String schoolId, {
+    required String subjectId,
+    required String classId,
+  }) => _run(
+    () => _repo.removeSubjectFromClass(schoolId, subjectId, classId),
+    () => _subjectsChanged(schoolId),
+  );
 
   // Runs [call]; on success runs [after] and returns null, otherwise
   // returns the server's message.

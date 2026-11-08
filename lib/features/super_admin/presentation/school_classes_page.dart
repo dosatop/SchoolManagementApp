@@ -333,7 +333,7 @@ class _ClassSheet extends ConsumerWidget {
     final router = GoRouter.of(context);
     Navigator.of(context).pop();
     router.push(
-      '/schools/$schoolId/students',
+      '/super-admin/schools/$schoolId/students',
       extra: {
         'schoolName': schoolName,
         'classId': schoolClass.id,

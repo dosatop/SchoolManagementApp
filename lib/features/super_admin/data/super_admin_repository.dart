@@ -243,4 +243,76 @@ class SuperAdminRepository {
   Future<void> removeClassTeacher(String schoolId, String classId) {
     return api.removeClassTeacher(schoolId, classId);
   }
+
+  // ==================================================================
+  // SUPER ADMIN — SUBJECTS
+  // ==================================================================
+
+  Future<List<SchoolSubject>> getSchoolSubjects(String schoolId) {
+    return api.getSchoolSubjects(schoolId);
+  }
+
+  Future<void> createSchoolSubject(
+    String schoolId, {
+    required String name,
+    String? code,
+    required int type,
+    String? departmentId,
+    String? tradeId,
+  }) {
+    return api.createSchoolSubject(
+      schoolId,
+      name: name,
+      code: code,
+      type: type,
+      departmentId: departmentId,
+      tradeId: tradeId,
+    );
+  }
+
+  Future<void> updateSchoolSubject(
+    String schoolId,
+    String subjectId, {
+    required String name,
+    String? code,
+    required int type,
+    String? departmentId,
+    String? tradeId,
+  }) {
+    return api.updateSchoolSubject(
+      schoolId,
+      subjectId,
+      name: name,
+      code: code,
+      type: type,
+      departmentId: departmentId,
+      tradeId: tradeId,
+    );
+  }
+
+  Future<void> deleteSchoolSubject(String schoolId, String subjectId) {
+    return api.deleteSchoolSubject(schoolId, subjectId);
+  }
+
+  Future<void> assignSchoolSubject(
+    String schoolId,
+    String subjectId, {
+    required List<String> classIds,
+    String? teacherId,
+  }) {
+    return api.assignSchoolSubject(
+      schoolId,
+      subjectId,
+      classIds: classIds,
+      teacherId: teacherId,
+    );
+  }
+
+  Future<void> removeSubjectFromClass(
+    String schoolId,
+    String subjectId,
+    String classId,
+  ) {
+    return api.removeSubjectFromClass(schoolId, subjectId, classId);
+  }
 }

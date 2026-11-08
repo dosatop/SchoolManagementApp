@@ -204,7 +204,7 @@ class _SchoolManagementPageState extends ConsumerState<SchoolManagementPage> {
                 color: Colors.orange,
                 onTap: () async {
                   await context.push(
-                    '/schools/${school.id}/admins',
+                    '/super-admin/schools/${school.id}/admins',
                     extra: school.name,
                   );
 
@@ -224,7 +224,7 @@ class _SchoolManagementPageState extends ConsumerState<SchoolManagementPage> {
                 color: Colors.green,
                 onTap: () async {
                   await context.push(
-                    '/schools/${school.id}/teachers',
+                    '/super-admin/schools/${school.id}/teachers',
                     extra: school.name,
                   );
 
@@ -244,7 +244,7 @@ class _SchoolManagementPageState extends ConsumerState<SchoolManagementPage> {
                 color: Colors.purple,
                 onTap: () async {
                   await context.push(
-                    '/schools/${school.id}/students',
+                    '/super-admin/schools/${school.id}/students',
                     extra: school.name,
                   );
 
@@ -264,7 +264,7 @@ class _SchoolManagementPageState extends ConsumerState<SchoolManagementPage> {
                 color: Colors.blue,
                 onTap: () async {
                   await context.push(
-                    '/schools/${school.id}/classes',
+                    '/super-admin/schools/${school.id}/classes',
                     extra: school.name,
                   );
 
@@ -284,7 +284,7 @@ class _SchoolManagementPageState extends ConsumerState<SchoolManagementPage> {
                 color: Colors.teal,
                 onTap: () async {
                   await context.push(
-                    '/schools/${school.id}/subjects',
+                    '/super-admin/schools/${school.id}/subjects',
                     extra: school.name,
                   );
 

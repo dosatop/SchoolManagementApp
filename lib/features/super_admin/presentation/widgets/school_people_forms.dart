@@ -49,6 +49,26 @@ Future<bool> showEditClassSheet(
   'Class updated',
 );
 
+Future<bool> showSubjectFormSheet(
+  BuildContext context,
+  String schoolId, {
+  SchoolSubject? existing,
+}) => _openForm(
+  context,
+  _SubjectForm(schoolId: schoolId, existing: existing),
+  existing == null ? 'Subject created' : 'Subject updated',
+);
+
+Future<bool> showAssignSubjectSheet(
+  BuildContext context,
+  String schoolId,
+  SchoolSubject subject,
+) => _openForm(
+  context,
+  _AssignSubjectForm(schoolId: schoolId, subject: subject),
+  'Subject assigned',
+);
+
 Future<bool> showEditTeacherSheet(
   BuildContext context,
   String schoolId,
@@ -906,6 +926,413 @@ class _EditTeacherFormState extends ConsumerState<_EditTeacherForm> {
             _PasswordField(controller: _password, optional: true),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ====================================================================
+// SUBJECT (create / edit)
+// ====================================================================
+
+class _SubjectForm extends ConsumerStatefulWidget {
+  const _SubjectForm({required this.schoolId, this.existing});
+
+  final String schoolId;
+  final SchoolSubject? existing;
+
+  @override
+  ConsumerState<_SubjectForm> createState() => _SubjectFormState();
+}
+
+class _SubjectFormState extends ConsumerState<_SubjectForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final _name = TextEditingController(text: widget.existing?.name);
+  late final _code = TextEditingController(text: widget.existing?.code);
+
+  late int _type = widget.existing?.type ?? SubjectTypes.general;
+  late String? _departmentId = widget.existing?.departmentId;
+  late String? _tradeId = widget.existing?.tradeId;
+
+  bool _saving = false;
+  String? _error;
+
+  bool get _editing => widget.existing != null;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _code.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    final actions = ref.read(schoolPeopleActionsProvider);
+    final name = _name.text.trim();
+    final code = _blankToNull(_code.text);
+
+    final error = _editing
+        ? await actions.updateSubject(
+            widget.schoolId,
+            subjectId: widget.existing!.id,
+            name: name,
+            code: code,
+            type: _type,
+            departmentId: _departmentId,
+            tradeId: _tradeId,
+          )
+        : await actions.createSubject(
+            widget.schoolId,
+            name: name,
+            code: code,
+            type: _type,
+            departmentId: _departmentId,
+            tradeId: _tradeId,
+          );
+
+    if (!mounted) return;
+
+    if (error == null) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _saving = false;
+        _error = error;
+      });
+    }
+  }
+
+  Widget _typeChip(int type, IconData icon, String hint) {
+    final active = _type == type;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          HapticFeedback.selectionClick();
+          setState(() => _type = type);
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 6),
+          decoration: BoxDecoration(
+            color: active ? SpColors.primary : Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: active ? SpColors.primary : SpColors.border,
+            ),
+          ),
+          child: Column(
+            children: [
+              Icon(
+                icon,
+                size: 20,
+                color: active ? Colors.white : SpColors.textSoft,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                SubjectTypes.label(type),
+                style: TextStyle(
+                  color: active ? Colors.white : SpColors.textDark,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                hint,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: active
+                      ? Colors.white.withOpacity(.75)
+                      : SpColors.textSoft,
+                  fontSize: 9.5,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final optionsAsync = ref.watch(schoolFormOptionsProvider(widget.schoolId));
+    final options = optionsAsync.valueOrNull ?? SchoolFormOptions.empty;
+
+    final departmentValue =
+        options.departments.any((d) => d.id == _departmentId)
+        ? _departmentId
+        : null;
+    final tradeValue = options.trades.any((t) => t.id == _tradeId)
+        ? _tradeId
+        : null;
+
+    final loadingOptions = optionsAsync.isLoading && !optionsAsync.hasValue;
+
+    return _FormSheet(
+      icon: _editing ? Icons.edit_rounded : Icons.menu_book_rounded,
+      color: _editing ? SpColors.primary : SpColors.teal,
+      title: _editing ? 'Edit subject' : 'New subject',
+      subtitle: _editing
+          ? 'Classes and teachers keep this subject.'
+          : 'Assign it to classes after creating it.',
+      buttonLabel: _editing ? 'Save changes' : 'Create subject',
+      saving: _saving,
+      error: _error,
+      onSubmit: _submit,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Field(
+              controller: _name,
+              label: 'Subject name',
+              icon: Icons.menu_book_outlined,
+              capitalization: TextCapitalization.words,
+              validator: _required('Enter the subject name'),
+            ),
+            _Field(
+              controller: _code,
+              label: 'Code (optional)',
+              icon: Icons.tag_rounded,
+              capitalization: TextCapitalization.characters,
+              helper: 'e.g. MTH, ENG, AGR',
+            ),
+            const _GroupLabel('Who takes it'),
+            Row(
+              children: [
+                _typeChip(
+                  SubjectTypes.general,
+                  Icons.public_rounded,
+                  'Everyone',
+                ),
+                const SizedBox(width: 8),
+                _typeChip(
+                  SubjectTypes.department,
+                  Icons.account_tree_rounded,
+                  'One department',
+                ),
+                const SizedBox(width: 8),
+                _typeChip(
+                  SubjectTypes.trade,
+                  Icons.handyman_rounded,
+                  'One trade',
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            if (_type == SubjectTypes.department)
+              _Dropdown(
+                key: const ValueKey('subject-department'),
+                label: loadingOptions
+                    ? 'Loading departments…'
+                    : options.departments.isEmpty
+                    ? 'No departments yet'
+                    : 'Department',
+                icon: Icons.account_tree_outlined,
+                value: departmentValue,
+                items: [
+                  for (final d in options.departments)
+                    DropdownMenuItem(value: d.id, child: Text(d.name)),
+                ],
+                onChanged: (v) => setState(() => _departmentId = v),
+                validator: (v) => v == null ? 'Choose a department' : null,
+              ),
+            if (_type == SubjectTypes.trade)
+              _Dropdown(
+                key: const ValueKey('subject-trade'),
+                label: loadingOptions
+                    ? 'Loading trades…'
+                    : options.trades.isEmpty
+                    ? 'No trades yet'
+                    : 'Trade',
+                icon: Icons.handyman_outlined,
+                value: tradeValue,
+                items: [
+                  for (final t in options.trades)
+                    DropdownMenuItem(value: t.id, child: Text(t.name)),
+                ],
+                onChanged: (v) => setState(() => _tradeId = v),
+                validator: (v) => v == null ? 'Choose a trade' : null,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ====================================================================
+// ASSIGN SUBJECT TO CLASSES (+ optional teacher)
+// ====================================================================
+
+class _AssignSubjectForm extends ConsumerStatefulWidget {
+  const _AssignSubjectForm({required this.schoolId, required this.subject});
+
+  final String schoolId;
+  final SchoolSubject subject;
+
+  @override
+  ConsumerState<_AssignSubjectForm> createState() =>
+      _AssignSubjectFormState();
+}
+
+class _AssignSubjectFormState extends ConsumerState<_AssignSubjectForm> {
+  final _selected = <String>{};
+  String? _teacherId;
+
+  bool _saving = false;
+  String? _error;
+
+  Future<void> _submit() async {
+    if (_selected.isEmpty) {
+      setState(() => _error = 'Pick at least one class.');
+      return;
+    }
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    final error = await ref
+        .read(schoolPeopleActionsProvider)
+        .assignSubject(
+          widget.schoolId,
+          subjectId: widget.subject.id,
+          classIds: _selected.toList(),
+          teacherId: _teacherId,
+        );
+
+    if (!mounted) return;
+
+    if (error == null) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _saving = false;
+        _error = error;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final classesAsync = ref.watch(schoolClassesProvider(widget.schoolId));
+    final teachersAsync = ref.watch(schoolTeachersProvider(widget.schoolId));
+
+    final classes = classesAsync.valueOrNull ?? const <SchoolClass>[];
+    final teachers = teachersAsync.valueOrNull ?? const <SchoolTeacher>[];
+    final already = widget.subject.classes.map((c) => c.classId).toSet();
+
+    final teacherValue = teachers.any((t) => t.id == _teacherId)
+        ? _teacherId
+        : null;
+
+    return _FormSheet(
+      icon: Icons.playlist_add_rounded,
+      color: SpColors.teal,
+      title: 'Assign ${widget.subject.name}',
+      subtitle: 'Choose the classes that take it.',
+      buttonLabel: _selected.isEmpty
+          ? 'Assign'
+          : 'Assign to ${_selected.length} '
+                '${_selected.length == 1 ? 'class' : 'classes'}',
+      saving: _saving,
+      error: _error,
+      onSubmit: _submit,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _GroupLabel('Classes'),
+          if (classesAsync.isLoading && classes.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(16),
+              child: Center(
+                child: CircularProgressIndicator(color: SpColors.primary),
+              ),
+            )
+          else if (classes.isEmpty)
+            const Text(
+              'This school has no classes yet. Create one first.',
+              style: TextStyle(color: SpColors.textSoft, fontSize: 12.5),
+            )
+          else
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final c in classes)
+                  FilterChip(
+                    label: Text(
+                      already.contains(c.id) ? '${c.name} ✓' : c.name,
+                    ),
+                    selected: _selected.contains(c.id),
+                    onSelected: (on) {
+                      HapticFeedback.selectionClick();
+                      setState(() {
+                        on ? _selected.add(c.id) : _selected.remove(c.id);
+                        _error = null;
+                      });
+                    },
+                    showCheckmark: false,
+                    backgroundColor: Colors.white,
+                    selectedColor: SpColors.primary,
+                    side: BorderSide(
+                      color: _selected.contains(c.id)
+                          ? SpColors.primary
+                          : SpColors.border,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    labelStyle: TextStyle(
+                      color: _selected.contains(c.id)
+                          ? Colors.white
+                          : SpColors.textDark,
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
+            ),
+          if (already.isNotEmpty)
+            const Padding(
+              padding: EdgeInsets.only(top: 8, left: 2),
+              child: Text(
+                '✓ already takes this subject — picking it again only adds '
+                'the teacher.',
+                style: TextStyle(color: SpColors.textSoft, fontSize: 11),
+              ),
+            ),
+          const SizedBox(height: 6),
+          const _GroupLabel('Teacher (optional)'),
+          _Dropdown(
+            label: teachersAsync.isLoading && teachers.isEmpty
+                ? 'Loading teachers…'
+                : 'Who teaches it in these classes',
+            icon: Icons.person_outline_rounded,
+            value: teacherValue,
+            items: [
+              const DropdownMenuItem<String>(
+                value: null,
+                child: Text('No teacher for now'),
+              ),
+              for (final t in teachers)
+                DropdownMenuItem(value: t.id, child: Text(t.fullName)),
+            ],
+            onChanged: (v) => setState(() => _teacherId = v),
+          ),
+        ],
       ),
     );
   }

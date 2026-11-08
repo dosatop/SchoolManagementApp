@@ -390,3 +390,118 @@ class SchoolFormOptions {
     ),
   );
 }
+
+// ====================================================================
+// SUBJECT
+// ====================================================================
+// type: 1 General, 2 Department, 3 Trade (matches the backend enum).
+
+class SubjectTypes {
+  static const general = 1;
+  static const department = 2;
+  static const trade = 3;
+
+  static String label(int type) {
+    switch (type) {
+      case department:
+        return 'Department';
+      case trade:
+        return 'Trade';
+      default:
+        return 'General';
+    }
+  }
+
+  /// Accepts 1/2/3, "1", or "General"/"Department"/"Trade".
+  static int parse(dynamic v) {
+    if (v is num) return v.toInt();
+    final s = '${v ?? ''}'.trim().toLowerCase();
+    final n = int.tryParse(s);
+    if (n != null) return n;
+    if (s.startsWith('dep')) return department;
+    if (s.startsWith('tra')) return trade;
+    return general;
+  }
+}
+
+class SubjectClassTeacher {
+  final String teacherId;
+  final String teacherName;
+  final String classId;
+  final String className;
+
+  const SubjectClassTeacher({
+    required this.teacherId,
+    required this.teacherName,
+    required this.classId,
+    required this.className,
+  });
+
+  factory SubjectClassTeacher.fromJson(dynamic json) => SubjectClassTeacher(
+    teacherId: _str(json, ['teacherId']),
+    teacherName: _str(json, ['teacherName', 'fullName'], 'Teacher'),
+    classId: _str(json, ['classId']),
+    className: _str(json, ['className'], 'Class'),
+  );
+}
+
+class SchoolSubject {
+  final String id;
+  final String name;
+  final String? code;
+  final int type;
+  final String? departmentId;
+  final String? departmentName;
+  final String? tradeId;
+  final String? tradeName;
+  final List<SchoolClassRef> classes;
+  final List<SubjectClassTeacher> teachers;
+
+  const SchoolSubject({
+    required this.id,
+    required this.name,
+    this.code,
+    this.type = SubjectTypes.general,
+    this.departmentId,
+    this.departmentName,
+    this.tradeId,
+    this.tradeName,
+    this.classes = const [],
+    this.teachers = const [],
+  });
+
+  String get typeLabel => SubjectTypes.label(type);
+
+  /// "Department · Science", "Trade · Catering", "General".
+  String get groupLabel {
+    if (type == SubjectTypes.department && departmentName != null) {
+      return 'Department · $departmentName';
+    }
+    if (type == SubjectTypes.trade && tradeName != null) {
+      return 'Trade · $tradeName';
+    }
+    return typeLabel;
+  }
+
+  int get teacherCount => teachers.map((t) => t.teacherId).toSet().length;
+
+  /// Teachers of this subject in [classId].
+  List<String> teachersIn(String classId) => teachers
+      .where((t) => t.classId == classId)
+      .map((t) => t.teacherName)
+      .toSet()
+      .toList();
+
+  factory SchoolSubject.fromJson(dynamic json) => SchoolSubject(
+    id: _str(json, ['subjectId', 'id']),
+    name: _str(json, ['subjectName', 'name'], 'Subject'),
+    code: _strOrNull(json, ['code']),
+    type: SubjectTypes.parse(_pick(json, ['type', 'typeName'])),
+    departmentId: _strOrNull(json, ['departmentId']),
+    departmentName: _strOrNull(json, ['departmentName']),
+    tradeId: _strOrNull(json, ['tradeId']),
+    tradeName: _strOrNull(json, ['tradeName']),
+    classes: _list(json, ['classes'], SchoolClassRef.fromJson),
+    teachers: _list(json, ['teachers'], SubjectClassTeacher.fromJson),
+  );
+}

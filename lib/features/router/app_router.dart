@@ -105,9 +105,9 @@ import 'package:app/features/super_admin/presentation/school_classes_page.dart';
 import 'package:app/features/super_admin/presentation/school_management_page.dart';
 import 'package:app/features/super_admin/presentation/school_admins_page.dart';
 import 'package:app/features/super_admin/presentation/school_students_page.dart';
+import 'package:app/features/super_admin/presentation/school_subjects_page.dart';
 import 'package:app/features/super_admin/presentation/school_teachers_page.dart';
 import 'package:app/features/super_admin/presentation/schools_list_page.dart';
-import 'package:app/features/super_admin/provider/schools_page.dart';
 import 'package:app/features/super_admin/presentation/super_admin_daashboard.dart';
 
 // Syllabus
@@ -767,44 +767,6 @@ GoRouter appRouter(Ref ref) {
         },
       ),
 
-      GoRoute(
-        path: '/schools/:schoolId/teachers',
-        builder: (context, state) {
-          return SchoolTeachersPage(
-            schoolId: state.pathParameters['schoolId']!,
-            schoolName: state.extra as String? ?? 'School',
-          );
-        },
-      ),
-
-      GoRoute(
-        path: '/schools/:schoolId/students',
-        builder: (context, state) {
-          // extra is the school name, or a map when opened from a class.
-          final extra = state.extra;
-          final map = extra is Map ? extra : const {};
-
-          return SchoolStudentsPage(
-            schoolId: state.pathParameters['schoolId']!,
-            schoolName: extra is String
-                ? extra
-                : (map['schoolName'] as String?) ?? 'School',
-            initialClassId: map['classId'] as String?,
-            initialClassName: map['className'] as String?,
-          );
-        },
-      ),
-
-      GoRoute(
-        path: '/schools/:schoolId/classes',
-        builder: (context, state) {
-          return SchoolClassesPage(
-            schoolId: state.pathParameters['schoolId']!,
-            schoolName: state.extra as String? ?? 'School',
-          );
-        },
-      ),
-
       // ============================================================
       // ADMIN - TEACHERS
       // ============================================================
@@ -1138,8 +1100,57 @@ GoRouter appRouter(Ref ref) {
         },
       ),
 
+      // ------------------------------------------------------------
+      // SUPER ADMIN — ONE SCHOOL'S PEOPLE, CLASSES, SUBJECTS, ADMINS
+      // ------------------------------------------------------------
       GoRoute(
-        path: '/schools/:schoolId/admins',
+        path: '/super-admin/schools/:schoolId/teachers',
+        builder: (context, state) {
+          return SchoolTeachersPage(
+            schoolId: state.pathParameters['schoolId']!,
+            schoolName: state.extra as String? ?? 'School',
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/super-admin/schools/:schoolId/students',
+        builder: (context, state) {
+          // extra is the school name, or a map when opened from a class.
+          final extra = state.extra;
+          final map = extra is Map ? extra : const {};
+
+          return SchoolStudentsPage(
+            schoolId: state.pathParameters['schoolId']!,
+            schoolName: extra is String
+                ? extra
+                : (map['schoolName'] as String?) ?? 'School',
+            initialClassId: map['classId'] as String?,
+            initialClassName: map['className'] as String?,
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/super-admin/schools/:schoolId/classes',
+        builder: (context, state) {
+          return SchoolClassesPage(
+            schoolId: state.pathParameters['schoolId']!,
+            schoolName: state.extra as String? ?? 'School',
+          );
+        },
+      ),
+
+      GoRoute(
+        path: '/super-admin/schools/:schoolId/subjects',
+        builder: (context, state) => SchoolSubjectsPage(
+          schoolId: state.pathParameters['schoolId']!,
+          schoolName: state.extra as String? ?? 'School',
+        ),
+      ),
+
+      GoRoute(
+        path: '/super-admin/schools/:schoolId/admins',
         builder: (context, state) {
           final schoolId = state.pathParameters['schoolId']!;
 

@@ -328,4 +328,96 @@ class SuperAdminApi {
       '${_school(schoolId)}/classes/$classId/class-teacher',
     );
   }
+
+  // ==================================================================
+  // SUPER ADMIN — SUBJECTS
+  // ==================================================================
+
+  Future<List<SchoolSubject>> getSchoolSubjects(String schoolId) async {
+    final response = await dioClient.dio.get('${_school(schoolId)}/subjects');
+
+    return parseList(response.data, 'subjects', SchoolSubject.fromJson);
+  }
+
+  Map<String, dynamic> _subjectBody({
+    required String name,
+    String? code,
+    required int type,
+    String? departmentId,
+    String? tradeId,
+  }) => {
+    'name': name,
+    'code': code,
+    'type': type,
+    // Only the matching link is sent (General → neither).
+    'departmentId': type == SubjectTypes.department ? departmentId : null,
+    'tradeId': type == SubjectTypes.trade ? tradeId : null,
+  };
+
+  Future<void> createSchoolSubject(
+    String schoolId, {
+    required String name,
+    String? code,
+    required int type,
+    String? departmentId,
+    String? tradeId,
+  }) async {
+    await dioClient.dio.post(
+      '${_school(schoolId)}/subjects',
+      data: _subjectBody(
+        name: name,
+        code: code,
+        type: type,
+        departmentId: departmentId,
+        tradeId: tradeId,
+      ),
+    );
+  }
+
+  Future<void> updateSchoolSubject(
+    String schoolId,
+    String subjectId, {
+    required String name,
+    String? code,
+    required int type,
+    String? departmentId,
+    String? tradeId,
+  }) async {
+    await dioClient.dio.put(
+      '${_school(schoolId)}/subjects/$subjectId',
+      data: _subjectBody(
+        name: name,
+        code: code,
+        type: type,
+        departmentId: departmentId,
+        tradeId: tradeId,
+      ),
+    );
+  }
+
+  Future<void> deleteSchoolSubject(String schoolId, String subjectId) async {
+    await dioClient.dio.delete('${_school(schoolId)}/subjects/$subjectId');
+  }
+
+  Future<void> assignSchoolSubject(
+    String schoolId,
+    String subjectId, {
+    required List<String> classIds,
+    String? teacherId,
+  }) async {
+    await dioClient.dio.post(
+      '${_school(schoolId)}/subjects/$subjectId/classes',
+      data: {'classIds': classIds, 'teacherId': teacherId},
+    );
+  }
+
+  Future<void> removeSubjectFromClass(
+    String schoolId,
+    String subjectId,
+    String classId,
+  ) async {
+    await dioClient.dio.delete(
+      '${_school(schoolId)}/subjects/$subjectId/classes/$classId',
+    );
+  }
 }
