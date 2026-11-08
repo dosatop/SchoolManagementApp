@@ -103,8 +103,9 @@ class _SchoolTeachersPageState extends ConsumerState<SchoolTeachersPage> {
   Widget _content(List<SchoolTeacher> all, Object? error) {
     final classTeachers = all.where((t) => t.isClassTeacher).length;
     final subjectTeachers = all.where((t) => t.subjects.isNotEmpty).length;
-    final unassigned =
-        all.where((t) => !t.isClassTeacher && t.subjects.isEmpty).length;
+    final unassigned = all
+        .where((t) => !t.isClassTeacher && t.subjects.isEmpty)
+        .length;
 
     final visible = all
         .where(_passesFilter)
@@ -132,7 +133,9 @@ class _SchoolTeachersPageState extends ConsumerState<SchoolTeachersPage> {
           SpSummaryCard(
             icon: Icons.people_alt_rounded,
             value: '${all.length}',
-            label: all.length == 1 ? 'Teacher in this school' : 'Teachers in this school',
+            label: all.length == 1
+                ? 'Teacher in this school'
+                : 'Teachers in this school',
             stats: [
               SpStat('Class teachers', '$classTeachers'),
               SpStat('Subject teachers', '$subjectTeachers'),
@@ -183,10 +186,7 @@ class _SchoolTeachersPageState extends ConsumerState<SchoolTeachersPage> {
             for (final t in visible)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _TeacherCard(
-                  teacher: t,
-                  onTap: () => _openTeacher(t),
-                ),
+                child: _TeacherCard(teacher: t, onTap: () => _openTeacher(t)),
               ),
         ],
       ),
@@ -197,6 +197,7 @@ class _SchoolTeachersPageState extends ConsumerState<SchoolTeachersPage> {
     showSpSheet<void>(
       context,
       builder: (context, controller) => _TeacherSheet(
+        schoolId: widget.schoolId,
         teacher: t,
         controller: controller,
       ),
@@ -244,7 +245,10 @@ class _TeacherCard extends StatelessWidget {
                   t.email ?? t.phoneNumber ?? 'No contact details',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: SpColors.textSoft, fontSize: 12),
+                  style: const TextStyle(
+                    color: SpColors.textSoft,
+                    fontSize: 12,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Wrap(
@@ -288,14 +292,19 @@ class _TeacherCard extends StatelessWidget {
 // TEACHER DETAILS SHEET
 // ====================================================================
 
-class _TeacherSheet extends StatelessWidget {
-  const _TeacherSheet({required this.teacher, required this.controller});
+class _TeacherSheet extends ConsumerWidget {
+  const _TeacherSheet({
+    required this.schoolId,
+    required this.teacher,
+    required this.controller,
+  });
 
+  final String schoolId;
   final SchoolTeacher teacher;
   final ScrollController controller;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = teacher;
 
     // Subject → classes it is taught in.
@@ -382,7 +391,11 @@ class _TeacherSheet extends StatelessWidget {
           const SpCard(
             child: Row(
               children: [
-                Icon(Icons.info_outline_rounded, color: SpColors.textSoft, size: 20),
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: SpColors.textSoft,
+                  size: 20,
+                ),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -436,7 +449,9 @@ class _TeacherSheet extends StatelessWidget {
                               spacing: 6,
                               runSpacing: 6,
                               children: [
-                                for (final c in (bySubject[name]!.toSet().toList()..sort()))
+                                for (final c
+                                    in (bySubject[name]!.toSet().toList()
+                                      ..sort()))
                                   SpTag(c, color: SpColors.purple),
                               ],
                             ),
@@ -448,6 +463,29 @@ class _TeacherSheet extends StatelessWidget {
                 ),
             ],
           ),
+        SpSheetActions(
+          onEdit: () async {
+            final navigator = Navigator.of(context);
+            final saved = await showEditTeacherSheet(context, schoolId, t);
+            if (saved) navigator.pop(); // list reloads with the changes
+          },
+          onDelete: () async {
+            final navigator = Navigator.of(context);
+            final deleted = await confirmAndRun(
+              context,
+              title: 'Delete ${t.fullName}?',
+              message:
+                  'Their login, class-teacher role and subject assignments '
+                  'will be removed. This cannot be undone.',
+              confirmLabel: 'Delete teacher',
+              successMessage: 'Teacher deleted',
+              action: () => ref
+                  .read(schoolPeopleActionsProvider)
+                  .deleteTeacher(schoolId, teacherId: t.id),
+            );
+            if (deleted) navigator.pop();
+          },
+        ),
       ],
     );
   }

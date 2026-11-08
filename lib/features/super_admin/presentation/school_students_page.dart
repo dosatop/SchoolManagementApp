@@ -258,7 +258,11 @@ class _SchoolStudentsPageState extends ConsumerState<SchoolStudentsPage> {
           context,
           initialSize: .66,
           builder: (context, controller) =>
-              _StudentSheet(student: s, controller: controller),
+              _StudentSheet(
+                schoolId: widget.schoolId,
+                student: s,
+                controller: controller,
+              ),
         ),
       ),
     );
@@ -355,14 +359,19 @@ class _StudentCard extends StatelessWidget {
 // STUDENT DETAILS SHEET
 // ====================================================================
 
-class _StudentSheet extends StatelessWidget {
-  const _StudentSheet({required this.student, required this.controller});
+class _StudentSheet extends ConsumerWidget {
+  const _StudentSheet({
+    required this.schoolId,
+    required this.student,
+    required this.controller,
+  });
 
+  final String schoolId;
   final SchoolStudent student;
   final ScrollController controller;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final s = student;
 
     return ListView(
@@ -432,6 +441,29 @@ class _StudentSheet extends StatelessWidget {
               color: SpColors.green,
             ),
           ],
+        ),
+        SpSheetActions(
+          onEdit: () async {
+            final navigator = Navigator.of(context);
+            final saved = await showEditStudentSheet(context, schoolId, s);
+            if (saved) navigator.pop(); // list reloads with the changes
+          },
+          onDelete: () async {
+            final navigator = Navigator.of(context);
+            final deleted = await confirmAndRun(
+              context,
+              title: 'Delete ${s.fullName}?',
+              message:
+                  'Their login, results, attendance and assignment '
+                  'submissions will be removed. This cannot be undone.',
+              confirmLabel: 'Delete student',
+              successMessage: 'Student deleted',
+              action: () => ref
+                  .read(schoolPeopleActionsProvider)
+                  .deleteStudent(schoolId, studentId: s.id),
+            );
+            if (deleted) navigator.pop();
+          },
         ),
         const SizedBox(height: 14),
         const Text(

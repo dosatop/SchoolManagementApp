@@ -221,8 +221,11 @@ class SchoolStudent {
   final String? phoneNumber;
   final String? classId;
   final String? className;
+  final String? departmentId;
   final String? departmentName;
+  final String? tradeId;
   final String? tradeName;
+  final String? tradeSubjectId;
 
   const SchoolStudent({
     required this.id,
@@ -232,8 +235,11 @@ class SchoolStudent {
     this.phoneNumber,
     this.classId,
     this.className,
+    this.departmentId,
     this.departmentName,
+    this.tradeId,
     this.tradeName,
+    this.tradeSubjectId,
   });
 
   bool get hasClass =>
@@ -249,8 +255,11 @@ class SchoolStudent {
     phoneNumber: _strOrNull(json, ['phoneNumber', 'phone']),
     classId: _strOrNull(json, ['classId']),
     className: _strOrNull(json, ['className']),
+    departmentId: _strOrNull(json, ['departmentId']),
     departmentName: _strOrNull(json, ['departmentName', 'department']),
+    tradeId: _strOrNull(json, ['tradeId']),
     tradeName: _strOrNull(json, ['tradeName', 'trade']),
+    tradeSubjectId: _strOrNull(json, ['tradeSubjectId']),
   );
 }
 

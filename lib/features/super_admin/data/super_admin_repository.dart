@@ -169,4 +169,78 @@ class SuperAdminRepository {
   }) {
     return api.createSchoolClass(schoolId, name: name, level: level);
   }
+
+  // ==================================================================
+  // SUPER ADMIN — EDIT / DELETE
+  // ==================================================================
+
+  Future<void> updateSchoolTeacher(
+    String schoolId,
+    String teacherId, {
+    required String fullName,
+    required String email,
+    String? phoneNumber,
+    String? newPassword,
+  }) {
+    return api.updateSchoolTeacher(
+      schoolId,
+      teacherId,
+      fullName: fullName,
+      email: email,
+      phoneNumber: phoneNumber,
+      newPassword: newPassword,
+    );
+  }
+
+  Future<void> deleteSchoolTeacher(String schoolId, String teacherId) {
+    return api.deleteSchoolTeacher(schoolId, teacherId);
+  }
+
+  Future<void> updateSchoolStudent(
+    String schoolId,
+    String studentId, {
+    required String fullName,
+    required String email,
+    required String studentNumber,
+    required String classId,
+    String? phoneNumber,
+    String? newPassword,
+    String? departmentId,
+    String? tradeId,
+    String? tradeSubjectId,
+  }) {
+    return api.updateSchoolStudent(
+      schoolId,
+      studentId,
+      fullName: fullName,
+      email: email,
+      studentNumber: studentNumber,
+      classId: classId,
+      phoneNumber: phoneNumber,
+      newPassword: newPassword,
+      departmentId: departmentId,
+      tradeId: tradeId,
+      tradeSubjectId: tradeSubjectId,
+    );
+  }
+
+  Future<void> deleteSchoolStudent(String schoolId, String studentId) {
+    return api.deleteSchoolStudent(schoolId, studentId);
+  }
+
+  Future<void> updateSchoolClass(
+    String schoolId,
+    String classId, {
+    required String name,
+  }) {
+    return api.updateSchoolClass(schoolId, classId, name: name);
+  }
+
+  Future<void> deleteSchoolClass(String schoolId, String classId) {
+    return api.deleteSchoolClass(schoolId, classId);
+  }
+
+  Future<void> removeClassTeacher(String schoolId, String classId) {
+    return api.removeClassTeacher(schoolId, classId);
+  }
 }

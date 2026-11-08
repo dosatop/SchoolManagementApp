@@ -115,7 +115,9 @@ class _SchoolClassesPageState extends ConsumerState<SchoolClassesPage> {
           SpSummaryCard(
             icon: Icons.class_rounded,
             value: '${all.length}',
-            label: all.length == 1 ? 'Class in this school' : 'Classes in this school',
+            label: all.length == 1
+                ? 'Class in this school'
+                : 'Classes in this school',
             stats: [
               SpStat('Students', '$totalStudents'),
               SpStat('No class teacher', '$noTeacher'),
@@ -165,10 +167,7 @@ class _SchoolClassesPageState extends ConsumerState<SchoolClassesPage> {
             for (final c in visible)
               Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: _ClassCard(
-                  schoolClass: c,
-                  onTap: () => _openClass(c),
-                ),
+                child: _ClassCard(schoolClass: c, onTap: () => _openClass(c)),
               ),
         ],
       ),
@@ -420,7 +419,7 @@ class _ClassSheet extends ConsumerWidget {
               ],
             ),
           )
-        else
+        else ...[
           SpGroup(
             children: [
               for (final t in c.classTeachers)
@@ -431,10 +430,38 @@ class _ClassSheet extends ConsumerWidget {
                 ),
             ],
           ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: () async {
+                final navigator = Navigator.of(context);
+                final removed = await confirmAndRun(
+                  context,
+                  title: 'Remove class teacher?',
+                  message:
+                      '${c.classTeacherLabel} will no longer be the class '
+                      'teacher of ${c.name}. They stay in the school.',
+                  confirmLabel: 'Remove',
+                  successMessage: 'Class teacher removed',
+                  action: () => ref
+                      .read(schoolPeopleActionsProvider)
+                      .removeClassTeacher(schoolId, classId: c.id),
+                );
+                if (removed) navigator.pop();
+              },
+              icon: const Icon(Icons.person_remove_outlined, size: 18),
+              label: const Text('Remove class teacher'),
+              style: TextButton.styleFrom(foregroundColor: SpColors.red),
+            ),
+          ),
+        ],
 
         // ---- subject teachers -----------------------------------------
         if (subjectNames.isNotEmpty) ...[
-          SpSectionTitle('Subject teachers', trailing: '${subjectNames.length}'),
+          SpSectionTitle(
+            'Subject teachers',
+            trailing: '${subjectNames.length}',
+          ),
           SpGroup(
             children: [
               for (final name in subjectNames)
@@ -479,7 +506,11 @@ class _ClassSheet extends ConsumerWidget {
           const SpCard(
             child: Row(
               children: [
-                Icon(Icons.info_outline_rounded, color: SpColors.textSoft, size: 20),
+                Icon(
+                  Icons.info_outline_rounded,
+                  color: SpColors.textSoft,
+                  size: 20,
+                ),
                 SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -529,6 +560,36 @@ class _ClassSheet extends ConsumerWidget {
           const SizedBox(height: 10),
           _AddStudentButton(schoolId: schoolId, classId: c.id),
         ],
+
+        SpSheetActions(
+          editLabel: 'Rename',
+          onEdit: () async {
+            final navigator = Navigator.of(context);
+            final saved = await showEditClassSheet(context, schoolId, c);
+            if (saved) navigator.pop();
+          },
+          deleteLabel: 'Delete class',
+          onDelete: () async {
+            final navigator = Navigator.of(context);
+            final deleted = await confirmAndRun(
+              context,
+              title: 'Delete ${c.name}?',
+              message: c.studentCount > 0
+                  ? '${c.name} still has ${c.studentCount} '
+                        '${c.studentCount == 1 ? 'student' : 'students'}. '
+                        'Move them to another class first — the server will '
+                        'refuse otherwise.'
+                  : 'Its subjects and teacher assignments will be removed. '
+                        'This cannot be undone.',
+              confirmLabel: 'Delete class',
+              successMessage: 'Class deleted',
+              action: () => ref
+                  .read(schoolPeopleActionsProvider)
+                  .deleteClass(schoolId, classId: c.id),
+            );
+            if (deleted) navigator.pop();
+          },
+        ),
       ],
     );
   }
@@ -555,10 +616,7 @@ class _AddStudentButton extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(15),
           ),
-          textStyle: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.bold,
-          ),
+          textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
         ),
       ),
     );

@@ -247,4 +247,85 @@ class SuperAdminApi {
       data: {'name': name, 'level': level},
     );
   }
+
+  // ==================================================================
+  // SUPER ADMIN — EDIT / DELETE
+  // ==================================================================
+
+  Future<void> updateSchoolTeacher(
+    String schoolId,
+    String teacherId, {
+    required String fullName,
+    required String email,
+    String? phoneNumber,
+    String? newPassword,
+  }) async {
+    await dioClient.dio.put(
+      '${_school(schoolId)}/teachers/$teacherId',
+      data: {
+        'fullName': fullName,
+        'email': email,
+        'phoneNumber': phoneNumber,
+        'newPassword': newPassword,
+      },
+    );
+  }
+
+  Future<void> deleteSchoolTeacher(String schoolId, String teacherId) async {
+    await dioClient.dio.delete('${_school(schoolId)}/teachers/$teacherId');
+  }
+
+  Future<void> updateSchoolStudent(
+    String schoolId,
+    String studentId, {
+    required String fullName,
+    required String email,
+    required String studentNumber,
+    required String classId,
+    String? phoneNumber,
+    String? newPassword,
+    String? departmentId,
+    String? tradeId,
+    String? tradeSubjectId,
+  }) async {
+    await dioClient.dio.put(
+      '${_school(schoolId)}/students/$studentId',
+      data: {
+        'fullName': fullName,
+        'email': email,
+        'studentNumber': studentNumber,
+        'classId': classId,
+        'phoneNumber': phoneNumber,
+        'newPassword': newPassword,
+        'departmentId': departmentId,
+        'tradeId': tradeId,
+        'tradeSubjectId': tradeSubjectId,
+      },
+    );
+  }
+
+  Future<void> deleteSchoolStudent(String schoolId, String studentId) async {
+    await dioClient.dio.delete('${_school(schoolId)}/students/$studentId');
+  }
+
+  Future<void> updateSchoolClass(
+    String schoolId,
+    String classId, {
+    required String name,
+  }) async {
+    await dioClient.dio.put(
+      '${_school(schoolId)}/classes/$classId',
+      data: {'name': name},
+    );
+  }
+
+  Future<void> deleteSchoolClass(String schoolId, String classId) async {
+    await dioClient.dio.delete('${_school(schoolId)}/classes/$classId');
+  }
+
+  Future<void> removeClassTeacher(String schoolId, String classId) async {
+    await dioClient.dio.delete(
+      '${_school(schoolId)}/classes/$classId/class-teacher',
+    );
+  }
 }

@@ -1,605 +1,516 @@
 import 'package:app/features/super_admin/presentation/create_school_admin_page.dart';
+import 'package:app/features/super_admin/presentation/widgets/school_people_ui.dart';
 import 'package:app/features/super_admin/provider/school_admins_provider.dart';
+import 'package:app/features/super_admin/provider/schools_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-class SchoolAdminsPage extends ConsumerWidget {
-  final String schoolId;
-  final String schoolName;
+// ====================================================================
+// SUPER ADMIN — SCHOOL ADMINISTRATORS
+// ====================================================================
+// Route: /schools/:schoolId/admins   (extra: school name)
+// Tap an admin to see their details (contact, role, account info).
 
+class SchoolAdminsPage extends ConsumerStatefulWidget {
   const SchoolAdminsPage({
     super.key,
     required this.schoolId,
     required this.schoolName,
   });
 
-  static const Color primary = Color(0xFF091993);
-  static const Color primaryLight = Color(0xFFE9ECFF);
-  static const Color background = Color(0xFFF6F7FB);
-  static const Color textDark = Color(0xFF20232E);
+  final String schoolId;
+  final String schoolName;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(schoolAdminsProvider(schoolId));
+  ConsumerState<SchoolAdminsPage> createState() => _SchoolAdminsPageState();
+}
+
+class _SchoolAdminsPageState extends ConsumerState<SchoolAdminsPage> {
+  final _search = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  Future<void> _refresh() =>
+      ref.read(schoolAdminsProvider(widget.schoolId).notifier).refresh();
+
+  Future<void> _createAdmin() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => CreateSchoolAdminPage(
+          schoolId: widget.schoolId,
+          schoolName: widget.schoolName,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+    _refresh();
+    // Admin count on the School Management page / dashboard.
+    ref.read(superAdminProvider.notifier).getSchools();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(schoolAdminsProvider(widget.schoolId));
+    final admins = async.valueOrNull;
 
     return Scaffold(
-      backgroundColor: background,
-
-      appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.white,
-        titleSpacing: 20,
-
-        title: const Text(
-          'School Administrators',
-          style: TextStyle(
-            color: textDark,
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-
-        actions: [
-          IconButton(
-            onPressed: () {
-              ref.invalidate(schoolAdminsProvider(schoolId));
-            },
-            icon: const Icon(Icons.refresh_rounded, color: textDark),
-          ),
-          const SizedBox(width: 8),
-        ],
+      backgroundColor: SpColors.background,
+      appBar: spAppBar(
+        context: context,
+        title: 'Administrators',
+        schoolName: widget.schoolName,
+        refreshing: async.isLoading && admins != null,
+        onRefresh: _refresh,
       ),
-
-      body: SafeArea(
-        child: state.when(
-          loading: () =>
-              const Center(child: CircularProgressIndicator(color: primary)),
-
-          error: (error, stackTrace) {
-            return _errorState(context, ref, error);
-          },
-
-          data: (admins) {
-            return RefreshIndicator(
-              color: primary,
-              onRefresh: () async {
-                ref.invalidate(schoolAdminsProvider(schoolId));
-
-                await ref.read(schoolAdminsProvider(schoolId).future);
-              },
-
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(
-                  parent: BouncingScrollPhysics(),
-                ),
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 110),
-
-                children: [
-                  // ====================================================
-                  // SCHOOL HEADER
-                  // ====================================================
-                  _schoolHeader(admins.length),
-
-                  const SizedBox(height: 25),
-
-                  // ====================================================
-                  // PAGE TITLE
-                  // ====================================================
-                  const Text(
-                    'Administrators',
-                    style: TextStyle(
-                      color: textDark,
-                      fontSize: 21,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-
-                  const SizedBox(height: 5),
-
-                  Text(
-                    'Manage administrators for $schoolName.',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                  ),
-
-                  const SizedBox(height: 15),
-
-                  // ====================================================
-                  // ADMIN LIST
-                  // ====================================================
-                  if (admins.isEmpty)
-                    _emptyState(context)
-                  else
-                    ...List.generate(admins.length, (index) {
-                      final admin = admins[index];
-
-                      return _adminCard(context, admin, index);
-                    }),
-                ],
-              ),
-            );
-          },
-        ),
-      ),
-
-      // ==============================================================
-      // CREATE ADMIN BUTTON
-      // ==============================================================
       floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: primary,
+        onPressed: _createAdmin,
+        backgroundColor: SpColors.primary,
         foregroundColor: Colors.white,
-
-        elevation: 5,
-
-        onPressed: () async {
-          await Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => CreateSchoolAdminPage(
-                schoolId: schoolId,
-                schoolName: schoolName,
-              ),
-            ),
-          );
-
-          ref.invalidate(schoolAdminsProvider(schoolId));
-        },
-
+        elevation: 2,
         icon: const Icon(Icons.person_add_alt_1_rounded),
-
         label: const Text(
-          'Add Administrator',
+          'Add admin',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
+      ),
+      body: Builder(
+        builder: (context) {
+          if (admins == null && async.hasError) {
+            return SpMessageView(
+              icon: Icons.cloud_off_rounded,
+              color: SpColors.red,
+              title: 'Could not load administrators',
+              message: schoolPeopleError(async.error!),
+              actionLabel: 'Try again',
+              onAction: () =>
+                  ref.invalidate(schoolAdminsProvider(widget.schoolId)),
+            );
+          }
+          if (admins == null) return const SpLoadingList();
+
+          final list = admins.map(_AdminView.from).toList()
+            ..sort(
+              (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+            );
+
+          return _content(list, async.hasError ? async.error : null);
+        },
       ),
     );
   }
 
-  // ================================================================
-  // SCHOOL HEADER
-  // ================================================================
+  Widget _content(List<_AdminView> all, Object? error) {
+    final withPhone = all.where((a) => a.phone != null).length;
 
-  Widget _schoolHeader(int adminCount) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
+    final visible = all
+        .where((a) => spMatches(_query, [a.name, a.email, a.phone]))
+        .toList();
 
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [primary, Color(0xFF2638C4)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
+    return RefreshIndicator(
+      color: SpColors.primary,
+      onRefresh: _refresh,
+      child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(
+          parent: BouncingScrollPhysics(),
         ),
-
-        borderRadius: BorderRadius.circular(23),
-
-        boxShadow: [
-          BoxShadow(
-            color: primary.withOpacity(.18),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+        children: [
+          if (error != null) SpErrorBanner(message: schoolPeopleError(error)),
+          SpSummaryCard(
+            icon: Icons.admin_panel_settings_rounded,
+            value: '${all.length}',
+            label: all.length == 1
+                ? 'Administrator for this school'
+                : 'Administrators for this school',
+            stats: [
+              SpStat(
+                'With email',
+                '${all.where((a) => a.email != null).length}',
+              ),
+              SpStat('With phone', '$withPhone'),
+            ],
           ),
+          if (all.length > 3) ...[
+            const SizedBox(height: 16),
+            SpSearchField(
+              controller: _search,
+              hint: 'Search name, email or phone',
+              onChanged: (v) => setState(() => _query = v),
+            ),
+          ],
+          SpSectionTitle(
+            'Administrators',
+            trailing: visible.length == all.length
+                ? '${all.length} total'
+                : '${visible.length} of ${all.length}',
+          ),
+          if (all.isEmpty)
+            SpMessageView(
+              compact: true,
+              icon: Icons.admin_panel_settings_outlined,
+              title: 'No administrators yet',
+              message:
+                  'Create the first administrator so ${widget.schoolName} '
+                  'can start managing its students and teachers.',
+              actionLabel: 'Add admin',
+              actionIcon: Icons.person_add_alt_1_rounded,
+              onAction: _createAdmin,
+            )
+          else if (visible.isEmpty)
+            const SpMessageView(
+              compact: true,
+              icon: Icons.search_off_rounded,
+              title: 'No matches',
+              message: 'Try another name or email.',
+            )
+          else
+            for (final a in visible)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: _AdminCard(
+                  admin: a,
+                  onTap: () => showSpSheet<void>(
+                    context,
+                    initialSize: .6,
+                    builder: (context, controller) => _AdminSheet(
+                      admin: a,
+                      schoolName: widget.schoolName,
+                      controller: controller,
+                    ),
+                  ),
+                ),
+              ),
         ],
       ),
+    );
+  }
+}
 
+// ====================================================================
+// VIEW MODEL
+// ====================================================================
+// Reads SchoolAdminModel safely: only fullName / email / phoneNumber
+// are required; id, createdAt, isActive… are shown if the model has
+// them.
+
+class _AdminView {
+  final String? id;
+  final String name;
+  final String? email;
+  final String? phone;
+  final DateTime? createdAt;
+  final bool? isActive;
+
+  const _AdminView({
+    this.id,
+    required this.name,
+    this.email,
+    this.phone,
+    this.createdAt,
+    this.isActive,
+  });
+
+  static String? _text(dynamic Function() read) {
+    try {
+      final v = read();
+      if (v == null) return null;
+      final s = '$v'.trim();
+      return s.isEmpty ? null : s;
+    } catch (_) {
+      return null; // the model doesn't have this field
+    }
+  }
+
+  static DateTime? _date(dynamic Function() read) {
+    try {
+      final v = read();
+      if (v is DateTime) return v.toLocal();
+      if (v is String) return DateTime.tryParse(v)?.toLocal();
+    } catch (_) {}
+    return null;
+  }
+
+  static bool? _bool(dynamic Function() read) {
+    try {
+      final v = read();
+      if (v is bool) return v;
+    } catch (_) {}
+    return null;
+  }
+
+  factory _AdminView.from(dynamic admin) {
+    final a = admin as dynamic;
+    return _AdminView(
+      id: _text(() => a.id),
+      name: _text(() => a.fullName) ?? 'Unnamed administrator',
+      email: _text(() => a.email),
+      phone: _text(() => a.phoneNumber),
+      createdAt: _date(() => a.createdAt),
+      isActive: _bool(() => a.isActive),
+    );
+  }
+}
+
+String _formatDate(DateTime d) {
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  return '${d.day} ${months[d.month - 1]} ${d.year}';
+}
+
+// ====================================================================
+// ADMIN CARD
+// ====================================================================
+
+class _AdminCard extends StatelessWidget {
+  const _AdminCard({required this.admin, required this.onTap});
+
+  final _AdminView admin;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = admin;
+
+    return SpCard(
+      onTap: onTap,
       child: Row(
         children: [
-          Container(
-            width: 58,
-            height: 58,
-
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.13),
-              borderRadius: BorderRadius.circular(17),
-            ),
-
-            child: const Icon(
-              Icons.admin_panel_settings_outlined,
-              color: Colors.white,
-              size: 31,
-            ),
-          ),
-
-          const SizedBox(width: 15),
-
+          SpAvatar(name: a.name),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  schoolName,
-                  maxLines: 2,
+                  a.name,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    color: SpColors.textDark,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-
-                const SizedBox(height: 5),
-
-                const Text(
-                  'School administrators',
-                  style: TextStyle(color: Colors.white70, fontSize: 11),
-                ),
-              ],
-            ),
-          ),
-
-          const SizedBox(width: 10),
-
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(.12),
-              borderRadius: BorderRadius.circular(15),
-            ),
-
-            child: Column(
-              children: [
+                const SizedBox(height: 2),
                 Text(
-                  '$adminCount',
+                  a.email ?? 'No email',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    color: SpColors.textSoft,
+                    fontSize: 12,
                   ),
                 ),
-
-                const Text(
-                  'Admins',
-                  style: TextStyle(color: Colors.white70, fontSize: 9),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    const SpTag(
+                      'School admin',
+                      color: SpColors.orange,
+                      icon: Icons.admin_panel_settings_rounded,
+                    ),
+                    if (a.phone != null)
+                      SpTag(
+                        a.phone!,
+                        color: SpColors.green,
+                        icon: Icons.phone_rounded,
+                      ),
+                    if (a.isActive == false)
+                      const SpTag(
+                        'Inactive',
+                        color: SpColors.red,
+                        icon: Icons.block_rounded,
+                      ),
+                  ],
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 6),
+          const Icon(Icons.chevron_right_rounded, color: SpColors.textSoft),
         ],
       ),
     );
   }
+}
 
-  // ================================================================
-  // ADMIN CARD
-  // ================================================================
+// ====================================================================
+// ADMIN DETAILS SHEET
+// ====================================================================
 
-  Widget _adminCard(BuildContext context, dynamic admin, int index) {
-    final fullName = admin.fullName ?? '';
-    final email = admin.email ?? '';
-    final phone = admin.phoneNumber ?? '';
+class _AdminSheet extends StatelessWidget {
+  const _AdminSheet({
+    required this.admin,
+    required this.schoolName,
+    required this.controller,
+  });
 
-    final initial = fullName.trim().isNotEmpty
-        ? fullName.trim()[0].toUpperCase()
-        : '?';
+  final _AdminView admin;
+  final String schoolName;
+  final ScrollController controller;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+  @override
+  Widget build(BuildContext context) {
+    final a = admin;
 
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-
-      child: Material(
-        color: Colors.transparent,
-
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-
-          onTap: () {
-            // Admin details can be opened here later.
-          },
-
-          child: Padding(
-            padding: const EdgeInsets.all(15),
-
-            child: Row(
-              children: [
-                // ====================================================
-                // AVATAR
-                // ====================================================
-                Container(
-                  width: 52,
-                  height: 52,
-
-                  decoration: BoxDecoration(
-                    color: primaryLight,
-                    borderRadius: BorderRadius.circular(16),
-                  ),
-
-                  child: Center(
-                    child: Text(
-                      initial,
-                      style: const TextStyle(
-                        color: primary,
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-
-                const SizedBox(width: 13),
-
-                // ====================================================
-                // DETAILS
-                // ====================================================
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-
-                    children: [
-                      Text(
-                        fullName.isEmpty ? 'Unnamed Administrator' : fullName,
-
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-
-                        style: const TextStyle(
-                          color: textDark,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-
-                      if (email.isNotEmpty) ...[
-                        const SizedBox(height: 5),
-
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.email_outlined,
-                              size: 14,
-                              color: Colors.grey.shade500,
-                            ),
-
-                            const SizedBox(width: 5),
-
-                            Expanded(
-                              child: Text(
-                                email,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-
-                                style: TextStyle(
-                                  color: Colors.grey.shade600,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-
-                      if (phone.isNotEmpty) ...[
-                        const SizedBox(height: 4),
-
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.phone_outlined,
-                              size: 14,
-                              color: Colors.grey.shade500,
-                            ),
-
-                            const SizedBox(width: 5),
-
-                            Text(
-                              phone,
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 11,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-
-                const SizedBox(width: 8),
-
-                // ====================================================
-                // ROLE BADGE
-                // ====================================================
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 6,
-                  ),
-
-                  decoration: BoxDecoration(
-                    color: Colors.orange.withOpacity(.09),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-
-                  child: const Text(
-                    'ADMIN',
-                    style: TextStyle(
-                      color: Colors.orange,
-                      fontSize: 9,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
+    return ListView(
+      controller: controller,
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 32),
+      children: [
+        SpSheetHeader(
+          name: a.name,
+          subtitle: 'Administrator · $schoolName',
+          tags: [
+            const SpTag(
+              'School admin',
+              color: SpColors.orange,
+              icon: Icons.admin_panel_settings_rounded,
             ),
-          ),
+            if (a.isActive != null)
+              SpTag(
+                a.isActive! ? 'Active' : 'Inactive',
+                color: a.isActive! ? SpColors.green : SpColors.red,
+                icon: a.isActive!
+                    ? Icons.check_circle_rounded
+                    : Icons.block_rounded,
+              ),
+          ],
         ),
-      ),
-    );
-  }
 
-  // ================================================================
-  // EMPTY STATE
-  // ================================================================
-
-  Widget _emptyState(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 25, vertical: 40),
-
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.grey.shade200),
-      ),
-
-      child: Column(
-        children: [
-          Container(
-            width: 70,
-            height: 70,
-
-            decoration: BoxDecoration(
-              color: primaryLight,
-              shape: BoxShape.circle,
-            ),
-
-            child: const Icon(
-              Icons.admin_panel_settings_outlined,
-              color: primary,
-              size: 34,
-            ),
-          ),
-
-          const SizedBox(height: 18),
-
-          const Text(
-            'No administrators yet',
-            style: TextStyle(
-              color: textDark,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-
-          const SizedBox(height: 7),
-
-          Text(
-            'Create the first administrator for $schoolName.',
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 12,
-              height: 1.4,
-            ),
-          ),
-
-          const SizedBox(height: 20),
-
-          ElevatedButton.icon(
-            onPressed: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => CreateSchoolAdminPage(
-                    schoolId: schoolId,
-                    schoolName: schoolName,
-                  ),
-                ),
-              );
-            },
-
-            icon: const Icon(Icons.person_add_alt_1, size: 18),
-
-            label: const Text('Create Administrator'),
-
-            style: ElevatedButton.styleFrom(
-              backgroundColor: primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-
-              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // ERROR STATE
-  // ================================================================
-
-  Widget _errorState(BuildContext context, WidgetRef ref, Object error) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(25),
-
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-
+        const SpSectionTitle('Contact'),
+        SpGroup(
           children: [
-            Container(
-              width: 70,
-              height: 70,
-
-              decoration: BoxDecoration(
-                color: Colors.red.withOpacity(.08),
-                shape: BoxShape.circle,
-              ),
-
-              child: const Icon(
-                Icons.error_outline_rounded,
-                color: Colors.red,
-                size: 35,
-              ),
+            SpInfoRow(
+              icon: Icons.email_outlined,
+              label: 'Login email',
+              value: a.email ?? 'Not provided',
+              copyable: a.email != null,
             ),
-
-            const SizedBox(height: 18),
-
-            const Text(
-              'Unable to load administrators',
-              textAlign: TextAlign.center,
-
-              style: TextStyle(
-                color: textDark,
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              error.toString(),
-              textAlign: TextAlign.center,
-
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-            ),
-
-            const SizedBox(height: 20),
-
-            ElevatedButton.icon(
-              onPressed: () {
-                ref.invalidate(schoolAdminsProvider(schoolId));
-              },
-
-              icon: const Icon(Icons.refresh_rounded),
-
-              label: const Text('Try Again'),
-
-              style: ElevatedButton.styleFrom(
-                backgroundColor: primary,
-                foregroundColor: Colors.white,
-                elevation: 0,
-
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-              ),
+            SpInfoRow(
+              icon: Icons.phone_outlined,
+              label: 'Phone',
+              value: a.phone ?? 'Not provided',
+              copyable: a.phone != null,
+              color: SpColors.green,
             ),
           ],
         ),
+
+        const SpSectionTitle('Account'),
+        SpGroup(
+          children: [
+            SpInfoRow(
+              icon: Icons.apartment_rounded,
+              label: 'School',
+              value: schoolName,
+              color: SpColors.purple,
+            ),
+            const SpInfoRow(
+              icon: Icons.verified_user_outlined,
+              label: 'Role',
+              value: 'Administrator',
+              color: SpColors.orange,
+            ),
+            if (a.createdAt != null)
+              SpInfoRow(
+                icon: Icons.event_outlined,
+                label: 'Added on',
+                value: _formatDate(a.createdAt!),
+                color: SpColors.blue,
+              ),
+            if (a.id != null)
+              SpInfoRow(
+                icon: Icons.fingerprint_rounded,
+                label: 'Account ID',
+                value: a.id!,
+                copyable: true,
+                color: SpColors.textSoft,
+              ),
+          ],
+        ),
+
+        const SpSectionTitle('What they can do'),
+        const SpGroup(
+          children: [
+            _PermissionRow(
+              icon: Icons.groups_rounded,
+              text: 'Add and manage students, parents and teachers',
+            ),
+            _PermissionRow(
+              icon: Icons.class_rounded,
+              text: 'Create classes, subjects, departments and trades',
+            ),
+            _PermissionRow(
+              icon: Icons.assessment_rounded,
+              text: 'Enter and publish results, track attendance',
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 14),
+        const Text(
+          'Long-press a row to copy it.',
+          textAlign: TextAlign.center,
+          style: TextStyle(color: SpColors.textSoft, fontSize: 11),
+        ),
+      ],
+    );
+  }
+}
+
+class _PermissionRow extends StatelessWidget {
+  const _PermissionRow({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: SpColors.primary.withOpacity(.07),
+              borderRadius: BorderRadius.circular(11),
+            ),
+            child: Icon(icon, color: SpColors.primary, size: 18),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(
+                color: SpColors.textDark,
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

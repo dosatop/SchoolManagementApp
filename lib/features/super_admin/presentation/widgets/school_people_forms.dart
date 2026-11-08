@@ -29,6 +29,214 @@ Future<bool> showAddStudentSheet(
 Future<bool> showAddClassSheet(BuildContext context, String schoolId) =>
     _openForm(context, _AddClassForm(schoolId: schoolId), 'Class created');
 
+Future<bool> showEditStudentSheet(
+  BuildContext context,
+  String schoolId,
+  SchoolStudent student,
+) => _openForm(
+  context,
+  _AddStudentForm(schoolId: schoolId, existing: student),
+  'Student updated',
+);
+
+Future<bool> showEditClassSheet(
+  BuildContext context,
+  String schoolId,
+  SchoolClass schoolClass,
+) => _openForm(
+  context,
+  _AddClassForm(schoolId: schoolId, existing: schoolClass),
+  'Class updated',
+);
+
+Future<bool> showEditTeacherSheet(
+  BuildContext context,
+  String schoolId,
+  SchoolTeacher teacher,
+) => _openForm(
+  context,
+  _EditTeacherForm(schoolId: schoolId, teacher: teacher),
+  'Teacher updated',
+);
+
+// ====================================================================
+// CONFIRM + RUN A DESTRUCTIVE ACTION
+// ====================================================================
+// Asks first, runs [action] (null = success, else an error message),
+// and shows the result. Returns true when it succeeded.
+
+Future<bool> confirmAndRun(
+  BuildContext context, {
+  required String title,
+  required String message,
+  required String confirmLabel,
+  required String successMessage,
+  required Future<String?> Function() action,
+}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (context) => AlertDialog(
+      backgroundColor: Colors.white,
+      surfaceTintColor: Colors.white,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      icon: Container(
+        width: 56,
+        height: 56,
+        decoration: BoxDecoration(
+          color: SpColors.red.withOpacity(.1),
+          shape: BoxShape.circle,
+        ),
+        child: const Icon(
+          Icons.warning_amber_rounded,
+          color: SpColors.red,
+          size: 28,
+        ),
+      ),
+      title: Text(
+        title,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: SpColors.textDark,
+          fontSize: 17,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      content: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: const TextStyle(
+          color: SpColors.textSoft,
+          fontSize: 13,
+          height: 1.45,
+        ),
+      ),
+      actionsAlignment: MainAxisAlignment.center,
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text(
+            'Cancel',
+            style: TextStyle(color: SpColors.textSoft),
+          ),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          style: FilledButton.styleFrom(
+            backgroundColor: SpColors.red,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+            ),
+          ),
+          child: Text(confirmLabel),
+        ),
+      ],
+    ),
+  );
+
+  if (ok != true || !context.mounted) return false;
+
+  // Blocking progress while the server works.
+  showDialog<void>(
+    context: context,
+    barrierDismissible: false,
+    builder: (_) => const PopScope(
+      canPop: false,
+      child: Center(
+        child: CircularProgressIndicator(color: Colors.white),
+      ),
+    ),
+  );
+
+  final error = await action();
+
+  if (!context.mounted) return error == null;
+  Navigator.of(context, rootNavigator: true).pop(); // progress
+
+  HapticFeedback.mediumImpact();
+  ScaffoldMessenger.of(context)
+    ..hideCurrentSnackBar()
+    ..showSnackBar(
+      SnackBar(
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: error == null ? SpColors.green : SpColors.red,
+        content: Text(error ?? successMessage),
+      ),
+    );
+
+  return error == null;
+}
+
+// ====================================================================
+// SHEET ACTION BUTTONS (Edit / Delete row at the bottom of a sheet)
+// ====================================================================
+
+class SpSheetActions extends StatelessWidget {
+  const SpSheetActions({
+    super.key,
+    this.onEdit,
+    this.editLabel = 'Edit',
+    required this.onDelete,
+    this.deleteLabel = 'Delete',
+    this.deleteIcon = Icons.delete_outline_rounded,
+  });
+
+  final VoidCallback? onEdit;
+  final String editLabel;
+  final VoidCallback onDelete;
+  final String deleteLabel;
+  final IconData deleteIcon;
+
+  @override
+  Widget build(BuildContext context) {
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(15),
+    );
+    const text = TextStyle(fontSize: 14, fontWeight: FontWeight.bold);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 22),
+      child: Row(
+        children: [
+          if (onEdit != null) ...[
+            Expanded(
+              child: SizedBox(
+                height: 50,
+                child: FilledButton.icon(
+                  onPressed: onEdit,
+                  icon: const Icon(Icons.edit_rounded, size: 19),
+                  label: Text(editLabel),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: SpColors.primary,
+                    shape: shape,
+                    textStyle: text,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: SizedBox(
+              height: 50,
+              child: OutlinedButton.icon(
+                onPressed: onDelete,
+                icon: Icon(deleteIcon, size: 19),
+                label: Text(deleteLabel),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: SpColors.red,
+                  side: BorderSide(color: SpColors.red.withOpacity(.5)),
+                  shape: shape,
+                  textStyle: text,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 Future<bool> _openForm(
   BuildContext context,
   Widget form,
@@ -174,10 +382,17 @@ class _AddTeacherFormState extends ConsumerState<_AddTeacherForm> {
 // ====================================================================
 
 class _AddStudentForm extends ConsumerStatefulWidget {
-  const _AddStudentForm({required this.schoolId, this.initialClassId});
+  const _AddStudentForm({
+    required this.schoolId,
+    this.initialClassId,
+    this.existing,
+  });
 
   final String schoolId;
   final String? initialClassId;
+
+  /// Set when editing; null when adding.
+  final SchoolStudent? existing;
 
   @override
   ConsumerState<_AddStudentForm> createState() => _AddStudentFormState();
@@ -185,16 +400,20 @@ class _AddStudentForm extends ConsumerStatefulWidget {
 
 class _AddStudentFormState extends ConsumerState<_AddStudentForm> {
   final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
-  final _email = TextEditingController();
-  final _phone = TextEditingController();
-  final _number = TextEditingController();
+  late final _name = TextEditingController(text: widget.existing?.fullName);
+  late final _email = TextEditingController(text: widget.existing?.email);
+  late final _phone = TextEditingController(text: widget.existing?.phoneNumber);
+  late final _number = TextEditingController(
+    text: widget.existing?.studentNumber,
+  );
   final _password = TextEditingController();
 
-  late String? _classId = widget.initialClassId;
-  String? _departmentId;
-  String? _tradeId;
-  String? _tradeSubjectId;
+  bool get _editing => widget.existing != null;
+
+  late String? _classId = widget.existing?.classId ?? widget.initialClassId;
+  late String? _departmentId = widget.existing?.departmentId;
+  late String? _tradeId = widget.existing?.tradeId;
+  late String? _tradeSubjectId = widget.existing?.tradeSubjectId;
 
   bool _saving = false;
   String? _error;
@@ -218,20 +437,34 @@ class _AddStudentFormState extends ConsumerState<_AddStudentForm> {
       _error = null;
     });
 
-    final error = await ref
-        .read(schoolPeopleActionsProvider)
-        .createStudent(
-          widget.schoolId,
-          fullName: _name.text.trim(),
-          email: _email.text.trim(),
-          password: _password.text,
-          classId: _classId!,
-          phoneNumber: _blankToNull(_phone.text),
-          studentNumber: _blankToNull(_number.text),
-          departmentId: _departmentId,
-          tradeId: _tradeId,
-          tradeSubjectId: _tradeSubjectId,
-        );
+    final actions = ref.read(schoolPeopleActionsProvider);
+
+    final error = _editing
+        ? await actions.updateStudent(
+            widget.schoolId,
+            studentId: widget.existing!.id,
+            fullName: _name.text.trim(),
+            email: _email.text.trim(),
+            studentNumber: _number.text.trim(),
+            classId: _classId!,
+            phoneNumber: _blankToNull(_phone.text),
+            newPassword: _blankToNull(_password.text),
+            departmentId: _departmentId,
+            tradeId: _tradeId,
+            tradeSubjectId: _tradeSubjectId,
+          )
+        : await actions.createStudent(
+            widget.schoolId,
+            fullName: _name.text.trim(),
+            email: _email.text.trim(),
+            password: _password.text,
+            classId: _classId!,
+            phoneNumber: _blankToNull(_phone.text),
+            studentNumber: _blankToNull(_number.text),
+            departmentId: _departmentId,
+            tradeId: _tradeId,
+            tradeSubjectId: _tradeSubjectId,
+          );
 
     if (!mounted) return;
 
@@ -263,12 +496,24 @@ class _AddStudentFormState extends ConsumerState<_AddStudentForm> {
     }
     final tradeSubjects = trade?.subjects ?? const <SchoolOption>[];
 
+    // A value missing from its list would crash the dropdown.
+    final departmentValue =
+        options.departments.any((d) => d.id == _departmentId)
+        ? _departmentId
+        : null;
+    final tradeValue = trade?.id;
+    final tradeSubjectValue = tradeSubjects.any((x) => x.id == _tradeSubjectId)
+        ? _tradeSubjectId
+        : null;
+
     return _FormSheet(
-      icon: Icons.school_rounded,
-      color: SpColors.purple,
-      title: 'Add student',
-      subtitle: 'They sign in with this email and password.',
-      buttonLabel: 'Create student',
+      icon: _editing ? Icons.edit_rounded : Icons.school_rounded,
+      color: _editing ? SpColors.primary : SpColors.purple,
+      title: _editing ? 'Edit student' : 'Add student',
+      subtitle: _editing
+          ? 'Changing the email changes how they sign in.'
+          : 'They sign in with this email and password.',
+      buttonLabel: _editing ? 'Save changes' : 'Create student',
       saving: _saving,
       error: _error,
       onSubmit: _submit,
@@ -298,7 +543,7 @@ class _AddStudentFormState extends ConsumerState<_AddStudentForm> {
               icon: Icons.phone_outlined,
               keyboard: TextInputType.phone,
             ),
-            _PasswordField(controller: _password),
+            _PasswordField(controller: _password, optional: _editing),
 
             const _GroupLabel('School'),
             _Dropdown(
@@ -318,15 +563,20 @@ class _AddStudentFormState extends ConsumerState<_AddStudentForm> {
             ),
             _Field(
               controller: _number,
-              label: 'Student number (optional)',
+              label: _editing ? 'Student number' : 'Student number (optional)',
               icon: Icons.badge_outlined,
-              helper: 'Leave empty to generate one automatically.',
+              helper: _editing
+                  ? null
+                  : 'Leave empty to generate one automatically.',
+              validator: _editing
+                  ? _required('Enter the student number')
+                  : null,
             ),
             if (options.departments.isNotEmpty)
               _Dropdown(
                 label: 'Department (optional)',
                 icon: Icons.account_tree_outlined,
-                value: _departmentId,
+                value: departmentValue,
                 items: [
                   const DropdownMenuItem<String>(
                     value: null,
@@ -341,7 +591,7 @@ class _AddStudentFormState extends ConsumerState<_AddStudentForm> {
               _Dropdown(
                 label: 'Trade (optional)',
                 icon: Icons.handyman_outlined,
-                value: _tradeId,
+                value: tradeValue,
                 items: [
                   const DropdownMenuItem<String>(
                     value: null,
@@ -360,7 +610,7 @@ class _AddStudentFormState extends ConsumerState<_AddStudentForm> {
                   key: ValueKey('trade-subject-$_tradeId'),
                   label: 'Trade subject (optional)',
                   icon: Icons.menu_book_outlined,
-                  value: _tradeSubjectId,
+                  value: tradeSubjectValue,
                   items: [
                     const DropdownMenuItem<String>(
                       value: null,
@@ -393,9 +643,12 @@ class _AddStudentFormState extends ConsumerState<_AddStudentForm> {
 // ====================================================================
 
 class _AddClassForm extends ConsumerStatefulWidget {
-  const _AddClassForm({required this.schoolId});
+  const _AddClassForm({required this.schoolId, this.existing});
 
   final String schoolId;
+
+  /// Set when editing (rename); null when creating.
+  final SchoolClass? existing;
 
   @override
   ConsumerState<_AddClassForm> createState() => _AddClassFormState();
@@ -403,7 +656,9 @@ class _AddClassForm extends ConsumerStatefulWidget {
 
 class _AddClassFormState extends ConsumerState<_AddClassForm> {
   final _formKey = GlobalKey<FormState>();
-  final _name = TextEditingController();
+  late final _name = TextEditingController(text: widget.existing?.name);
+
+  bool get _editing => widget.existing != null;
 
   bool _saving = false;
   String? _error;
@@ -432,9 +687,15 @@ class _AddClassFormState extends ConsumerState<_AddClassForm> {
       _error = null;
     });
 
-    final error = await ref
-        .read(schoolPeopleActionsProvider)
-        .createClass(widget.schoolId, name: _name.text.trim());
+    final actions = ref.read(schoolPeopleActionsProvider);
+
+    final error = _editing
+        ? await actions.updateClass(
+            widget.schoolId,
+            classId: widget.existing!.id,
+            name: _name.text.trim(),
+          )
+        : await actions.createClass(widget.schoolId, name: _name.text.trim());
 
     if (!mounted) return;
 
@@ -453,19 +714,26 @@ class _AddClassFormState extends ConsumerState<_AddClassForm> {
     final existing =
         (ref.watch(schoolClassesProvider(widget.schoolId)).valueOrNull ??
                 const <SchoolClass>[])
+            .where((c) => c.id != widget.existing?.id) // its own name is fine
             .map((c) => c.name.toLowerCase().replaceAll(' ', ''))
             .toSet();
 
-    final suggestions = _suggestions
-        .where((s) => !existing.contains(s.toLowerCase().replaceAll(' ', '')))
-        .toList();
+    final suggestions = _editing
+        ? const <String>[]
+        : _suggestions
+              .where(
+                (s) => !existing.contains(s.toLowerCase().replaceAll(' ', '')),
+              )
+              .toList();
 
     return _FormSheet(
-      icon: Icons.class_rounded,
-      color: SpColors.blue,
-      title: 'Create class',
-      subtitle: 'Students and teachers can be added to it after.',
-      buttonLabel: 'Create class',
+      icon: _editing ? Icons.edit_rounded : Icons.class_rounded,
+      color: _editing ? SpColors.primary : SpColors.blue,
+      title: _editing ? 'Rename class' : 'Create class',
+      subtitle: _editing
+          ? 'Students and teachers stay in the class.'
+          : 'Students and teachers can be added to it after.',
+      buttonLabel: _editing ? 'Save changes' : 'Create class',
       saving: _saving,
       error: _error,
       onSubmit: _submit,
@@ -526,6 +794,116 @@ class _AddClassFormState extends ConsumerState<_AddClassForm> {
                 ],
               ),
             ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ====================================================================
+// EDIT TEACHER
+// ====================================================================
+
+class _EditTeacherForm extends ConsumerStatefulWidget {
+  const _EditTeacherForm({required this.schoolId, required this.teacher});
+
+  final String schoolId;
+  final SchoolTeacher teacher;
+
+  @override
+  ConsumerState<_EditTeacherForm> createState() => _EditTeacherFormState();
+}
+
+class _EditTeacherFormState extends ConsumerState<_EditTeacherForm> {
+  final _formKey = GlobalKey<FormState>();
+  late final _name = TextEditingController(text: widget.teacher.fullName);
+  late final _email = TextEditingController(text: widget.teacher.email ?? '');
+  late final _phone = TextEditingController(
+    text: widget.teacher.phoneNumber ?? '',
+  );
+  final _password = TextEditingController();
+
+  bool _saving = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _email.dispose();
+    _phone.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    FocusScope.of(context).unfocus();
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
+
+    final error = await ref
+        .read(schoolPeopleActionsProvider)
+        .updateTeacher(
+          widget.schoolId,
+          teacherId: widget.teacher.id,
+          fullName: _name.text.trim(),
+          email: _email.text.trim(),
+          phoneNumber: _blankToNull(_phone.text),
+          newPassword: _blankToNull(_password.text),
+        );
+
+    if (!mounted) return;
+
+    if (error == null) {
+      Navigator.of(context).pop(true);
+    } else {
+      setState(() {
+        _saving = false;
+        _error = error;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _FormSheet(
+      icon: Icons.edit_rounded,
+      color: SpColors.primary,
+      title: 'Edit teacher',
+      subtitle: 'Changing the email changes how they sign in.',
+      buttonLabel: 'Save changes',
+      saving: _saving,
+      error: _error,
+      onSubmit: _submit,
+      child: Form(
+        key: _formKey,
+        child: Column(
+          children: [
+            _Field(
+              controller: _name,
+              label: 'Full name',
+              icon: Icons.person_outline_rounded,
+              capitalization: TextCapitalization.words,
+              validator: _required('Enter the full name'),
+            ),
+            _Field(
+              controller: _email,
+              label: 'Email',
+              icon: Icons.email_outlined,
+              keyboard: TextInputType.emailAddress,
+              validator: _emailValidator,
+            ),
+            _Field(
+              controller: _phone,
+              label: 'Phone (optional)',
+              icon: Icons.phone_outlined,
+              keyboard: TextInputType.phone,
+            ),
+            _PasswordField(controller: _password, optional: true),
           ],
         ),
       ),
@@ -803,9 +1181,12 @@ class _Field extends StatelessWidget {
 }
 
 class _PasswordField extends StatefulWidget {
-  const _PasswordField({required this.controller});
+  const _PasswordField({required this.controller, this.optional = false});
 
   final TextEditingController controller;
+
+  /// Editing: empty = keep the current password.
+  final bool optional;
 
   @override
   State<_PasswordField> createState() => _PasswordFieldState();
@@ -857,15 +1238,20 @@ class _PasswordFieldState extends State<_PasswordField> {
             autocorrect: false,
             enableSuggestions: false,
             validator: (v) {
-              if ((v ?? '').length < 6) {
+              final value = v ?? '';
+              if (widget.optional && value.isEmpty) return null;
+              if (value.length < 6) {
                 return 'Use at least 6 characters';
               }
               return null;
             },
             style: const TextStyle(fontSize: 14, color: SpColors.textDark),
             decoration: _decoration(
-              'Password',
+              widget.optional ? 'New password (optional)' : 'Password',
               Icons.lock_outline_rounded,
+              helper: widget.optional
+                  ? 'Leave empty to keep their current password.'
+                  : null,
               suffix: IconButton(
                 onPressed: () => setState(() => _hidden = !_hidden),
                 icon: Icon(

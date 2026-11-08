@@ -5,7 +5,6 @@ import 'package:app/features/super_admin/data/super_admin_repository.dart';
 import 'package:app/features/super_admin/models/create_school_request.dart';
 import 'package:app/features/super_admin/models/school_model.dart';
 import 'package:app/features/super_admin/models/school_people_models.dart';
-import 'package:app/features/super_admin/models/school_people_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 // ====================================================================
@@ -196,6 +195,124 @@ class SchoolPeopleActions {
 
     _ref.invalidate(schoolClassesProvider(schoolId));
     _refreshSchools();
+    return null;
+  }
+
+  // ================================================================
+  // EDIT / DELETE (SuperAdminController)
+  // ================================================================
+
+  Future<String?> updateTeacher(
+    String schoolId, {
+    required String teacherId,
+    required String fullName,
+    required String email,
+    String? phoneNumber,
+    String? newPassword,
+  }) => _run(
+    () => _repo.updateSchoolTeacher(
+      schoolId,
+      teacherId,
+      fullName: fullName,
+      email: email,
+      phoneNumber: phoneNumber,
+      newPassword: newPassword,
+    ),
+    () {
+      _ref.invalidate(schoolTeachersProvider(schoolId));
+      _ref.invalidate(schoolClassesProvider(schoolId)); // teacher names
+    },
+  );
+
+  Future<String?> deleteTeacher(
+    String schoolId, {
+    required String teacherId,
+  }) => _run(() => _repo.deleteSchoolTeacher(schoolId, teacherId), () {
+    _ref.invalidate(schoolTeachersProvider(schoolId));
+    _ref.invalidate(schoolClassesProvider(schoolId));
+    _refreshSchools();
+  });
+
+  Future<String?> updateStudent(
+    String schoolId, {
+    required String studentId,
+    required String fullName,
+    required String email,
+    required String studentNumber,
+    required String classId,
+    String? phoneNumber,
+    String? newPassword,
+    String? departmentId,
+    String? tradeId,
+    String? tradeSubjectId,
+  }) => _run(
+    () => _repo.updateSchoolStudent(
+      schoolId,
+      studentId,
+      fullName: fullName,
+      email: email,
+      studentNumber: studentNumber,
+      classId: classId,
+      phoneNumber: phoneNumber,
+      newPassword: newPassword,
+      departmentId: departmentId,
+      tradeId: tradeId,
+      tradeSubjectId: tradeSubjectId,
+    ),
+    () {
+      _ref.invalidate(schoolStudentsProvider(schoolId));
+      _ref.invalidate(schoolClassesProvider(schoolId)); // class moved
+    },
+  );
+
+  Future<String?> deleteStudent(
+    String schoolId, {
+    required String studentId,
+  }) => _run(() => _repo.deleteSchoolStudent(schoolId, studentId), () {
+    _ref.invalidate(schoolStudentsProvider(schoolId));
+    _ref.invalidate(schoolClassesProvider(schoolId));
+    _refreshSchools();
+  });
+
+  Future<String?> updateClass(
+    String schoolId, {
+    required String classId,
+    required String name,
+  }) => _run(() => _repo.updateSchoolClass(schoolId, classId, name: name), () {
+    _ref.invalidate(schoolClassesProvider(schoolId));
+    _ref.invalidate(schoolStudentsProvider(schoolId)); // class names
+    _ref.invalidate(schoolTeachersProvider(schoolId));
+  });
+
+  Future<String?> deleteClass(
+    String schoolId, {
+    required String classId,
+  }) => _run(() => _repo.deleteSchoolClass(schoolId, classId), () {
+    _ref.invalidate(schoolClassesProvider(schoolId));
+    _ref.invalidate(schoolTeachersProvider(schoolId));
+    _refreshSchools();
+  });
+
+  Future<String?> removeClassTeacher(
+    String schoolId, {
+    required String classId,
+  }) => _run(() => _repo.removeClassTeacher(schoolId, classId), () {
+    _ref.invalidate(schoolClassesProvider(schoolId));
+    _ref.invalidate(schoolTeachersProvider(schoolId));
+  });
+
+  // Runs [call]; on success runs [after] and returns null, otherwise
+  // returns the server's message.
+  Future<String?> _run(
+    Future<void> Function() call,
+    void Function() after,
+  ) async {
+    try {
+      await call();
+    } catch (error) {
+      return schoolPeopleError(error);
+    }
+    after();
     return null;
   }
 
