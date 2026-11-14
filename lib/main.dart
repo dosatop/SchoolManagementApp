@@ -7,16 +7,15 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
- 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   FirebaseMessaging.onBackgroundMessage(firebaseBackgroundHandler);
- 
+
   // ...your existing setup (storage, onboarding store, etc.)...
- 
+  // Read "has seen onboarding" so the router knows on the first frame.
+  await OnboardingStore.load();
+
   runApp(const ProviderScope(child: SchoolManagementApp()));
 }
