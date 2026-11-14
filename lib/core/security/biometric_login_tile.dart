@@ -70,70 +70,14 @@ class _BiometricLoginTileState extends ConsumerState<BiometricLoginTile> {
     }
   }
 
+  /// The dialog owns its own text controller, so it is only disposed
+  /// after the closing animation finishes (disposing it straight after
+  /// Navigator.pop crashed the dialog while it was still on screen).
   Future<String?> _askPassword(String label) {
-    final controller = TextEditingController();
-    var hidden = true;
-
     return showDialog<String>(
       context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (context, setLocal) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-          title: Text(
-            'Turn on $label login',
-            style: const TextStyle(fontWeight: FontWeight.w800),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Enter your password once. It stays locked on this phone and '
-                'is only used after your scan.',
-              ),
-              const SizedBox(height: 14),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                obscureText: hidden,
-                decoration: InputDecoration(
-                  labelText: 'Password',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  suffixIcon: IconButton(
-                    onPressed: () => setLocal(() => hidden = !hidden),
-                    icon: Icon(
-                      hidden
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined,
-                    ),
-                  ),
-                ),
-                onSubmitted: (v) {
-                  if (v.isNotEmpty) Navigator.pop(dialogContext, v);
-                },
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              style: FilledButton.styleFrom(backgroundColor: widget.color),
-              onPressed: () {
-                if (controller.text.isNotEmpty) {
-                  Navigator.pop(dialogContext, controller.text);
-                }
-              },
-              child: const Text('Continue'),
-            ),
-          ],
-        ),
-      ),
-    ).whenComplete(controller.dispose);
+      builder: (_) => _PasswordDialog(label: label, color: widget.color),
+    );
   }
 
   void _snack(String message, {bool error = false}) {
@@ -221,6 +165,94 @@ class _BiometricLoginTileState extends ConsumerState<BiometricLoginTile> {
                 ),
         ],
       ),
+    );
+  }
+}
+
+// ====================================================================
+// PASSWORD DIALOG
+// ====================================================================
+
+class _PasswordDialog extends StatefulWidget {
+  const _PasswordDialog({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  State<_PasswordDialog> createState() => _PasswordDialogState();
+}
+
+class _PasswordDialogState extends State<_PasswordDialog> {
+  final _controller = TextEditingController();
+  bool _hidden = true;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    final value = _controller.text;
+    if (value.isEmpty) return;
+    FocusScope.of(context).unfocus();
+    Navigator.pop(context, value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+      title: Text(
+        'Turn on ${widget.label} login',
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter your password once. It stays locked on this phone and '
+              'is only used after your scan.',
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              obscureText: _hidden,
+              textInputAction: TextInputAction.done,
+              onSubmitted: (_) => _submit(),
+              decoration: InputDecoration(
+                labelText: 'Password',
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                suffixIcon: IconButton(
+                  onPressed: () => setState(() => _hidden = !_hidden),
+                  icon: Icon(
+                    _hidden
+                        ? Icons.visibility_outlined
+                        : Icons.visibility_off_outlined,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: widget.color),
+          onPressed: _submit,
+          child: const Text('Continue'),
+        ),
+      ],
     );
   }
 }
