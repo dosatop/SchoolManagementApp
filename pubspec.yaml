@@ -50,6 +50,7 @@ dependencies:
   file_picker: ^11.0.2
   firebase_core: ^5.1.0
   firebase_messaging: ^17.0.1
+  local_auth: ^2.3.0
 
 dev_dependencies:
   flutter_test:
@@ -68,15 +69,23 @@ dev_dependencies:
 
 flutter_native_splash:
   color: "#FFFFFF"
-  image: assets/images/splash_logo.png
+  image: assets/icon/logo_icon.png
   android: true
   ios: true
   web: false
 
+  android_12:
+    color: "#FFFFFF"
+    image: assets/icon/adaptive_foreground.png
+    icon_background_color: "#091993"
+
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: assets/images/app_logo.png
+  image_path: "assets/icon/app_icon_square.png"
+  adaptive_icon_background: "#091993"
+  adaptive_icon_foreground: "assets/icon/adaptive_foreground.png"
+  remove_alpha_ios: true
 
 
 # For information on the generic Dart part of this file, see the

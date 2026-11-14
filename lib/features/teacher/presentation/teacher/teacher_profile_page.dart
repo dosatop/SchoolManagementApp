@@ -1,3 +1,4 @@
+import 'package:app/core/security/biometric_login_tile.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/students/presentation/widgets/student_ui.dart';
@@ -200,6 +201,14 @@ class TeacherProfilePage extends ConsumerWidget {
           _InfoItem(Icons.school_outlined, 'Qualification', qualification),
           _InfoItem(Icons.account_tree_outlined, 'Department', department),
         ]),
+
+        // ------------------------------------------------------------
+        // SECURITY (hidden on phones with no fingerprint / Face ID)
+        // ------------------------------------------------------------
+        const SizedBox(height: 22),
+        _sectionTitle('Security'),
+        const SizedBox(height: 10),
+        const BiometricLoginTile(color: primary),
 
         const SizedBox(height: 28),
 
