@@ -57,16 +57,14 @@ class DefaultFirebaseOptions {
     projectId: 'smart-bae4c',
     storageBucket: 'smart-bae4c.firebasestorage.app',
   );
-
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyD2BRlUyw9VW4AOFH9RzRG-P6wWb8VpiO4',
-    appId: '1:594285699922:ios:9154e99ff52b176539908b',
+    appId: '1:594285699922:ios:08af3e9170833dd639908b',
     messagingSenderId: '594285699922',
     projectId: 'smart-bae4c',
     storageBucket: 'smart-bae4c.firebasestorage.app',
-    iosBundleId: 'com.example.app',
+    iosBundleId: 'com.smart.schoolapp',
   );
-
   static const FirebaseOptions macos = FirebaseOptions(
     apiKey: 'AIzaSyD2BRlUyw9VW4AOFH9RzRG-P6wWb8VpiO4',
     appId: '1:594285699922:ios:9154e99ff52b176539908b',
