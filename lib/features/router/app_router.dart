@@ -93,10 +93,6 @@ import 'package:app/features/students/presentation/student_results_page.dart';
 import 'package:app/features/students/presentation/student_subjects_page.dart';
 import 'package:app/features/students/presentation/student_timetable_page.dart';
 
-// Onboarding
-import 'package:app/features/onboarding/first_screen.dart';
-import 'package:app/features/onboarding/onboarding_store.dart';
-
 // Study
 import 'package:app/features/study/models/study_model.dart';
 import 'package:app/features/study/presentation/online_study_page.dart';
@@ -158,7 +154,8 @@ import 'package:go_router/go_router.dart';
 // ==================================================================
 
 /// Pages anyone can open without logging in.
-/// (No sign-up: accounts are created by the school.)
+/// (No sign-up: accounts are created by the school. No onboarding
+/// screen: the app opens straight on login.)
 const _publicRoutes = {'/', '/login'};
 
 /// Where each role lands after login.
@@ -214,17 +211,14 @@ GoRouter appRouter(Ref ref) {
   ref.onDispose(authChanges.dispose);
 
   return GoRouter(
-    initialLocation: '/',
+    initialLocation: '/login',
     refreshListenable: authChanges,
     redirect: (context, state) {
       final authState = ref.read(authProvider);
 
       if (authState.isLoading) {
-        // Don't flash onboarding while checking the saved login.
-        if (state.matchedLocation == '/' && OnboardingStore.seen) {
-          return '/login';
-        }
-        return null;
+        // While the saved login is checked, show the login page.
+        return state.matchedLocation == '/' ? '/login' : null;
       }
 
       final auth = authState.value;
@@ -239,10 +233,7 @@ GoRouter appRouter(Ref ref) {
       // NOT LOGGED IN
       // ------------------------------------------------------------
       if (!isAuthenticated) {
-        // Onboarding already seen on this device -> straight to login.
-        if (location == '/' && OnboardingStore.seen) return '/login';
-
-        return isPublic ? null : '/login';
+        return location == '/login' ? null : '/login';
       }
 
       final home = _homeFor(role, schoolId);
@@ -267,9 +258,9 @@ GoRouter appRouter(Ref ref) {
 
     routes: [
       // ============================================================
-      // AUTH / ONBOARDING
+      // AUTH (no onboarding screen; '/' always goes to login)
       // ============================================================
-      GoRoute(path: '/', builder: (context, state) => const FirstScreen()),
+      GoRoute(path: '/', redirect: (context, state) => '/login'),
 
       GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
 
