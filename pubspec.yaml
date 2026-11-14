@@ -68,16 +68,19 @@ dev_dependencies:
 
 flutter_native_splash:
   color: "#FFFFFF"
-  image: assets/icon/logo_horizontal.png    # iOS + Android 11 and older
+  image: assets/icon/logo_icon.png            # icon in the middle
+  branding: assets/icon/splash_branding.png   # "Smart School" at the bottom
+  branding_mode: bottom
+  branding_bottom_padding: 40
   android: true
   ios: true
   web: false
 
   android_12:
     color: "#FFFFFF"
-    image: assets/icon/adaptive_foreground.png   # round icon in the middle
+    image: assets/icon/adaptive_foreground.png
     icon_background_color: "#091993"
-    branding: assets/icon/splash_branding.png     # "Smart School" at the bottom
+    branding: assets/icon/splash_branding.png
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
