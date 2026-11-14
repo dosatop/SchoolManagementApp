@@ -1,4 +1,6 @@
+import 'package:app/core/network/dio_provider.dart';
 import 'package:app/core/security/biometric_service.dart';
+import 'package:dio/dio.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -10,6 +12,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 // Drop into any profile / settings page:
 //     const BiometricLoginTile()
 // Hidden on phones with no fingerprint / face enrolled.
+//
+// The password is checked with the server (POST /account/verify-password)
+// before it is saved, so a typo can't break fingerprint login later.
 
 class BiometricLoginTile extends ConsumerStatefulWidget {
   const BiometricLoginTile({super.key, this.color = const Color(0xFF091993)});
@@ -47,7 +52,7 @@ class _BiometricLoginTileState extends ConsumerState<BiometricLoginTile> {
         return;
       }
 
-      // 1. Password, so the fingerprint can log in for you later.
+      // 1. Password (checked with the server inside the dialog).
       final password = await _askPassword(status.label);
       if (password == null || !mounted) return;
 
@@ -76,8 +81,37 @@ class _BiometricLoginTileState extends ConsumerState<BiometricLoginTile> {
   Future<String?> _askPassword(String label) {
     return showDialog<String>(
       context: context,
-      builder: (_) => _PasswordDialog(label: label, color: widget.color),
+      barrierDismissible: false,
+      builder: (_) => _PasswordDialog(
+        label: label,
+        color: widget.color,
+        verify: _verifyPassword,
+      ),
     );
+  }
+
+  /// null = correct; otherwise the message to show under the field.
+  Future<String?> _verifyPassword(String password) async {
+    try {
+      await ref
+          .read(dioClientProvider)
+          .dio
+          .post('/account/verify-password', data: {'password': password});
+      return null;
+    } on DioException catch (e) {
+      final data = e.response?.data;
+      if (e.response?.statusCode == 400) {
+        return (data is Map && data['message'] is String)
+            ? data['message'] as String
+            : 'Incorrect password.';
+      }
+      if (e.response?.statusCode == 401) {
+        return 'Your session has expired. Log out and sign in again.';
+      }
+      return 'Could not check your password. Check your connection.';
+    } catch (_) {
+      return 'Could not check your password. Try again.';
+    }
   }
 
   void _snack(String message, {bool error = false}) {
@@ -174,10 +208,17 @@ class _BiometricLoginTileState extends ConsumerState<BiometricLoginTile> {
 // ====================================================================
 
 class _PasswordDialog extends StatefulWidget {
-  const _PasswordDialog({required this.label, required this.color});
+  const _PasswordDialog({
+    required this.label,
+    required this.color,
+    required this.verify,
+  });
 
   final String label;
   final Color color;
+
+  /// Returns null when the password is right, or an error message.
+  final Future<String?> Function(String password) verify;
 
   @override
   State<_PasswordDialog> createState() => _PasswordDialogState();
@@ -186,6 +227,8 @@ class _PasswordDialog extends StatefulWidget {
 class _PasswordDialogState extends State<_PasswordDialog> {
   final _controller = TextEditingController();
   bool _hidden = true;
+  bool _checking = false;
+  String? _error;
 
   @override
   void dispose() {
@@ -193,9 +236,26 @@ class _PasswordDialogState extends State<_PasswordDialog> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final value = _controller.text;
-    if (value.isEmpty) return;
+    if (value.isEmpty || _checking) return;
+
+    setState(() {
+      _checking = true;
+      _error = null;
+    });
+
+    final error = await widget.verify(value);
+    if (!mounted) return;
+
+    if (error != null) {
+      setState(() {
+        _checking = false;
+        _error = error;
+      });
+      return;
+    }
+
     FocusScope.of(context).unfocus();
     Navigator.pop(context, value);
   }
@@ -221,11 +281,16 @@ class _PasswordDialogState extends State<_PasswordDialog> {
             TextField(
               controller: _controller,
               autofocus: true,
+              enabled: !_checking,
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
               obscureText: _hidden,
               textInputAction: TextInputAction.done,
               onSubmitted: (_) => _submit(),
               decoration: InputDecoration(
                 labelText: 'Password',
+                errorText: _error,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -244,13 +309,22 @@ class _PasswordDialogState extends State<_PasswordDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _checking ? null : () => Navigator.pop(context),
           child: const Text('Cancel'),
         ),
         FilledButton(
           style: FilledButton.styleFrom(backgroundColor: widget.color),
-          onPressed: _submit,
-          child: const Text('Continue'),
+          onPressed: _checking ? null : _submit,
+          child: _checking
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Continue'),
         ),
       ],
     );
