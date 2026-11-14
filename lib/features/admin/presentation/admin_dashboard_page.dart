@@ -1,5 +1,6 @@
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
+import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:flutter/cupertino.dart' show CupertinoIcons;
@@ -213,6 +214,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           ),
         ],
       ),
+      actions: const [AnnouncementBell(), SizedBox(width: 8)],
     );
   }
 
@@ -870,6 +872,13 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
       Colors.indigo,
       '/admin/$schoolId/academic-sessions',
     ),
+    _Action(
+      Icons.campaign_rounded,
+      'Announcement',
+      'Notify students, parents or staff',
+      Colors.red,
+      '/announcements/compose',
+    ),
   ];
 
   Widget _quickCreateRow() {
@@ -1061,16 +1070,18 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
         Colors.indigo,
         '/admin/$schoolId/academic-sessions',
       ),
+      _Action(
+        Icons.campaign_rounded,
+        'Announcements',
+        'Posts and notifications',
+        Colors.red,
+        '/announcements',
+      ),
     ];
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        32 + glassBottomInset(context),
-      ),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + glassBottomInset(context)),
       children: [
         Text(
           'Everything in ${schoolName == 'My School' ? 'your school' : schoolName}, in one place.',
@@ -1157,12 +1168,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        32 + glassBottomInset(context),
-      ),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + glassBottomInset(context)),
       children: [
         Text(
           'Add new records to your school.',
@@ -1257,12 +1263,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
 
     return ListView(
       physics: const BouncingScrollPhysics(),
-      padding: EdgeInsets.fromLTRB(
-        20,
-        20,
-        20,
-        32 + glassBottomInset(context),
-      ),
+      padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + glassBottomInset(context)),
       children: [
         // Header card
         Container(

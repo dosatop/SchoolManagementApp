@@ -116,8 +116,18 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   // ==================================================================
   // Always logs out locally, even if the server call fails.
 
-  Future<void> logout() async {
-     await ref.read(pushNotificationsProvider).onSigningOut(); // ← add
+    Future<void> logout() async {
+    // Remove this phone's push token — but NEVER let it block or break
+    // logout (slow network, no Firebase token yet, server down…).
+    try {
+      await ref
+          .read(pushNotificationsProvider)
+          .onSigningOut()
+          .timeout(const Duration(seconds: 4));
+    } catch (e) {
+      debugPrint('LOGOUT: push cleanup skipped: $e');
+    }
+
     try {
       await ref.read(authRepositoryProvider).logout();
     } catch (error) {

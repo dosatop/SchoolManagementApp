@@ -106,7 +106,9 @@ class PushNotifications {
           apns = await _fcm.getAPNSToken();
         }
         if (apns == null) {
-          debugPrint('PUSH: no APNs token (simulator, or push capability missing)');
+          debugPrint(
+            'PUSH: no APNs token (simulator, or push capability missing)',
+          );
           return;
         }
       }
@@ -139,24 +141,28 @@ class PushNotifications {
   // ------------------------------------------------------------------
 
   Future<void> onSigningOut() async {
-    final token = _token ?? await _safeGetToken();
+    final token = _token;
+
     if (token == null) return;
 
     try {
-      await _ref.read(announcementApiProvider).unregisterDevice(token);
+      await _ref
+          .read(announcementApiProvider)
+          .unregisterDevice(token)
+          .timeout(const Duration(seconds: 3));
     } catch (_) {
       // Logout must never fail because of this.
     }
     _token = null;
   }
 
-  Future<String?> _safeGetToken() async {
-    try {
-      return await _fcm.getToken();
-    } catch (_) {
-      return null;
-    }
-  }
+  // Future<String?> _safeGetToken() async {
+  //   try {
+  //     return await _fcm.getToken().timeout(const Duration(seconds: 2));
+  //   } catch (_) {
+  //     return null; // e.g. iOS without an APNs token yet
+  //   }
+  // }
 
   // ------------------------------------------------------------------
   // INCOMING MESSAGES
@@ -196,7 +202,9 @@ class PushNotifications {
     final router = _router;
     if (router == null) return;
 
-    if (message.data['type'] == 'announcement' && id is String && id.isNotEmpty) {
+    if (message.data['type'] == 'announcement' &&
+        id is String &&
+        id.isNotEmpty) {
       router.push('/announcements/$id');
     } else {
       router.push('/announcements');
@@ -216,7 +224,9 @@ class PushNotifications {
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 5),
           backgroundColor: const Color(0xFF091993),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
           content: Row(
             children: [
               const Icon(Icons.campaign_rounded, color: Colors.white),
