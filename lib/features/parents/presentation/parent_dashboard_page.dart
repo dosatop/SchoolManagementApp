@@ -1,4 +1,5 @@
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
+import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
 import 'package:app/features/parents/models/parent_child_model.dart';
 import 'package:app/features/parents/parent_provider.dart';
 import 'package:app/features/parents/presentation/parent_assignment_page.dart';
@@ -498,9 +499,9 @@ class _ParentHomeTab extends ConsumerWidget {
                 Expanded(
                   child: _quickTile(
                     icon: Icons.campaign_outlined,
-                    label: 'Updates',
+                    label: 'Announcements',
                     color: Colors.orange,
-                    onTap: () => context.push('/parent/announcements'),
+                    onTap: () => context.push('/announcements'),
                   ),
                 ),
               ],
@@ -586,6 +587,20 @@ class _ParentHomeTab extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 14),
+          // ---------------- Announcements bell ----------------
+          Container(
+            width: 44,
+            height: 44,
+            margin: const EdgeInsets.only(right: 10),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .16),
+              shape: BoxShape.circle,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: .25),
+              ),
+            ),
+            child: const AnnouncementBell(color: Colors.white),
+          ),
           Container(
             width: 58,
             height: 58,

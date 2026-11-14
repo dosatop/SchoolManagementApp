@@ -1,4 +1,5 @@
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
+import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/students/presentation/widgets/student_ui.dart';
 import 'package:app/features/teacher/presentation/assignment/teacher_assignments_page.dart';
@@ -400,6 +401,20 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
                         ],
                       ),
                     ),
+                    // ---------------- Announcements bell ----------------
+                    Container(
+                      width: 44,
+                      height: 44,
+                      margin: const EdgeInsets.only(right: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .16),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: .25),
+                        ),
+                      ),
+                      child: const AnnouncementBell(color: Colors.white),
+                    ),
                     GestureDetector(
                       onTap: () => widget.onNavigate(3),
                       child: Container(
@@ -581,6 +596,12 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
         'Timetable',
         const Color(0xFF2563EB),
         () => _open(const TeacherTimetablePage()),
+      ),
+      (
+        Icons.campaign_rounded,
+        'Announce',
+        const Color(0xFFDC2626),
+        () => context.push('/announcements/compose'),
       ),
     ];
 

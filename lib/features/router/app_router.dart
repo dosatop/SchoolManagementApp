@@ -44,6 +44,7 @@ import 'package:app/features/announcements/models/announcement_model.dart';
 import 'package:app/features/announcements/presentation/announcement_details_page.dart';
 import 'package:app/features/announcements/presentation/announcements_page.dart';
 import 'package:app/features/announcements/presentation/compose_announcement_page.dart';
+import 'package:app/features/announcements/provider/announcement_provider.dart';
 
 import 'package:app/features/ask/presentation/ask_doubt_page.dart';
 import 'package:app/features/assignment/presentation/assignment_page.dart';
@@ -1169,7 +1170,11 @@ GoRouter appRouter(Ref ref) {
       // ============================================================
       GoRoute(
         path: '/announcements',
-        builder: (context, state) => const AnnouncementsPage(),
+        builder: (context, state) => AnnouncementsPage(
+          initialFilter: state.uri.queryParameters['filter'] == 'mine'
+              ? AnnouncementFilter.mine
+              : AnnouncementFilter.all,
+        ),
       ),
 
       // Keep 'compose' ABOVE ':id' so it isn't read as an id.

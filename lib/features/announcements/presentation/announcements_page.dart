@@ -11,20 +11,27 @@ import 'package:go_router/go_router.dart';
 // ====================================================================
 // ANNOUNCEMENTS — one page for every role
 // ====================================================================
-// Route: /announcements
+// Route: /announcements            (all)
+//        /announcements?filter=mine (opens on "Posted by me")
 //   Students / parents / teachers / admins see what's meant for them.
 //   Admins, super admins and teachers also get "New announcement" and a
 //   "Posted by me" tab.
 
 class AnnouncementsPage extends ConsumerStatefulWidget {
-  const AnnouncementsPage({super.key});
+  const AnnouncementsPage({
+    super.key,
+    this.initialFilter = AnnouncementFilter.all,
+  });
+
+  /// Open on a tab, e.g. "Posted by me" via /announcements?filter=mine.
+  final AnnouncementFilter initialFilter;
 
   @override
   ConsumerState<AnnouncementsPage> createState() => _AnnouncementsPageState();
 }
 
 class _AnnouncementsPageState extends ConsumerState<AnnouncementsPage> {
-  AnnouncementFilter _filter = AnnouncementFilter.all;
+  late AnnouncementFilter _filter = widget.initialFilter;
 
   Future<void> _markAllRead() async {
     HapticFeedback.mediumImpact();

@@ -1,4 +1,6 @@
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
+import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
+import 'package:app/features/announcements/provider/announcement_provider.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
 import 'package:app/features/super_admin/models/school_model.dart';
@@ -87,6 +89,13 @@ class _SuperAdminDashboardPageState
   void _open(String route) {
     context.push(route).then((_) {
       if (mounted) _refresh();
+    });
+  }
+
+  /// Announcement pages: refresh the bell's unread count on return.
+  void _openAnnouncements(String route) {
+    context.push(route).then((_) {
+      if (mounted) ref.invalidate(unreadAnnouncementsProvider);
     });
   }
 
@@ -278,6 +287,45 @@ class _SuperAdminDashboardPageState
 
                 const SizedBox(height: 26),
                 _sectionHeader(
+                  'Announcements',
+                  subtitle: 'Post to one school or the whole platform',
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _actionTile(
+                        icon: Icons.campaign_rounded,
+                        title: 'New',
+                        color: const Color(0xFFDC2626),
+                        onTap: () =>
+                            _openAnnouncements('/announcements/compose'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _actionTile(
+                        icon: Icons.notifications_rounded,
+                        title: 'View all',
+                        color: primary,
+                        onTap: () => _openAnnouncements('/announcements'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: _actionTile(
+                        icon: Icons.edit_note_rounded,
+                        title: 'Posted by me',
+                        color: Colors.teal.shade600,
+                        onTap: () =>
+                            _openAnnouncements('/announcements?filter=mine'),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 26),
+                _sectionHeader(
                   'Recent schools',
                   subtitle: 'Newest in your network',
                   action: schools.isEmpty ? null : 'View all',
@@ -384,6 +432,16 @@ class _SuperAdminDashboardPageState
                             ),
                           ],
                         ),
+                      ),
+                      Container(
+                        width: 44,
+                        height: 44,
+                        margin: const EdgeInsets.only(right: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: .12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const AnnouncementBell(color: Colors.white),
                       ),
                       IconButton(
                         tooltip: 'Refresh',
