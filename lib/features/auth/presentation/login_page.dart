@@ -1,4 +1,5 @@
 import 'package:app/core/Dtos/auth_dtos/login_request.dart';
+import 'package:app/core/security/biometric_service.dart';
 import 'package:app/core/storage/storage_service.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +15,9 @@ import 'package:google_fonts/google_fonts.dart';
 
 // Accounts are created by the school (admin), not by users, so there
 // is no sign-up option here.
+//
+// Fingerprint / Face ID: if the user turned it on in Settings, a
+// "Log in with fingerprint" button shows and the scan opens by itself.
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -39,6 +43,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _showPassword = false;
   bool _submitting = false;
 
+  // Fingerprint / Face ID (turned on in Settings)
+  BiometricStatus? _bio;
+  bool get _bioReady => _bio?.canUse ?? false;
+
   /// For "press back twice to exit".
   static const Duration _exitWindow = Duration(seconds: 2);
   DateTime? _lastBackPress;
@@ -47,6 +55,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   void initState() {
     super.initState();
     _loadLoginInfo();
+    _initBiometrics();
+  }
+
+  Future<void> _initBiometrics() async {
+    final status = await ref.read(biometricServiceProvider).status();
+    if (!mounted) return;
+    setState(() => _bio = status);
+
+    // Open the scanner straight away, like banking apps do.
+    if (status.canUse) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _biometricLogin();
+      });
+    }
   }
 
   @override
@@ -78,24 +100,19 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _submitting = true);
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
-    final error = await ref
-        .read(authProvider.notifier)
-        .login(
-          LoginRequest(
-            email: _emailController.text.trim(),
-            password: _passwordController.text,
-          ),
-        );
-
+    final error = await _signIn(email, password);
     if (!mounted) return;
-    setState(() => _submitting = false);
 
     if (error != null) {
       _snack(_friendlyError(error), error: true);
       return;
     }
+
+    // Keep the fingerprint's saved password up to date.
+    await ref.read(biometricServiceProvider).refreshPassword(email, password);
 
     if (_rememberMe) {
       await _storage.saveLoginInfo(
@@ -108,7 +125,92 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
 
     if (!mounted) return;
+    _goHome();
+  }
 
+  Future<String?> _signIn(String email, String password) async {
+    setState(() => _submitting = true);
+    final error = await ref
+        .read(authProvider.notifier)
+        .login(LoginRequest(email: email, password: password));
+    if (mounted) setState(() => _submitting = false);
+    return error;
+  }
+
+  // ================================================================
+  // FINGERPRINT / FACE ID LOGIN
+  // ================================================================
+
+  Future<void> _biometricLogin() async {
+    if (_submitting || !_bioReady) return;
+    FocusScope.of(context).unfocus();
+
+    final service = ref.read(biometricServiceProvider);
+    final outcome = await service.authenticate(
+      'Scan to log in to your school account',
+    );
+    if (!mounted) return;
+
+    switch (outcome) {
+      case BiometricOutcome.success:
+        break;
+      case BiometricOutcome.cancelled:
+        return; // they can still type their password
+      case BiometricOutcome.lockedOut:
+        _snack(
+          'Too many attempts. Unlock your phone, or log in with your password.',
+          error: true,
+        );
+        return;
+      case BiometricOutcome.unavailable:
+        _snack(
+          '${_bio!.label} is not set up on this phone anymore. '
+          'Log in with your password.',
+          error: true,
+        );
+        return;
+      case BiometricOutcome.failed:
+        _snack('Could not read your ${_bio!.label.toLowerCase()}.', error: true);
+        return;
+    }
+
+    final creds = await service.credentials();
+    if (!mounted) return;
+    if (creds == null) {
+      await service.disable();
+      setState(() => _bio = null);
+      _snack('Please log in with your password.', error: true);
+      return;
+    }
+
+    final error = await _signIn(creds.email, creds.password);
+    if (!mounted) return;
+
+    if (error != null) {
+      final friendly = _friendlyError(error);
+      // Password was changed since fingerprint was turned on.
+      if (friendly.startsWith('Wrong email or password')) {
+        final label = _bio?.label.toLowerCase() ?? 'fingerprint';
+        await service.disable();
+        if (!mounted) return;
+        setState(() => _bio = null);
+        _emailController.text = creds.email;
+        _snack(
+          'Your password has changed. Log in with your new password, '
+          'then turn $label login '
+          'on again in Settings.',
+          error: true,
+        );
+      } else {
+        _snack(friendly, error: true);
+      }
+      return;
+    }
+
+    _goHome();
+  }
+
+  void _goHome() {
     final auth = ref.read(authProvider).value;
     final role = auth?.role;
     final schoolId = auth?.user?.schoolId;
@@ -598,10 +700,75 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   ),
                 ),
               ),
+
+              if (_bioReady) ...[
+                const SizedBox(height: 16),
+                _biometricButton(busy),
+              ],
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _biometricButton(bool busy) {
+    final bio = _bio!;
+    final isFace = bio.label == 'Face ID';
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(child: Divider(color: Colors.grey.shade200)),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Text(
+                'or',
+                style: GoogleFonts.exo(
+                  fontSize: 12,
+                  color: Colors.grey.shade500,
+                ),
+              ),
+            ),
+            Expanded(child: Divider(color: Colors.grey.shade200)),
+          ],
+        ),
+        const SizedBox(height: 14),
+        SizedBox(
+          width: double.infinity,
+          height: 54,
+          child: OutlinedButton.icon(
+            onPressed: busy ? null : _biometricLogin,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: _primary,
+              backgroundColor: const Color(0xFFE9ECFF).withValues(alpha: .5),
+              side: BorderSide(color: _primary.withValues(alpha: .25)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+            ),
+            icon: Icon(
+              isFace ? Icons.face_retouching_natural : Icons.fingerprint_rounded,
+              size: 26,
+            ),
+            label: Text(
+              'Log in with ${isFace ? 'Face ID' : 'fingerprint'}',
+              style: GoogleFonts.exo(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          bio.email!,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: GoogleFonts.exo(fontSize: 12, color: Colors.grey.shade500),
+        ),
+      ],
     );
   }
 
