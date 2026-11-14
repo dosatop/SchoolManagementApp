@@ -40,6 +40,10 @@ import 'package:app/features/admin/presentation/teachers/admin_create_teacher_pa
 import 'package:app/features/admin/presentation/teachers/admin_edit_teacher_page.dart';
 import 'package:app/features/admin/presentation/teachers/admin_teacher_details_page.dart';
 import 'package:app/features/admin/presentation/teachers/admin_teachers_page.dart';
+import 'package:app/features/announcements/models/announcement_model.dart';
+import 'package:app/features/announcements/presentation/announcement_details_page.dart';
+import 'package:app/features/announcements/presentation/announcements_page.dart';
+import 'package:app/features/announcements/presentation/compose_announcement_page.dart';
 
 import 'package:app/features/ask/presentation/ask_doubt_page.dart';
 import 'package:app/features/assignment/presentation/assignment_page.dart';
@@ -1159,6 +1163,35 @@ GoRouter appRouter(Ref ref) {
           return SchoolAdminsPage(schoolId: schoolId, schoolName: schoolName);
         },
       ),
+
+      // ============================================================
+      // ANNOUNCEMENTS (all roles)
+      // ============================================================
+      GoRoute(
+        path: '/announcements',
+        builder: (context, state) => const AnnouncementsPage(),
+      ),
+
+      // Keep 'compose' ABOVE ':id' so it isn't read as an id.
+      GoRoute(
+        path: '/announcements/compose',
+        builder: (context, state) => ComposeAnnouncementPage(
+          existing: state.extra is AnnouncementModel
+              ? state.extra as AnnouncementModel
+              : null,
+        ),
+      ),
+
+      GoRoute(
+        path: '/announcements/:id',
+        builder: (context, state) => AnnouncementDetailsPage(
+          announcementId: state.pathParameters['id']!,
+        ),
+      ),
+
+      // Optional: point the old pages at the new one.
+      //   '/teacher/announcements'  → const AnnouncementsPage()
+      //   '/parent/announcements'   → const AnnouncementsPage()
 
       // ============================================================
       // LEGACY / GENERAL SCHOOL ROUTES

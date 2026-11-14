@@ -1,4 +1,5 @@
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
+import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/students/presentation/student_assignments_page.dart';
 import 'package:app/features/students/presentation/student_profile_page.dart';
@@ -452,6 +453,24 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
                         ],
                       ),
                     ),
+
+                    // ---------------- Announcements bell ----------------
+                    // Red badge = unread announcements; tap → feed.
+                    Container(
+                      width: 44,
+                      height: 44,
+                      margin: const EdgeInsets.only(right: 10),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: .16),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: .25),
+                        ),
+                      ),
+                      child: const AnnouncementBell(color: Colors.white),
+                    ),
+
+                    // ---------------- Avatar ----------------
                     GestureDetector(
                       onTap: () => widget.onNavigate(3),
                       child: Container(

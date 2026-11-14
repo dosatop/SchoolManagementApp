@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "594285699922",
+    "project_id": "smart-bae4c",
+    "storage_bucket": "smart-bae4c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:594285699922:android:d87f2720b6dae58e39908b",
+        "android_client_info": {
+          "package_name": "com.example.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDzmB0s1S5BjUqMCIU_6IZ7NHMZ3bgbaU4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

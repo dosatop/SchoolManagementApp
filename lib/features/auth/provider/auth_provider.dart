@@ -1,5 +1,6 @@
 import 'package:app/core/Dtos/auth_dtos/login_request.dart';
 import 'package:app/core/network/dio_provider.dart';
+import 'package:app/core/notifications/push_notifications.dart';
 import 'package:app/core/storage/storage_service.dart';
 import 'package:app/features/auth/data/auth_api.dart';
 import 'package:app/features/auth/data/auth_repository.dart';
@@ -116,6 +117,7 @@ class AuthNotifier extends AsyncNotifier<AuthState> {
   // Always logs out locally, even if the server call fails.
 
   Future<void> logout() async {
+     await ref.read(pushNotificationsProvider).onSigningOut(); // ← add
     try {
       await ref.read(authRepositoryProvider).logout();
     } catch (error) {

@@ -1,6 +1,7 @@
 import 'package:app/features/admin/models/academic_session/admin_academic_session_model.dart';
 import 'package:app/features/admin/models/academic_term/admin_academic_term_model.dart';
 import 'package:app/features/admin/providers/admin_academic_year_provider.dart';
+import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -142,50 +143,52 @@ class _AdminAcademicSessionDetailsPageState
   // ================================================================
 
   PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      elevation: 0,
-      backgroundColor: Colors.white,
-      surfaceTintColor: Colors.white,
-      titleSpacing: 4,
-      title: const Text(
-        'Academic Session',
-        style: TextStyle(
-          color: textDark,
-          fontSize: 17,
-          fontWeight: FontWeight.bold,
-        ),
+  return AppBar(
+    elevation: 0,
+    backgroundColor: Colors.white,
+    surfaceTintColor: Colors.white,
+    titleSpacing: 4,
+    title: const Text(
+      'Academic Session',
+      style: TextStyle(
+        color: textDark,
+        fontSize: 17,
+        fontWeight: FontWeight.bold,
       ),
-      actions: [
-        PopupMenuButton<String>(
-          enabled: !_isProcessing,
-          onSelected: _handleAction,
-          itemBuilder: (_) => [
-            const PopupMenuItem(
-              value: 'edit',
-              child: Row(
-                children: [
-                  Icon(Icons.edit_outlined, size: 19),
-                  SizedBox(width: 10),
-                  Text('Edit Session'),
-                ],
-              ),
+    ),
+    actions: [
+      const AnnouncementBell(color: textDark),   // ← bell with unread badge
+
+      PopupMenuButton<String>(
+        enabled: !_isProcessing,
+        onSelected: _handleAction,
+        itemBuilder: (_) => [
+          const PopupMenuItem(
+            value: 'edit',
+            child: Row(
+              children: [
+                Icon(Icons.edit_outlined, size: 19),
+                SizedBox(width: 10),
+                Text('Edit Session'),
+              ],
             ),
-            const PopupMenuItem(
-              value: 'delete',
-              child: Row(
-                children: [
-                  Icon(Icons.delete_outline, color: Colors.red, size: 19),
-                  SizedBox(width: 10),
-                  Text('Delete', style: TextStyle(color: Colors.red)),
-                ],
-              ),
+          ),
+          const PopupMenuItem(
+            value: 'delete',
+            child: Row(
+              children: [
+                Icon(Icons.delete_outline, color: Colors.red, size: 19),
+                SizedBox(width: 10),
+                Text('Delete', style: TextStyle(color: Colors.red)),
+              ],
             ),
-          ],
-        ),
-        const SizedBox(width: 6),
-      ],
-    );
-  }
+          ),
+        ],
+      ),
+      const SizedBox(width: 6),
+    ],
+  );
+}
 
   // ================================================================
   // SESSION HEADER
