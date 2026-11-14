@@ -66,27 +66,18 @@ dev_dependencies:
   flutter_launcher_icons: ^0.14.4
 
 
-
 flutter_native_splash:
   color: "#FFFFFF"
-  image: assets/icon/logo_horizontal.png
+  image: assets/icon/logo_horizontal.png    # iOS + Android 11 and older
   android: true
   ios: true
   web: false
 
   android_12:
     color: "#FFFFFF"
-    image: assets/icon/logo_horizontal.png
+    image: assets/icon/adaptive_foreground.png   # round icon in the middle
     icon_background_color: "#091993"
-
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/icon/app_icon_square.png"
-  adaptive_icon_background: "#091993"
-  adaptive_icon_foreground: "assets/icon/adaptive_foreground.png"
-  remove_alpha_ios: true
-
+    branding: assets/icon/splash_branding.png     # "Smart School" at the bottom
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
