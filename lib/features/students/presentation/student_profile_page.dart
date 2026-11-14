@@ -1,20 +1,21 @@
+import 'package:app/core/security/biometric_login_tile.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
+import 'package:app/features/students/presentation/widgets/student_ui.dart';
 import 'package:app/features/students/provider/students_provider.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 // ==================================================================
 // STUDENT PROFILE PAGE
 // ==================================================================
-// Data:
 //   GET /student/profile   -> name, roll number, class, school
 //   GET /student/class     -> class details + class teacher
-//   GET /student/subjects  -> subject count + list
+//   GET /student/subjects  -> subject list
 //
-// Works as a bottom-navigation tab (no back arrow) and as a pushed
-// page (back arrow appears automatically).
+// Works as a bottom-navigation tab and as a pushed page.
 
 class StudentProfilePage extends ConsumerWidget {
   const StudentProfilePage({super.key});
@@ -42,47 +43,39 @@ class StudentProfilePage extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: StudentColors.background,
-      appBar: studentAppBar(
-        'My Profile',
-        actions: [
-          IconButton(
-            tooltip: 'Logout',
-            onPressed: () => _confirmLogout(context, ref),
-            icon: const Icon(Icons.logout_rounded, color: Colors.red),
-          ),
-          const SizedBox(width: 6),
-        ],
-      ),
       body: RefreshIndicator(
         color: StudentColors.primary,
         onRefresh: refresh,
         child: () {
           if (profileAsync.isLoading && student == null) {
-            return const StudentLoadingView(layout: LoadingLayout.detail);
+            return const SafeArea(
+              child: StudentLoadingView(layout: LoadingLayout.detail),
+            );
           }
 
           if (profileAsync.hasError && student == null) {
-            return StudentErrorView(
-              error: profileAsync.error!,
-              onRetry: refresh,
-              title: 'Unable to load your profile',
+            return SafeArea(
+              child: StudentErrorView(
+                error: profileAsync.error!,
+                onRetry: refresh,
+                title: 'Unable to load your profile',
+              ),
             );
           }
 
           if (student == null) {
-            return const StudentEmptyView(
-              icon: Icons.person_off_outlined,
-              title: 'Profile not found',
-              message: 'Please contact your school admin.',
+            return const SafeArea(
+              child: StudentEmptyView(
+                icon: Icons.person_off_outlined,
+                title: 'Profile not found',
+                message: 'Please contact your school admin.',
+              ),
             );
           }
 
-          // ------------------------------------------------------
-          // VALUES
-          // ------------------------------------------------------
           final className =
               sStr(classData, ['className', 'name']) ?? _clean(student.className);
-          final classLevel = sStr(classData, ['level', 'classLevel']);
+          final classLevel = sStr(classData, ['levelName', 'level', 'classLevel']);
           final classArm = sStr(classData, ['arm', 'armName', 'section']);
           final classTeacher = sStr(classData, [
             'classTeacherName',
@@ -98,124 +91,156 @@ class StudentProfilePage extends ConsumerWidget {
               _clean(student.schoolName) ?? sStr(classData, ['schoolName']);
           final rollNumber = _clean(student.studentNumber);
 
+          final canPop = Navigator.of(context).canPop();
+
           return ListView(
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 40),
+            padding: EdgeInsets.zero,
             children: [
               // ---------------- HEADER ----------------
               _header(
+                context: context,
+                canPop: canPop,
                 name: student.fullName,
                 rollNumber: rollNumber,
                 className: className,
+                schoolName: schoolName,
+                subjects: subjectsAsync.isLoading && !subjectsAsync.hasValue
+                    ? '…'
+                    : subjectsAsync.hasError && !subjectsAsync.hasValue
+                    ? '—'
+                    : '${subjects.length}',
+                classmates: classAsync.isLoading && !classAsync.hasValue
+                    ? '…'
+                    : classmates == null
+                    ? '—'
+                    : '${classmates.toInt()}',
               ),
 
-              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(18, 4, 18, 40),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ---------------- STUDENT ----------------
+                    ..._section('Student details', [
+                      _Info(
+                        Icons.person_outline_rounded,
+                        'Full name',
+                        student.fullName,
+                      ),
+                      _Info(
+                        Icons.badge_outlined,
+                        'Roll number',
+                        rollNumber,
+                        copyable: true,
+                      ),
+                      _Info(Icons.school_outlined, 'School', schoolName),
+                    ], context),
 
-              // ---------------- QUICK STATS ----------------
-              Row(
-                children: [
-                  Expanded(
-                    child: _miniStat(
-                      icon: Icons.menu_book_rounded,
-                      label: 'Subjects',
-                      value: subjectsAsync.isLoading && !subjectsAsync.hasValue
-                          ? '…'
-                          : subjectsAsync.hasError && !subjectsAsync.hasValue
-                          ? '—'
-                          : '${subjects.length}',
-                      color: StudentColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: _miniStat(
-                      icon: Icons.groups_rounded,
-                      label: 'Classmates',
-                      value: classAsync.isLoading && !classAsync.hasValue
-                          ? '…'
-                          : classmates == null
-                          ? '—'
-                          : '${classmates.toInt()}',
-                      color: Colors.purple,
-                    ),
-                  ),
-                ],
-              ),
+                    // ---------------- CLASS ----------------
+                    ..._section('My class', [
+                      _Info(Icons.class_outlined, 'Class', className),
+                      _Info(Icons.stairs_outlined, 'Level', classLevel),
+                      _Info(Icons.segment_rounded, 'Arm', classArm),
+                      _Info(
+                        Icons.supervisor_account_outlined,
+                        'Class teacher',
+                        classTeacher,
+                      ),
+                    ], context),
 
-              // ---------------- STUDENT DETAILS ----------------
-              ..._section('Student details', [
-                _Info(Icons.person_outline_rounded, 'Full name', student.fullName),
-                _Info(Icons.badge_outlined, 'Roll number', rollNumber),
-                _Info(Icons.school_outlined, 'School', schoolName),
-              ]),
-
-              // ---------------- CLASS ----------------
-              ..._section('My class', [
-                _Info(Icons.class_outlined, 'Class', className),
-                _Info(Icons.stairs_outlined, 'Level', classLevel),
-                _Info(Icons.segment_rounded, 'Arm', classArm),
-                _Info(
-                  Icons.supervisor_account_outlined,
-                  'Class teacher',
-                  classTeacher,
-                ),
-              ]),
-
-              // ---------------- SUBJECTS ----------------
-              if (subjects.isNotEmpty) ...[
-                const SizedBox(height: 22),
-                _sectionTitle('My subjects'),
-                const SizedBox(height: 10),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(14),
-                  decoration: _cardDecoration(),
-                  child: Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (var i = 0; i < subjects.length; i++)
-                        _subjectChip(
-                          sStr(subjects[i], ['subjectName', 'name']) ??
-                              'Subject',
-                          StudentColors.accents[
-                              i % StudentColors.accents.length],
+                    // ---------------- SUBJECTS ----------------
+                    if (subjects.isNotEmpty) ...[
+                      const SizedBox(height: 22),
+                      SectionHeader(
+                        'My subjects',
+                        subtitle: '${subjects.length} this term',
+                      ),
+                      const SizedBox(height: 10),
+                      SoftCard(
+                        padding: const EdgeInsets.all(14),
+                        child: Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          children: [
+                            for (var i = 0; i < subjects.length; i++)
+                              _subjectChip(
+                                sStr(subjects[i], ['subjectName', 'name']) ??
+                                    'Subject',
+                                StudentColors.accents[
+                                    i % StudentColors.accents.length],
+                              ),
+                          ],
                         ),
+                      ),
                     ],
-                  ),
-                ),
-              ],
 
-              const SizedBox(height: 28),
+                    // ---------------- ACCOUNT ----------------
+                    const SizedBox(height: 22),
+                    const SectionHeader('Account'),
+                    const SizedBox(height: 10),
+                    SoftCard(
+                      padding: EdgeInsets.zero,
+                      child: Column(
+                        children: [
+                          _actionRow(
+                            icon: Icons.fact_check_outlined,
+                            label: 'My attendance',
+                            color: const Color(0xFF0D9488),
+                            onTap: () => context.push('/student/attendance'),
+                          ),
+                          Divider(height: 1, color: Colors.grey.shade100),
+                          _actionRow(
+                            icon: Icons.calendar_month_outlined,
+                            label: 'Timetable',
+                            color: const Color(0xFF7C3AED),
+                            onTap: () => context.push('/student/timetable'),
+                          ),
+                          Divider(height: 1, color: Colors.grey.shade100),
+                          _actionRow(
+                            icon: Icons.help_outline_rounded,
+                            label: 'Wrong details? Contact your school admin',
+                            color: Colors.blueGrey,
+                            onTap: null,
+                          ),
+                        ],
+                      ),
+                    ),
 
-              // ---------------- LOGOUT ----------------
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: OutlinedButton.icon(
-                  onPressed: () => _confirmLogout(context, ref),
-                  icon: const Icon(
-                    Icons.logout_rounded,
-                    color: Colors.red,
-                    size: 19,
-                  ),
-                  label: const Text(
-                    'Logout',
-                    style: TextStyle(
-                      color: Colors.red,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                    // ---------------- SECURITY ----------------
+                    const SizedBox(height: 14),
+                    const BiometricLoginTile(color: StudentColors.primary),
+
+                    const SizedBox(height: 24),
+
+                    // ---------------- LOGOUT ----------------
+                    SizedBox(
+                      width: double.infinity,
+                      height: 54,
+                      child: ElevatedButton.icon(
+                        onPressed: () => _confirmLogout(context, ref),
+                        icon: const Icon(Icons.logout_rounded, size: 19),
+                        label: const Text(
+                          'Log out',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red.shade50,
+                          foregroundColor: Colors.red.shade700,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    side: BorderSide(color: Colors.red.shade200),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
-                  ),
+                  ],
                 ),
               ),
             ],
@@ -230,52 +255,78 @@ class StudentProfilePage extends ConsumerWidget {
   // ================================================================
 
   Widget _header({
+    required BuildContext context,
+    required bool canPop,
     required String name,
     String? rollNumber,
     String? className,
+    String? schoolName,
+    required String subjects,
+    required String classmates,
   }) {
+    final top = MediaQuery.of(context).padding.top;
+
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [StudentColors.primary, Color(0xFF2437C5)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: StudentColors.primary.withValues(alpha: .22),
-            blurRadius: 22,
-            offset: const Offset(0, 10),
-          ),
-        ],
+      padding: EdgeInsets.fromLTRB(20, top + 10, 20, 24),
+      decoration: const BoxDecoration(
+        gradient: kStudentGradient,
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
       ),
       child: Column(
         children: [
-          Container(
-            width: 90,
-            height: 90,
-            padding: const EdgeInsets.all(3),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: .14),
-                  blurRadius: 14,
+          Row(
+            children: [
+              if (canPop)
+                IconButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(
+                    Icons.arrow_back_rounded,
+                    color: Colors.white,
+                  ),
+                )
+              else
+                const SizedBox(width: 48),
+              const Expanded(
+                child: Text(
+                  'My Profile',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ],
+              ),
+              const SizedBox(width: 48),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: 96,
+            height: 96,
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: .2),
             ),
-            child: CircleAvatar(
-              backgroundColor: StudentColors.primaryLight,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: .15),
+                    blurRadius: 16,
+                  ),
+                ],
+              ),
+              alignment: Alignment.center,
               child: Text(
-                _initials(name),
+                studentInitials(name, fallback: 'S'),
                 style: const TextStyle(
                   color: StudentColors.primary,
-                  fontSize: 27,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 30,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
             ),
@@ -289,9 +340,20 @@ class StudentProfilePage extends ConsumerWidget {
             style: const TextStyle(
               color: Colors.white,
               fontSize: 22,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
             ),
           ),
+          if (schoolName != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              schoolName,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: .75),
+                fontSize: 12.5,
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             alignment: WrapAlignment.center,
@@ -299,10 +361,31 @@ class StudentProfilePage extends ConsumerWidget {
             runSpacing: 8,
             children: [
               _headerPill(Icons.verified_user_outlined, 'Student'),
-              if (className != null) _headerPill(Icons.class_outlined, className),
+              if (className != null)
+                _headerPill(Icons.class_outlined, className),
               if (rollNumber != null)
                 _headerPill(Icons.badge_outlined, 'No. $rollNumber'),
             ],
+          ),
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: .12),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                HeroStat('Subjects', subjects, loading: subjects == '…'),
+                Container(
+                  width: 1,
+                  height: 30,
+                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  color: Colors.white.withValues(alpha: .18),
+                ),
+                HeroStat('Classmates', classmates, loading: classmates == '…'),
+              ],
+            ),
           ),
         ],
       ),
@@ -328,58 +411,10 @@ class StudentProfilePage extends ConsumerWidget {
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ================================================================
-  // MINI STAT
-  // ================================================================
-
-  Widget _miniStat({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: _cardDecoration(),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: .1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icon, color: color, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: StudentColors.textDark,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  height: 1.1,
-                ),
-              ),
-              Text(
-                label,
-                style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
-              ),
-            ],
           ),
         ],
       ),
@@ -390,26 +425,22 @@ class StudentProfilePage extends ConsumerWidget {
   // SECTIONS
   // ================================================================
 
-  /// Titled card of rows. Empty values are skipped, and the whole
-  /// section is hidden if nothing is left.
-  List<Widget> _section(String title, List<_Info> items) {
+  /// Empty values are skipped; the section hides if nothing is left.
+  List<Widget> _section(String title, List<_Info> items, BuildContext context) {
     final visible = items.where((i) => i.value != null).toList();
     if (visible.isEmpty) return const [];
 
     return [
       const SizedBox(height: 22),
-      _sectionTitle(title),
+      SectionHeader(title),
       const SizedBox(height: 10),
-      Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 4),
-        decoration: _cardDecoration(),
+      SoftCard(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
         child: Column(
           children: [
             for (var i = 0; i < visible.length; i++) ...[
-              if (i > 0)
-                Divider(height: 1, thickness: .7, color: Colors.grey.shade200),
-              _infoRow(visible[i]),
+              if (i > 0) Divider(height: 1, color: Colors.grey.shade100),
+              _infoRow(visible[i], context),
             ],
           ],
         ),
@@ -417,31 +448,12 @@ class StudentProfilePage extends ConsumerWidget {
     ];
   }
 
-  Widget _sectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        color: StudentColors.textDark,
-        fontSize: 17,
-        fontWeight: FontWeight.bold,
-      ),
-    );
-  }
-
-  Widget _infoRow(_Info item) {
+  Widget _infoRow(_Info item, BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 13),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: StudentColors.primaryLight,
-              borderRadius: BorderRadius.circular(11),
-            ),
-            child: Icon(item.icon, color: StudentColors.primary, size: 20),
-          ),
+          IconBadge(item.icon, color: StudentColors.primary, size: 40),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -451,7 +463,7 @@ class StudentProfilePage extends ConsumerWidget {
                   item.label,
                   style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 2),
                 Text(
                   item.value!,
                   maxLines: 2,
@@ -459,40 +471,97 @@ class StudentProfilePage extends ConsumerWidget {
                   style: const TextStyle(
                     color: StudentColors.textDark,
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
             ),
           ),
+          if (item.copyable)
+            IconButton(
+              tooltip: 'Copy',
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: item.value!));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    behavior: SnackBarBehavior.floating,
+                    content: Text('${item.label} copied'),
+                  ),
+                );
+              },
+              icon: Icon(
+                Icons.copy_rounded,
+                size: 18,
+                color: Colors.grey.shade500,
+              ),
+            ),
         ],
+      ),
+    );
+  }
+
+  Widget _actionRow({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback? onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            IconBadge(icon, color: color, size: 38),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: onTap == null
+                      ? Colors.grey.shade600
+                      : StudentColors.textDark,
+                  fontSize: onTap == null ? 12.5 : 14,
+                  fontWeight: onTap == null ? FontWeight.w500 : FontWeight.w700,
+                ),
+              ),
+            ),
+            if (onTap != null)
+              Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+          ],
+        ),
       ),
     );
   }
 
   Widget _subjectChip(String name, Color color) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
       decoration: BoxDecoration(
         color: color.withValues(alpha: .09),
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Text(
-        name,
-        style: TextStyle(
-          color: color,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            name,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }
-
-  BoxDecoration _cardDecoration() => BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(18),
-    border: Border.all(color: Colors.grey.shade200),
-  );
 
   // ================================================================
   // LOGOUT
@@ -502,17 +571,27 @@ class StudentProfilePage extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        icon: Icon(Icons.logout_rounded, color: Colors.red.shade600),
+        title: const Text('Log out?'),
+        content: const Text(
+          'You\'ll need your email and password to sign in again.',
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.center,
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(dialogContext, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Logout'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red.shade600,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Log out'),
           ),
         ],
       ),
@@ -526,9 +605,7 @@ class StudentProfilePage extends ConsumerWidget {
       // A failing logout endpoint must not block going to login.
     }
 
-    if (!context.mounted) return;
-
-    context.go('/login');
+    if (context.mounted) context.go('/login');
   }
 
   // ================================================================
@@ -551,25 +628,13 @@ class StudentProfilePage extends ConsumerWidget {
     if (value == null || value.trim().isEmpty) return null;
     return value.trim();
   }
-
-  String _initials(String name) {
-    final words = name
-        .trim()
-        .split(RegExp(r'\s+'))
-        .where((w) => w.isNotEmpty)
-        .toList();
-
-    if (words.isEmpty) return 'S';
-    if (words.length == 1) return words.first[0].toUpperCase();
-
-    return '${words.first[0]}${words.last[0]}'.toUpperCase();
-  }
 }
 
 class _Info {
-  const _Info(this.icon, this.label, this.value);
+  const _Info(this.icon, this.label, this.value, {this.copyable = false});
 
   final IconData icon;
   final String label;
   final String? value;
+  final bool copyable;
 }

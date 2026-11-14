@@ -1,3 +1,4 @@
+import 'package:app/core/security/biometric_login_tile.dart';
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
 import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
@@ -1342,6 +1343,9 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             ]),
           ),
         ),
+
+        const SizedBox(height: 14),
+        const BiometricLoginTile(color: primary),
 
         const SizedBox(height: 22),
 

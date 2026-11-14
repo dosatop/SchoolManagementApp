@@ -1,3 +1,4 @@
+import 'package:app/core/security/biometric_login_tile.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/parents/models/parent_child_model.dart';
 import 'package:app/features/parents/parent_provider.dart';
@@ -156,13 +157,17 @@ class ParentProfilePage extends ConsumerWidget {
                     Divider(height: 1, color: Colors.grey.shade200),
                     _linkRow(
                       icon: Icons.campaign_outlined,
-                      label: 'School updates',
+                      label: 'Announcements',
                       color: Colors.orange,
-                      onTap: () => context.push('/parent/announcements'),
+                      onTap: () => context.push('/announcements'),
                     ),
                   ],
                 ),
               ),
+
+              // ---------------- SECURITY ----------------
+              const SizedBox(height: 14),
+              const BiometricLoginTile(color: StudentColors.primary),
 
               // ---------------- LOGOUT ----------------
               const SizedBox(height: 26),
