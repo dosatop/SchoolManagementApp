@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/core/security/biometric_login_tile.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/parents/models/parent_child_model.dart';
@@ -77,7 +78,7 @@ class ParentProfilePage extends ConsumerWidget {
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+            padding: EdgeInsets.fromLTRB(20, 18, 20, 32 + glassBottomInset(context)),
             children: [
               _header(name: name, school: school, childCount: childCount),
 

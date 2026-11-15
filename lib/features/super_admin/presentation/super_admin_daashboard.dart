@@ -262,7 +262,7 @@ class _SuperAdminDashboardPageState
             child: _hero(schools, loading),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
+            padding: EdgeInsets.fromLTRB(20, 22, 20, 28 + glassBottomInset(context)),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: staggered(start: 1, [
@@ -793,7 +793,7 @@ class _SuperAdminDashboardPageState
             parent: BouncingScrollPhysics(),
           ),
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 28 + glassBottomInset(context)),
           children: [
             TextField(
               controller: _search,
@@ -1069,7 +1069,7 @@ class _SuperAdminDashboardPageState
       ),
       body: ListView(
         physics: const BouncingScrollPhysics(),
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
+        padding: EdgeInsets.fromLTRB(20, 20, 20, 28 + glassBottomInset(context)),
         children: staggered([
           Container(
             padding: const EdgeInsets.all(22),

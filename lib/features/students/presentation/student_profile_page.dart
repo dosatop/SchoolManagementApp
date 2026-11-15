@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/core/security/biometric_login_tile.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
@@ -120,7 +121,7 @@ class StudentProfilePage extends ConsumerWidget {
               ),
 
               Padding(
-                padding: const EdgeInsets.fromLTRB(18, 4, 18, 40),
+                padding: EdgeInsets.fromLTRB(18, 4, 18, 40 + glassBottomInset(context)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
