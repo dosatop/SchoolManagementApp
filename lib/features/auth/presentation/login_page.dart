@@ -98,8 +98,14 @@ class _LoginPageState extends ConsumerState<LoginPage>
     if (!mounted) return;
     setState(() => _bio = status);
 
-    // Open the scanner straight away, like banking apps do.
-    if (status.canUse) {
+    // Open the scanner straight away, like banking apps do, but only
+    // if the fingerprint's owner was the last person signed in here.
+    // Someone else used the phone since? They can still tap the button.
+    final auto = await ref
+        .read(biometricServiceProvider)
+        .shouldAutoPrompt(status);
+    if (!mounted) return;
+    if (auto) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _biometricLogin();
       });
@@ -152,7 +158,9 @@ class _LoginPageState extends ConsumerState<LoginPage>
     }
 
     // Keep the fingerprint's saved password up to date.
-    await ref.read(biometricServiceProvider).refreshPassword(email, password);
+    final bio = ref.read(biometricServiceProvider);
+    await bio.refreshPassword(email, password);
+    await bio.rememberLastUser(email);
 
     if (_rememberMe) {
       await _storage.saveLoginInfo(
@@ -210,10 +218,7 @@ class _LoginPageState extends ConsumerState<LoginPage>
         );
         return;
       case BiometricOutcome.failed:
-        _snack(
-          'Could not read your ${_bio!.label.toLowerCase()}.',
-          error: true,
-        );
+        _snack('Could not read your ${_bio!.label.toLowerCase()}.', error: true);
         return;
     }
 
@@ -250,6 +255,8 @@ class _LoginPageState extends ConsumerState<LoginPage>
       return;
     }
 
+    await service.rememberLastUser(creds.email);
+    if (!mounted) return;
     _goHome();
   }
 
@@ -396,33 +403,33 @@ class _LoginPageState extends ConsumerState<LoginPage>
         if (!didPop) _handleBack();
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
-        resizeToAvoidBottomInset: true,
-        body: GestureDetector(
-          onTap: () => FocusScope.of(context).unfocus(),
-          child: SingleChildScrollView(
-            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-            child: Column(
-              children: [
-                _header(keyboardOpen),
-                Transform.translate(
-                  offset: const Offset(0, -36),
-                  child: _reveal(
-                    .25,
-                    .7,
-                    from: const Offset(0, .18),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                      child: _shaking(_formCard(busy)),
-                    ),
+      backgroundColor: Colors.white,
+      resizeToAvoidBottomInset: true,
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            children: [
+              _header(keyboardOpen),
+              Transform.translate(
+                offset: const Offset(0, -36),
+                child: _reveal(
+                  .25,
+                  .7,
+                  from: const Offset(0, .18),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: _shaking(_formCard(busy)),
                   ),
                 ),
-                _reveal(.7, 1, from: const Offset(0, .5), _helpNote()),
-                const SizedBox(height: 24),
-              ],
-            ),
+              ),
+              _reveal(.7, 1, from: const Offset(0, .5), _helpNote()),
+              const SizedBox(height: 24),
+            ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -466,7 +473,11 @@ class _LoginPageState extends ConsumerState<LoginPage>
           Positioned(
             top: 120,
             left: 26,
-            child: _floating(_bubble(16, .10), distance: 6, phase: math.pi / 2),
+            child: _floating(
+              _bubble(16, .10),
+              distance: 6,
+              phase: math.pi / 2,
+            ),
           ),
 
           SafeArea(
@@ -489,35 +500,35 @@ class _LoginPageState extends ConsumerState<LoginPage>
                             .45,
                             from: const Offset(-.25, 0),
                             Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Welcome back 👋',
-                                  style: GoogleFonts.exo(
-                                    color: Colors.white70,
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Welcome back 👋',
+                                style: GoogleFonts.exo(
+                                  color: Colors.white70,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w500,
                                 ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Log in',
-                                  style: GoogleFonts.exo(
-                                    color: Colors.white,
-                                    fontSize: 34,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Log in',
+                                style: GoogleFonts.exo(
+                                  color: Colors.white,
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.w800,
                                 ),
-                                const SizedBox(height: 6),
-                                Text(
-                                  'Pick up where you left off.',
-                                  style: GoogleFonts.exo(
-                                    color: Colors.white70,
-                                    fontSize: 13,
-                                  ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                'Pick up where you left off.',
+                                style: GoogleFonts.exo(
+                                  color: Colors.white70,
+                                  fontSize: 13,
                                 ),
-                              ],
-                            ),
+                              ),
+                            ],
+                          ),
                           ),
                         ),
                         AnimatedSwitcher(
@@ -671,222 +682,202 @@ class _LoginPageState extends ConsumerState<LoginPage>
             children: [
               _stagger(0, _label('Email address')),
               const SizedBox(height: 8),
-              _stagger(
-                0,
-                TextFormField(
-                  controller: _emailController,
-                  enabled: !busy,
-                  keyboardType: TextInputType.emailAddress,
-                  textInputAction: TextInputAction.next,
-                  autofillHints: const [AutofillHints.email],
-                  onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
-                  decoration: _decoration(
-                    hint: 'you@school.com',
-                    icon: Icons.alternate_email_rounded,
-                  ),
-                  validator: (v) {
-                    final value = v?.trim() ?? '';
-                    if (value.isEmpty) return 'Email is required';
-                    if (!RegExp(
-                      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                    ).hasMatch(value)) {
-                      return 'Enter a valid email';
-                    }
-                    return null;
-                  },
+              _stagger(0, TextFormField(
+                controller: _emailController,
+                enabled: !busy,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.email],
+                onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
+                decoration: _decoration(
+                  hint: 'you@school.com',
+                  icon: Icons.alternate_email_rounded,
                 ),
-              ),
+                validator: (v) {
+                  final value = v?.trim() ?? '';
+                  if (value.isEmpty) return 'Email is required';
+                  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value)) {
+                    return 'Enter a valid email';
+                  }
+                  return null;
+                },
+              )),
 
               const SizedBox(height: 18),
 
               _stagger(1, _label('Password')),
               const SizedBox(height: 8),
-              _stagger(
-                1,
-                TextFormField(
-                  controller: _passwordController,
-                  focusNode: _passwordFocus,
-                  enabled: !busy,
-                  obscureText: !_showPassword,
-                  textInputAction: TextInputAction.done,
-                  autofillHints: const [AutofillHints.password],
-                  onFieldSubmitted: (_) => busy ? null : _login(),
-                  decoration: _decoration(
-                    hint: '••••••••',
-                    icon: Icons.lock_outline_rounded,
-                    suffix: IconButton(
-                      tooltip: _showPassword
-                          ? 'Hide password'
-                          : 'Show password',
-                      onPressed: () =>
-                          setState(() => _showPassword = !_showPassword),
-                      icon: Icon(
-                        _showPassword
-                            ? Icons.visibility_off_outlined
-                            : Icons.visibility_outlined,
-                        color: Colors.grey.shade600,
-                        size: 20,
-                      ),
+              _stagger(1, TextFormField(
+                controller: _passwordController,
+                focusNode: _passwordFocus,
+                enabled: !busy,
+                obscureText: !_showPassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                onFieldSubmitted: (_) => busy ? null : _login(),
+                decoration: _decoration(
+                  hint: '••••••••',
+                  icon: Icons.lock_outline_rounded,
+                  suffix: IconButton(
+                    tooltip: _showPassword ? 'Hide password' : 'Show password',
+                    onPressed: () =>
+                        setState(() => _showPassword = !_showPassword),
+                    icon: Icon(
+                      _showPassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                      color: Colors.grey.shade600,
+                      size: 20,
                     ),
                   ),
-                  validator: (v) {
-                    final value = v?.trim() ?? '';
-                    if (value.isEmpty) return 'Password is required';
-                    if (value.length < 6)
-                      return 'Must be at least 6 characters';
-                    return null;
-                  },
                 ),
-              ),
+                validator: (v) {
+                  final value = v?.trim() ?? '';
+                  if (value.isEmpty) return 'Password is required';
+                  if (value.length < 6) return 'Must be at least 6 characters';
+                  return null;
+                },
+              )),
 
               const SizedBox(height: 6),
 
-              _stagger(
-                2,
-                Row(
-                  children: [
-                    InkWell(
-                      borderRadius: BorderRadius.circular(8),
-                      onTap: busy
-                          ? null
-                          : () => setState(() => _rememberMe = !_rememberMe),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            AnimatedContainer(
-                              duration: const Duration(milliseconds: 160),
-                              width: 20,
-                              height: 20,
-                              decoration: BoxDecoration(
-                                color: _rememberMe ? _primary : Colors.white,
-                                borderRadius: BorderRadius.circular(6),
-                                border: Border.all(
-                                  color: _rememberMe
-                                      ? _primary
-                                      : Colors.grey.shade400,
-                                  width: 1.5,
-                                ),
-                              ),
-                              child: _rememberMe
-                                  ? const Icon(
-                                      Icons.check_rounded,
-                                      size: 14,
-                                      color: Colors.white,
-                                    )
-                                  : null,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Remember me',
-                              style: GoogleFonts.exo(
-                                fontSize: 13,
-                                color: Colors.grey.shade800,
+              _stagger(2, Row(
+                children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(8),
+                    onTap: busy
+                        ? null
+                        : () => setState(() => _rememberMe = !_rememberMe),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          AnimatedContainer(
+                            duration: const Duration(milliseconds: 160),
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              color: _rememberMe ? _primary : Colors.white,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: _rememberMe
+                                    ? _primary
+                                    : Colors.grey.shade400,
+                                width: 1.5,
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    TextButton(
-                      onPressed: busy
-                          ? null
-                          : () => _snack(
-                              'Ask your school admin to reset your password.',
+                            child: _rememberMe
+                                ? const Icon(
+                                    Icons.check_rounded,
+                                    size: 14,
+                                    color: Colors.white,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Remember me',
+                            style: GoogleFonts.exo(
+                              fontSize: 13,
+                              color: Colors.grey.shade800,
                             ),
-                      child: Text(
-                        'Forgot password?',
-                        style: GoogleFonts.exo(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: _primary,
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-              ),
+                  ),
+                  const Spacer(),
+                  TextButton(
+                    onPressed: busy
+                        ? null
+                        : () => _snack(
+                            'Ask your school admin to reset your password.',
+                          ),
+                    child: Text(
+                      'Forgot password?',
+                      style: GoogleFonts.exo(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: _primary,
+                      ),
+                    ),
+                  ),
+                ],
+              )),
 
               const SizedBox(height: 14),
 
               // ---------------- LOGIN BUTTON ----------------
-              _stagger(
-                3,
-                SizedBox(
-                  width: double.infinity,
-                  height: 54,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(16),
-                      gradient: busy
-                          ? null
-                          : const LinearGradient(
-                              colors: [_primary, Color(0xFF2437C5)],
+              _stagger(3, SizedBox(
+                width: double.infinity,
+                height: 54,
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    gradient: busy
+                        ? null
+                        : const LinearGradient(
+                            colors: [_primary, Color(0xFF2437C5)],
+                          ),
+                    color: busy ? Colors.grey.shade300 : null,
+                    boxShadow: busy
+                        ? null
+                        : [
+                            BoxShadow(
+                              color: _primary.withValues(alpha: .3),
+                              blurRadius: 16,
+                              offset: const Offset(0, 8),
                             ),
-                      color: busy ? Colors.grey.shade300 : null,
-                      boxShadow: busy
-                          ? null
-                          : [
-                              BoxShadow(
-                                color: _primary.withValues(alpha: .3),
-                                blurRadius: 16,
-                                offset: const Offset(0, 8),
-                              ),
-                            ],
+                          ],
+                  ),
+                  child: ElevatedButton(
+                    onPressed: busy ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      disabledBackgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                     ),
-                    child: ElevatedButton(
-                      onPressed: busy ? null : _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        disabledBackgroundColor: Colors.transparent,
-                        shadowColor: Colors.transparent,
-                        foregroundColor: Colors.white,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      transitionBuilder: (child, anim) => FadeTransition(
+                        opacity: anim,
+                        child: ScaleTransition(scale: anim, child: child),
                       ),
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 250),
-                        transitionBuilder: (child, anim) => FadeTransition(
-                          opacity: anim,
-                          child: ScaleTransition(scale: anim, child: child),
-                        ),
-                        child: busy
-                            ? const SizedBox(
-                                key: ValueKey('busy'),
-                                width: 22,
-                                height: 22,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2.4,
-                                  color: _primary,
+                      child: busy
+                        ? const SizedBox(
+                            key: ValueKey('busy'),
+                            width: 22,
+                            height: 22,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.4,
+                              color: _primary,
+                            ),
+                          )
+                        : Row(
+                            key: const ValueKey('idle'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Log in',
+                                style: GoogleFonts.exo(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w700,
+                                  letterSpacing: .4,
                                 ),
-                              )
-                            : Row(
-                                key: const ValueKey('idle'),
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    'Log in',
-                                    style: GoogleFonts.exo(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: .4,
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  const Icon(
-                                    Icons.arrow_forward_rounded,
-                                    size: 19,
-                                  ),
-                                ],
                               ),
-                      ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.arrow_forward_rounded, size: 19),
+                            ],
+                          ),
                     ),
                   ),
                 ),
-              ),
+              )),
 
               if (_bioReady) ...[
                 const SizedBox(height: 16),
@@ -945,7 +936,10 @@ class _LoginPageState extends ConsumerState<LoginPage>
             ),
             label: Text(
               'Log in with ${isFace ? 'Face ID' : 'fingerprint'}',
-              style: GoogleFonts.exo(fontSize: 15, fontWeight: FontWeight.w700),
+              style: GoogleFonts.exo(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ),
         ),

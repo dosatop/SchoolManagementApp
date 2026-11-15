@@ -59,6 +59,9 @@ class BiometricService {
   static const _kEmail = 'biometric_email';
   static const _kPassword = 'biometric_password';
 
+  /// Email of whoever last signed in on this phone (any method).
+  static const _kLastUser = 'last_signed_in_email';
+
   // ---------------------------------------------------------------- status
 
   Future<bool> isAvailable() async {
@@ -129,6 +132,23 @@ class BiometricService {
     await _storage.write(key: _kEmail, value: email.trim());
     await _storage.write(key: _kPassword, value: password);
     await _storage.write(key: _kEnabled, value: 'true');
+  }
+
+  /// Call after every successful login.
+  Future<void> rememberLastUser(String email) async {
+    try {
+      await _storage.write(key: _kLastUser, value: email.trim().toLowerCase());
+    } catch (_) {}
+  }
+
+  /// True when the scanner may pop up by itself on the login page:
+  /// only if the fingerprint account is the one that last used this
+  /// phone. If someone else signed in since, they must tap the button.
+  Future<bool> shouldAutoPrompt(BiometricStatus status) async {
+    if (!status.canUse) return false;
+    final last = await _read(_kLastUser);
+    if (last == null || last.isEmpty) return true; // first run after update
+    return last == status.email!.trim().toLowerCase();
   }
 
   Future<void> disable() async {
