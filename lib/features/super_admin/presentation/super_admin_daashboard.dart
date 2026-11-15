@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/animations/app_animations.dart';
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/core/security/biometric_login_tile.dart';
 import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
@@ -40,6 +41,9 @@ class _SuperAdminDashboardPageState
 
   int _tab = 0;
   DateTime? _lastBack;
+
+  /// Times each tab was opened; used as a key so its entrance replays.
+  final Map<int, int> _visits = {};
 
   final _search = TextEditingController();
   String _query = '';
@@ -84,7 +88,10 @@ class _SuperAdminDashboardPageState
   void _goTo(int i) {
     if (i == _tab) return;
     HapticFeedback.selectionClick();
-    setState(() => _tab = i);
+    setState(() {
+      _tab = i;
+      _visits[i] = (_visits[i] ?? 0) + 1;
+    });
   }
 
   void _open(String route) {
@@ -189,8 +196,14 @@ class _SuperAdminDashboardPageState
           index: _tab,
           children: [
             _overviewTab(state),
-            _schoolsTab(state),
-            _profileTab(),
+            KeyedSubtree(
+              key: ValueKey('schools-${_visits[1] ?? 0}'),
+              child: _schoolsTab(state),
+            ),
+            KeyedSubtree(
+              key: ValueKey('profile-${_visits[2] ?? 0}'),
+              child: _profileTab(),
+            ),
           ],
         ),
         bottomNavigationBar: AdaptiveNavBar(
@@ -244,12 +257,15 @@ class _SuperAdminDashboardPageState
         ),
         padding: EdgeInsets.zero,
         children: [
-          _hero(schools, loading),
+          FadeSlideIn(
+            offset: const Offset(0, -24),
+            child: _hero(schools, loading),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              children: staggered(start: 1, [
                 _createBanner(),
                 const SizedBox(height: 26),
 
@@ -345,7 +361,7 @@ class _SuperAdminDashboardPageState
                     _schoolCard(s),
                     const SizedBox(height: 10),
                   ],
-              ],
+              ]),
             ),
           ),
         ],
@@ -371,8 +387,20 @@ class _SuperAdminDashboardPageState
       ),
       child: Stack(
         children: [
-          Positioned(top: -50, right: -40, child: _bubble(170, .07)),
-          Positioned(bottom: 20, left: -30, child: _bubble(90, .05)),
+          Positioned(
+            top: -50,
+            right: -40,
+            child: FloatingBubble(distance: 10, child: _bubble(170, .07)),
+          ),
+          Positioned(
+            bottom: 20,
+            left: -30,
+            child: FloatingBubble(
+              distance: 7,
+              phase: 2,
+              child: _bubble(90, .05),
+            ),
+          ),
           SafeArea(
             bottom: false,
             child: Padding(
@@ -545,8 +573,8 @@ class _SuperAdminDashboardPageState
               child: ShimmerBox(width: 34, height: 20, onDark: true),
             )
           else
-            Text(
-              '$value',
+            CountUp(
+              value: value,
               style: const TextStyle(
                 color: Colors.white,
                 fontSize: 20,
@@ -576,7 +604,7 @@ class _SuperAdminDashboardPageState
   );
 
   Widget _createBanner() {
-    return Material(
+    return PressScale(child: Material(
       color: Colors.transparent,
       child: InkWell(
         borderRadius: BorderRadius.circular(22),
@@ -654,7 +682,7 @@ class _SuperAdminDashboardPageState
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _actionTile({
@@ -663,7 +691,7 @@ class _SuperAdminDashboardPageState
     required Color color,
     required VoidCallback onTap,
   }) {
-    return Material(
+    return PressScale(child: Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
@@ -701,7 +729,7 @@ class _SuperAdminDashboardPageState
           ),
         ),
       ),
-    );
+    ));
   }
 
   // ================================================================
@@ -830,8 +858,11 @@ class _SuperAdminDashboardPageState
                 ),
               )
             else
-              for (final s in visible) ...[
-                _schoolCard(s, detailed: true),
+              for (final (i, s) in visible.indexed) ...[
+                Entrance(
+                  index: i,
+                  child: _schoolCard(s, detailed: true),
+                ),
                 const SizedBox(height: 10),
               ],
           ],
@@ -848,7 +879,7 @@ class _SuperAdminDashboardPageState
         StudentColors.accents[s.name.hashCode.abs() %
             StudentColors.accents.length];
 
-    return Material(
+    return PressScale(child: Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
@@ -976,7 +1007,7 @@ class _SuperAdminDashboardPageState
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _countChip(IconData icon, int count, String noun, Color color) {
@@ -1039,7 +1070,7 @@ class _SuperAdminDashboardPageState
       body: ListView(
         physics: const BouncingScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 28),
-        children: [
+        children: staggered([
           Container(
             padding: const EdgeInsets.all(22),
             decoration: BoxDecoration(
@@ -1154,7 +1185,7 @@ class _SuperAdminDashboardPageState
               ),
             ),
           ),
-        ],
+        ]),
       ),
     );
   }

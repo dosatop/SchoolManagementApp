@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/animations/app_animations.dart';
 import 'package:app/core/security/biometric_login_tile.dart';
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/admin/providers/admin_provider.dart';
@@ -173,9 +174,19 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           index: _currentIndex,
           children: [
             _dashboardTab(dashboardState),
-            _manageTab(),
-            _createTab(),
-            _profileTab(),
+            // Keys flip when a tab opens, so its entrance plays again.
+            KeyedSubtree(
+              key: ValueKey('manage-${_currentIndex == 1}'),
+              child: _manageTab(),
+            ),
+            KeyedSubtree(
+              key: ValueKey('create-${_currentIndex == 2}'),
+              child: _createTab(),
+            ),
+            KeyedSubtree(
+              key: ValueKey('profile-${_currentIndex == 3}'),
+              child: _profileTab(),
+            ),
           ],
         ),
         bottomNavigationBar: _bottomBar(),
@@ -309,7 +320,10 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
         ),
         padding: EdgeInsets.zero,
         children: [
-          _hero(dashboard, loading),
+          FadeSlideIn(
+            offset: const Offset(0, -24),
+            child: _hero(dashboard, loading),
+          ),
 
           Padding(
             padding: EdgeInsets.fromLTRB(
@@ -320,7 +334,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+              children: staggered(start: 1, [
                 // ---------------- STATISTICS ----------------
                 _sectionTitle(
                   'School statistics',
@@ -379,7 +393,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                     ),
                   ],
                 ),
-              ],
+              ]),
             ),
           ),
         ],
@@ -410,8 +424,20 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
       child: Stack(
         children: [
           // Decorative circles
-          Positioned(top: -50, right: -40, child: _bubble(170, .07)),
-          Positioned(bottom: 30, left: -30, child: _bubble(90, .05)),
+          Positioned(
+            top: -50,
+            right: -40,
+            child: FloatingBubble(distance: 10, child: _bubble(170, .07)),
+          ),
+          Positioned(
+            bottom: 30,
+            left: -30,
+            child: FloatingBubble(
+              distance: 7,
+              phase: 2,
+              child: _bubble(90, .05),
+            ),
+          ),
 
           SafeArea(
             bottom: false,
@@ -594,8 +620,8 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
               child: ShimmerBox(width: 34, height: 20, onDark: true),
             )
           else
-            Text(
-              '${value ?? 0}',
+            CountUp(
+              value: value ?? 0,
               style: GoogleFonts.exo(
                 color: Colors.white,
                 fontSize: 20,
@@ -684,7 +710,11 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
         mainAxisSpacing: 12,
         childAspectRatio: 1.45,
       ),
-      itemBuilder: (_, i) => _statCard(stats[i]),
+      itemBuilder: (_, i) => Entrance(
+        index: i,
+        baseDelay: 200,
+        child: PressScale(child: _statCard(stats[i])),
+      ),
     );
   }
 
@@ -749,8 +779,8 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '$value',
+                      CountUp(
+                        value: value,
                         style: GoogleFonts.exo(
                           color: textDark,
                           fontSize: 26,
@@ -889,7 +919,14 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
       children: [
         for (var i = 0; i < actions.length; i++) ...[
           if (i > 0) const SizedBox(width: 10),
-          Expanded(child: _quickCreateTile(actions[i])),
+          Expanded(
+            child: Entrance(
+              index: i,
+              baseDelay: 420,
+              offset: const Offset(0, 14),
+              child: PressScale(child: _quickCreateTile(actions[i])),
+            ),
+          ),
         ],
       ],
     );
@@ -946,7 +983,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     required List<Color> colors,
     required VoidCallback onTap,
   }) {
-    return Material(
+    return PressScale(child: Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
@@ -1006,7 +1043,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   // ================================================================
@@ -1100,7 +1137,10 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             mainAxisSpacing: 12,
             childAspectRatio: 1.15,
           ),
-          itemBuilder: (_, i) => _manageCard(items[i]),
+          itemBuilder: (_, i) => Entrance(
+            index: i,
+            child: PressScale(child: _manageCard(items[i])),
+          ),
         ),
       ],
     );
@@ -1176,8 +1216,12 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
           style: GoogleFonts.exo(color: Colors.grey.shade600, fontSize: 13),
         ),
         const SizedBox(height: 18),
-        for (final a in actions) ...[
-          _createCard(a),
+        for (final (i, a) in actions.indexed) ...[
+          Entrance(
+            index: i,
+            offset: const Offset(24, 0),
+            child: PressScale(child: _createCard(a)),
+          ),
           const SizedBox(height: 10),
         ],
       ],
@@ -1265,7 +1309,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
     return ListView(
       physics: const BouncingScrollPhysics(),
       padding: EdgeInsets.fromLTRB(20, 20, 20, 32 + glassBottomInset(context)),
-      children: [
+      children: staggered([
         // Header card
         Container(
           padding: const EdgeInsets.all(22),
@@ -1367,7 +1411,7 @@ class _AdminDashboardPageState extends ConsumerState<AdminDashboardPage> {
             ),
           ),
         ),
-      ],
+      ]),
     );
   }
 

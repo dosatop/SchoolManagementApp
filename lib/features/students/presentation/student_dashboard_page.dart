@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/animations/app_animations.dart';
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
 import 'package:app/features/auth/provider/auth_provider.dart';
@@ -239,7 +240,7 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
               18,
               32 + glassBottomInset(context),
             ),
-            children: [
+            children: staggered(step: 70, [
               if (profileError != null)
                 _ProfileErrorCard(error: profileError, onRetry: _refresh)
               else
@@ -334,7 +335,7 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
                   ),
                 ],
               ),
-            ],
+            ]),
           ),
         ),
       ),
@@ -394,8 +395,20 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
       child: Stack(
         children: [
           // Decorative circles
-          Positioned(right: -40, top: -40, child: _bubble(150, .07)),
-          Positioned(left: -30, bottom: -50, child: _bubble(120, .05)),
+          Positioned(
+            right: -40,
+            top: -40,
+            child: FloatingBubble(distance: 10, child: _bubble(150, .07)),
+          ),
+          Positioned(
+            left: -30,
+            bottom: -50,
+            child: FloatingBubble(
+              distance: 8,
+              phase: 2,
+              child: _bubble(120, .05),
+            ),
+          ),
 
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
@@ -533,10 +546,20 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
                     children: [
                       GestureDetector(
                         onTap: () => context.push('/student/attendance'),
-                        child: ProgressRing(
-                          value: (attendanceRate ?? 0) / 100,
-                          size: 62,
-                          stroke: 6,
+                        // Ring fills up from empty.
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(
+                            begin: 0,
+                            end: (attendanceRate ?? 0) / 100,
+                          ),
+                          duration: const Duration(milliseconds: 1100),
+                          curve: Curves.easeOutCubic,
+                          builder: (_, v, ringChild) => ProgressRing(
+                            value: v,
+                            size: 62,
+                            stroke: 6,
+                            child: ringChild!,
+                          ),
                           child: attendanceLoading
                               ? const Shimmer(
                                   child: ShimmerBox(
@@ -744,7 +767,7 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
     final due = sLocal(item, ['dueDate', 'deadline']);
     final badge = _dueBadge(due);
 
-    return SoftCard(
+    return PressScale(child: SoftCard(
       onTap: () => widget.onNavigate(1),
       padding: EdgeInsets.zero,
       child: IntrinsicHeight(
@@ -819,7 +842,7 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
           ],
         ),
       ),
-    );
+    ));
   }
 
   ({String label, Color color}) _dueBadge(DateTime? due) {
@@ -883,8 +906,13 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
       crossAxisSpacing: 10,
       childAspectRatio: 1.05,
       children: [
-        for (final (icon, title, color, onTap) in items)
-          SoftCard(
+        for (final (i, (icon, title, color, onTap)) in items.indexed)
+          Entrance(
+            index: i,
+            baseDelay: 280,
+            step: 45,
+            child: PressScale(
+              child: SoftCard(
             onTap: onTap,
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
             child: Column(
@@ -903,6 +931,8 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
                   ),
                 ),
               ],
+            ),
+          ),
             ),
           ),
       ],
@@ -998,11 +1028,20 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
                 const SizedBox(height: 7),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(10),
-                  child: LinearProgressIndicator(
-                    value: (total / 100).clamp(0, 1).toDouble(),
-                    minHeight: 6,
-                    backgroundColor: Colors.grey.shade100,
-                    valueColor: AlwaysStoppedAnimation(color),
+                  // Bar grows to the score.
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(
+                      begin: 0,
+                      end: (total / 100).clamp(0, 1).toDouble(),
+                    ),
+                    duration: const Duration(milliseconds: 900),
+                    curve: Curves.easeOutCubic,
+                    builder: (_, v, __) => LinearProgressIndicator(
+                      value: v,
+                      minHeight: 6,
+                      backgroundColor: Colors.grey.shade100,
+                      valueColor: AlwaysStoppedAnimation(color),
+                    ),
                   ),
                 ),
               ],
@@ -1051,7 +1090,7 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
     required List<Color> colors,
     required String route,
   }) {
-    return Material(
+    return PressScale(child: Material(
       borderRadius: BorderRadius.circular(20),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1119,7 +1158,7 @@ class _StudentHomeTabState extends ConsumerState<_StudentHomeTab>
           ),
         ),
       ),
-    );
+    ));
   }
 
   // ================================================================

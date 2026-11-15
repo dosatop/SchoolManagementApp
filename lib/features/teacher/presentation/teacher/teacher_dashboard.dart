@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/animations/app_animations.dart';
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
 import 'package:app/features/students/presentation/widgets/student_common.dart';
@@ -224,7 +225,7 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
               parent: BouncingScrollPhysics(),
             ),
             padding: const EdgeInsets.fromLTRB(18, 14, 18, 32),
-            children: [
+            children: staggered(step: 70, [
               _hero(
                 name: profileAsync.isLoading && teacherName == null
                     ? null
@@ -284,7 +285,7 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
               ),
               const SizedBox(height: 12),
               _assignmentsSection(assignmentsAsync, assignments),
-            ],
+            ]),
           ),
         ),
       ),
@@ -342,8 +343,20 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
       ),
       child: Stack(
         children: [
-          Positioned(right: -40, top: -40, child: _bubble(150, .07)),
-          Positioned(left: -30, bottom: -50, child: _bubble(120, .05)),
+          Positioned(
+            right: -40,
+            top: -40,
+            child: FloatingBubble(distance: 10, child: _bubble(150, .07)),
+          ),
+          Positioned(
+            left: -30,
+            bottom: -50,
+            child: FloatingBubble(
+              distance: 8,
+              phase: 2,
+              child: _bubble(120, .05),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
             child: Column(
@@ -515,7 +528,7 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
   // ================================================================
 
   Widget _registerCard(_MyClass c, int? students) {
-    return SoftCard(
+    return PressScale(child: SoftCard(
       onTap: () => _openClassTeacher(c),
       padding: const EdgeInsets.all(14),
       borderColor: Colors.green.shade100,
@@ -570,7 +583,7 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
           ),
         ],
       ),
-    );
+    ));
   }
 
   // ================================================================
@@ -610,7 +623,8 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
         for (var i = 0; i < items.length; i++) ...[
           if (i > 0) const SizedBox(width: 10),
           Expanded(
-            child: SoftCard(
+            child: PressScale(
+              child: SoftCard(
               onTap: items[i].$4,
               padding: const EdgeInsets.symmetric(vertical: 16),
               child: Column(
@@ -632,6 +646,7 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
                   ),
                 ],
               ),
+            ),
             ),
           ),
         ],
@@ -692,7 +707,7 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
   }
 
   Widget _classCard(_MyClass item, Color color, int? students) {
-    return SoftCard(
+    return PressScale(child: SoftCard(
       onTap: () => _openClass(item),
       padding: const EdgeInsets.all(14),
       child: Row(
@@ -761,7 +776,7 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
           Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
         ],
       ),
-    );
+    ));
   }
 
   /// Opens the right page for a class:
@@ -860,7 +875,7 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
     final id = sStr(item, ['assignmentId', 'id']);
     final submissions = sNum(item, ['submissionCount', 'submissionsCount']);
 
-    return SoftCard(
+    return PressScale(child: SoftCard(
       onTap: id == null
           ? () => widget.onNavigate(2)
           : () => context.push('/teacher/assignments/details/$id'),
@@ -922,7 +937,7 @@ class _TeacherHomePageState extends ConsumerState<_TeacherHomePage>
           ],
         ),
       ),
-    );
+    ));
   }
 
   ({String label, Color color}) _dueBadge(DateTime? due) {

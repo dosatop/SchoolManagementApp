@@ -1,3 +1,4 @@
+import 'package:app/core/Widgets/animations/app_animations.dart';
 import 'package:app/core/Widgets/NavBar/adaptive_nav_bar.dart';
 import 'package:app/features/announcements/presentation/widgets/announcement_widgets.dart';
 import 'package:app/features/parents/models/parent_child_model.dart';
@@ -440,7 +441,7 @@ class _ParentHomeTab extends ConsumerWidget {
             parent: BouncingScrollPhysics(),
           ),
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
-          children: [
+          children: staggered(step: 70, [
             _welcomeCard(
               name: parentName,
               childCount: childrenAsync.hasValue ? children.length : null,
@@ -506,7 +507,7 @@ class _ParentHomeTab extends ConsumerWidget {
                 ),
               ],
             ),
-          ],
+          ]),
         ),
       ),
     );
@@ -601,7 +602,9 @@ class _ParentHomeTab extends ConsumerWidget {
             ),
             child: const AnnouncementBell(color: Colors.white),
           ),
-          Container(
+          FloatingBubble(
+            distance: 4,
+            child: Container(
             width: 58,
             height: 58,
             decoration: BoxDecoration(
@@ -615,6 +618,7 @@ class _ParentHomeTab extends ConsumerWidget {
               size: 28,
             ),
           ),
+          ),
         ],
       ),
     );
@@ -626,7 +630,7 @@ class _ParentHomeTab extends ConsumerWidget {
     required Color color,
     required VoidCallback onTap,
   }) {
-    return Material(
+    return PressScale(child: Material(
       color: Colors.white,
       borderRadius: BorderRadius.circular(18),
       child: InkWell(
@@ -662,7 +666,7 @@ class _ParentHomeTab extends ConsumerWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 
   /// Shimmer skeleton of two child cards.
@@ -825,7 +829,7 @@ class _ChildCard extends ConsumerWidget {
         ? 'Class not assigned'
         : child.className;
 
-    return Container(
+    return PressScale(child: Container(
       margin: const EdgeInsets.only(bottom: 12),
       child: Material(
         color: Colors.white,
@@ -931,7 +935,7 @@ class _ChildCard extends ConsumerWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _stat(
