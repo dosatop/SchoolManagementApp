@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:app/core/Dtos/auth_dtos/login_request.dart';
 import 'package:app/core/security/biometric_service.dart';
 import 'package:app/core/storage/storage_service.dart';
@@ -18,6 +20,14 @@ import 'package:google_fonts/google_fonts.dart';
 //
 // Fingerprint / Face ID: if the user turned it on in Settings, a
 // "Log in with fingerprint" button shows and the scan opens by itself.
+//
+// Animations (no extra packages):
+// • Entrance: title slides in, illustration pops, the card rises and
+//   its fields arrive one after another.
+// • Ambient: header bubbles and the illustration float gently.
+// • Feedback: the card shakes on a failed login; the login button
+//   morphs into a spinner; the fingerprint icon pulses.
+// • Respects the phone's "reduce motion" setting.
 
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -26,7 +36,8 @@ class LoginPage extends ConsumerStatefulWidget {
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends ConsumerState<LoginPage> {
+class _LoginPageState extends ConsumerState<LoginPage>
+    with TickerProviderStateMixin {
   static const Color _primary = Color(0xFF091993);
   static const Color _primaryDark = Color(0xFF050F5E);
   static const Color _textDark = Color(0xFF20232E);
@@ -47,6 +58,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   BiometricStatus? _bio;
   bool get _bioReady => _bio?.canUse ?? false;
 
+  // Animations
+  late final AnimationController _intro = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1300),
+  );
+  late final AnimationController _float = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 6),
+  );
+  late final AnimationController _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 480),
+  );
+
   /// For "press back twice to exit".
   static const Duration _exitWindow = Duration(seconds: 2);
   DateTime? _lastBackPress;
@@ -56,6 +81,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     super.initState();
     _loadLoginInfo();
     _initBiometrics();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (MediaQuery.of(context).disableAnimations) {
+        _intro.value = 1; // reduce motion: show everything at once
+      } else {
+        _intro.forward();
+        _float.repeat();
+      }
+    });
   }
 
   Future<void> _initBiometrics() async {
@@ -73,6 +108,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   @override
   void dispose() {
+    _intro.dispose();
+    _float.dispose();
+    _shake.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _passwordFocus.dispose();
@@ -108,6 +146,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     if (error != null) {
       _snack(_friendlyError(error), error: true);
+      _shake.forward(from: 0);
+      HapticFeedback.mediumImpact();
       return;
     }
 
@@ -170,7 +210,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         );
         return;
       case BiometricOutcome.failed:
-        _snack('Could not read your ${_bio!.label.toLowerCase()}.', error: true);
+        _snack(
+          'Could not read your ${_bio!.label.toLowerCase()}.',
+          error: true,
+        );
         return;
     }
 
@@ -353,28 +396,33 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         if (!didPop) _handleBack();
       },
       child: Scaffold(
-      backgroundColor: Colors.white,
-      resizeToAvoidBottomInset: true,
-      body: GestureDetector(
-        onTap: () => FocusScope.of(context).unfocus(),
-        child: SingleChildScrollView(
-          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-          child: Column(
-            children: [
-              _header(keyboardOpen),
-              Transform.translate(
-                offset: const Offset(0, -36),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: _formCard(busy),
+        backgroundColor: Colors.white,
+        resizeToAvoidBottomInset: true,
+        body: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: SingleChildScrollView(
+            keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+            child: Column(
+              children: [
+                _header(keyboardOpen),
+                Transform.translate(
+                  offset: const Offset(0, -36),
+                  child: _reveal(
+                    .25,
+                    .7,
+                    from: const Offset(0, .18),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      child: _shaking(_formCard(busy)),
+                    ),
+                  ),
                 ),
-              ),
-              _helpNote(),
-              const SizedBox(height: 24),
-            ],
+                _reveal(.7, 1, from: const Offset(0, .5), _helpNote()),
+                const SizedBox(height: 24),
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -405,8 +453,21 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
 
           // Decorative circles
-          Positioned(top: -40, right: -30, child: _bubble(150, .08)),
-          Positioned(top: 70, right: 70, child: _bubble(36, .12)),
+          Positioned(
+            top: -40,
+            right: -30,
+            child: _floating(_bubble(150, .08), distance: 10),
+          ),
+          Positioned(
+            top: 70,
+            right: 70,
+            child: _floating(_bubble(36, .12), distance: 7, phase: math.pi),
+          ),
+          Positioned(
+            top: 120,
+            left: 26,
+            child: _floating(_bubble(16, .10), distance: 6, phase: math.pi / 2),
+          ),
 
           SafeArea(
             bottom: false,
@@ -423,45 +484,56 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Welcome back 👋',
-                                style: GoogleFonts.exo(
-                                  color: Colors.white70,
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w500,
+                          child: _reveal(
+                            0,
+                            .45,
+                            from: const Offset(-.25, 0),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Welcome back 👋',
+                                  style: GoogleFonts.exo(
+                                    color: Colors.white70,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Log in',
-                                style: GoogleFonts.exo(
-                                  color: Colors.white,
-                                  fontSize: 34,
-                                  fontWeight: FontWeight.w800,
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Log in',
+                                  style: GoogleFonts.exo(
+                                    color: Colors.white,
+                                    fontSize: 34,
+                                    fontWeight: FontWeight.w800,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 6),
-                              Text(
-                                'Pick up where you left off.',
-                                style: GoogleFonts.exo(
-                                  color: Colors.white70,
-                                  fontSize: 13,
+                                const SizedBox(height: 6),
+                                Text(
+                                  'Pick up where you left off.',
+                                  style: GoogleFonts.exo(
+                                    color: Colors.white70,
+                                    fontSize: 13,
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                         AnimatedSwitcher(
                           duration: const Duration(milliseconds: 200),
                           child: keyboardOpen
                               ? const SizedBox.shrink()
-                              : Image.asset(
-                                  'assets/svgs/exam.png',
-                                  height: 120,
-                                  fit: BoxFit.contain,
+                              : _pop(
+                                  _floating(
+                                    Image.asset(
+                                      'assets/svgs/exam.png',
+                                      height: 120,
+                                      fit: BoxFit.contain,
+                                    ),
+                                    distance: 6,
+                                    phase: math.pi / 3,
+                                  ),
                                 ),
                         ),
                       ],
@@ -473,6 +545,92 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         ],
       ),
+    );
+  }
+
+  // ================================================================
+  // ANIMATION HELPERS
+  // ================================================================
+
+  /// Fades + slides [child] in during [start]..[end] of the intro.
+  Widget _reveal(
+    double start,
+    double end,
+    Widget child, {
+    Offset from = const Offset(0, .3),
+  }) {
+    final anim = CurvedAnimation(
+      parent: _intro,
+      curve: Interval(start, end, curve: Curves.easeOutCubic),
+    );
+    return FadeTransition(
+      opacity: anim,
+      child: SlideTransition(
+        position: Tween(begin: from, end: Offset.zero).animate(anim),
+        child: child,
+      ),
+    );
+  }
+
+  /// Form rows arrive one after another, after the card has risen.
+  Widget _stagger(int index, Widget child) {
+    final start = (.42 + index * .08).clamp(0.0, .9);
+    return _reveal(
+      start,
+      (start + .3).clamp(0.0, 1.0),
+      from: const Offset(0, .6),
+      child,
+    );
+  }
+
+  /// Springy scale-in for the illustration.
+  Widget _pop(Widget child) {
+    return ScaleTransition(
+      scale: CurvedAnimation(
+        parent: _intro,
+        curve: const Interval(.15, .6, curve: Curves.elasticOut),
+      ),
+      child: child,
+    );
+  }
+
+  /// Gentle up-and-down drift, looping forever.
+  Widget _floating(Widget child, {double distance = 8, double phase = 0}) {
+    return AnimatedBuilder(
+      animation: _float,
+      child: child,
+      builder: (_, child) => Transform.translate(
+        offset: Offset(
+          0,
+          math.sin(_float.value * 2 * math.pi + phase) * distance,
+        ),
+        child: child,
+      ),
+    );
+  }
+
+  /// Soft "breathing" scale, used on the fingerprint icon.
+  Widget _pulse(Widget child) {
+    return AnimatedBuilder(
+      animation: _float,
+      child: child,
+      builder: (_, child) => Transform.scale(
+        scale: 1 + .08 * math.sin(_float.value * 6 * math.pi).abs(),
+        child: child,
+      ),
+    );
+  }
+
+  /// Side-to-side shake that dies down, played on a failed login.
+  Widget _shaking(Widget child) {
+    return AnimatedBuilder(
+      animation: _shake,
+      child: child,
+      builder: (_, child) {
+        final t = _shake.value;
+        final dx = math.sin(t * math.pi * 5) * 12 * (1 - t);
+        return Transform.translate(offset: Offset(dx, 0), child: child);
+      },
     );
   }
 
@@ -511,199 +669,228 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _label('Email address'),
+              _stagger(0, _label('Email address')),
               const SizedBox(height: 8),
-              TextFormField(
-                controller: _emailController,
-                enabled: !busy,
-                keyboardType: TextInputType.emailAddress,
-                textInputAction: TextInputAction.next,
-                autofillHints: const [AutofillHints.email],
-                onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
-                decoration: _decoration(
-                  hint: 'you@school.com',
-                  icon: Icons.alternate_email_rounded,
+              _stagger(
+                0,
+                TextFormField(
+                  controller: _emailController,
+                  enabled: !busy,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  autofillHints: const [AutofillHints.email],
+                  onFieldSubmitted: (_) => _passwordFocus.requestFocus(),
+                  decoration: _decoration(
+                    hint: 'you@school.com',
+                    icon: Icons.alternate_email_rounded,
+                  ),
+                  validator: (v) {
+                    final value = v?.trim() ?? '';
+                    if (value.isEmpty) return 'Email is required';
+                    if (!RegExp(
+                      r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                    ).hasMatch(value)) {
+                      return 'Enter a valid email';
+                    }
+                    return null;
+                  },
                 ),
-                validator: (v) {
-                  final value = v?.trim() ?? '';
-                  if (value.isEmpty) return 'Email is required';
-                  if (!RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(value)) {
-                    return 'Enter a valid email';
-                  }
-                  return null;
-                },
               ),
 
               const SizedBox(height: 18),
 
-              _label('Password'),
+              _stagger(1, _label('Password')),
               const SizedBox(height: 8),
-              TextFormField(
-                controller: _passwordController,
-                focusNode: _passwordFocus,
-                enabled: !busy,
-                obscureText: !_showPassword,
-                textInputAction: TextInputAction.done,
-                autofillHints: const [AutofillHints.password],
-                onFieldSubmitted: (_) => busy ? null : _login(),
-                decoration: _decoration(
-                  hint: '••••••••',
-                  icon: Icons.lock_outline_rounded,
-                  suffix: IconButton(
-                    tooltip: _showPassword ? 'Hide password' : 'Show password',
-                    onPressed: () =>
-                        setState(() => _showPassword = !_showPassword),
-                    icon: Icon(
-                      _showPassword
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: Colors.grey.shade600,
-                      size: 20,
+              _stagger(
+                1,
+                TextFormField(
+                  controller: _passwordController,
+                  focusNode: _passwordFocus,
+                  enabled: !busy,
+                  obscureText: !_showPassword,
+                  textInputAction: TextInputAction.done,
+                  autofillHints: const [AutofillHints.password],
+                  onFieldSubmitted: (_) => busy ? null : _login(),
+                  decoration: _decoration(
+                    hint: '••••••••',
+                    icon: Icons.lock_outline_rounded,
+                    suffix: IconButton(
+                      tooltip: _showPassword
+                          ? 'Hide password'
+                          : 'Show password',
+                      onPressed: () =>
+                          setState(() => _showPassword = !_showPassword),
+                      icon: Icon(
+                        _showPassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
+                        color: Colors.grey.shade600,
+                        size: 20,
+                      ),
                     ),
                   ),
+                  validator: (v) {
+                    final value = v?.trim() ?? '';
+                    if (value.isEmpty) return 'Password is required';
+                    if (value.length < 6)
+                      return 'Must be at least 6 characters';
+                    return null;
+                  },
                 ),
-                validator: (v) {
-                  final value = v?.trim() ?? '';
-                  if (value.isEmpty) return 'Password is required';
-                  if (value.length < 6) return 'Must be at least 6 characters';
-                  return null;
-                },
               ),
 
               const SizedBox(height: 6),
 
-              Row(
-                children: [
-                  InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: busy
-                        ? null
-                        : () => setState(() => _rememberMe = !_rememberMe),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          AnimatedContainer(
-                            duration: const Duration(milliseconds: 160),
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: _rememberMe ? _primary : Colors.white,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: _rememberMe
-                                    ? _primary
-                                    : Colors.grey.shade400,
-                                width: 1.5,
+              _stagger(
+                2,
+                Row(
+                  children: [
+                    InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: busy
+                          ? null
+                          : () => setState(() => _rememberMe = !_rememberMe),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 6),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 160),
+                              width: 20,
+                              height: 20,
+                              decoration: BoxDecoration(
+                                color: _rememberMe ? _primary : Colors.white,
+                                borderRadius: BorderRadius.circular(6),
+                                border: Border.all(
+                                  color: _rememberMe
+                                      ? _primary
+                                      : Colors.grey.shade400,
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: _rememberMe
+                                  ? const Icon(
+                                      Icons.check_rounded,
+                                      size: 14,
+                                      color: Colors.white,
+                                    )
+                                  : null,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Remember me',
+                              style: GoogleFonts.exo(
+                                fontSize: 13,
+                                color: Colors.grey.shade800,
                               ),
                             ),
-                            child: _rememberMe
-                                ? const Icon(
-                                    Icons.check_rounded,
-                                    size: 14,
-                                    color: Colors.white,
-                                  )
-                                : null,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Remember me',
-                            style: GoogleFonts.exo(
-                              fontSize: 13,
-                              color: Colors.grey.shade800,
+                          ],
+                        ),
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: busy
+                          ? null
+                          : () => _snack(
+                              'Ask your school admin to reset your password.',
                             ),
-                          ),
-                        ],
+                      child: Text(
+                        'Forgot password?',
+                        style: GoogleFonts.exo(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: _primary,
+                        ),
                       ),
                     ),
-                  ),
-                  const Spacer(),
-                  TextButton(
-                    onPressed: busy
-                        ? null
-                        : () => _snack(
-                            'Ask your school admin to reset your password.',
-                          ),
-                    child: Text(
-                      'Forgot password?',
-                      style: GoogleFonts.exo(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: _primary,
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
 
               const SizedBox(height: 14),
 
               // ---------------- LOGIN BUTTON ----------------
-              SizedBox(
-                width: double.infinity,
-                height: 54,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(16),
-                    gradient: busy
-                        ? null
-                        : const LinearGradient(
-                            colors: [_primary, Color(0xFF2437C5)],
-                          ),
-                    color: busy ? Colors.grey.shade300 : null,
-                    boxShadow: busy
-                        ? null
-                        : [
-                            BoxShadow(
-                              color: _primary.withValues(alpha: .3),
-                              blurRadius: 16,
-                              offset: const Offset(0, 8),
+              _stagger(
+                3,
+                SizedBox(
+                  width: double.infinity,
+                  height: 54,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: busy
+                          ? null
+                          : const LinearGradient(
+                              colors: [_primary, Color(0xFF2437C5)],
                             ),
-                          ],
-                  ),
-                  child: ElevatedButton(
-                    onPressed: busy ? null : _login,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.transparent,
-                      disabledBackgroundColor: Colors.transparent,
-                      shadowColor: Colors.transparent,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                      color: busy ? Colors.grey.shade300 : null,
+                      boxShadow: busy
+                          ? null
+                          : [
+                              BoxShadow(
+                                color: _primary.withValues(alpha: .3),
+                                blurRadius: 16,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: busy ? null : _login,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        disabledBackgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
+                      ),
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 250),
+                        transitionBuilder: (child, anim) => FadeTransition(
+                          opacity: anim,
+                          child: ScaleTransition(scale: anim, child: child),
+                        ),
+                        child: busy
+                            ? const SizedBox(
+                                key: ValueKey('busy'),
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.4,
+                                  color: _primary,
+                                ),
+                              )
+                            : Row(
+                                key: const ValueKey('idle'),
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Text(
+                                    'Log in',
+                                    style: GoogleFonts.exo(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: .4,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  const Icon(
+                                    Icons.arrow_forward_rounded,
+                                    size: 19,
+                                  ),
+                                ],
+                              ),
                       ),
                     ),
-                    child: busy
-                        ? const SizedBox(
-                            width: 22,
-                            height: 22,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.4,
-                              color: _primary,
-                            ),
-                          )
-                        : Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Log in',
-                                style: GoogleFonts.exo(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  letterSpacing: .4,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Icon(Icons.arrow_forward_rounded, size: 19),
-                            ],
-                          ),
                   ),
                 ),
               ),
 
               if (_bioReady) ...[
                 const SizedBox(height: 16),
-                _biometricButton(busy),
+                _stagger(4, _biometricButton(busy)),
               ],
             ],
           ),
@@ -748,16 +935,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 borderRadius: BorderRadius.circular(16),
               ),
             ),
-            icon: Icon(
-              isFace ? Icons.face_retouching_natural : Icons.fingerprint_rounded,
-              size: 26,
+            icon: _pulse(
+              Icon(
+                isFace
+                    ? Icons.face_retouching_natural
+                    : Icons.fingerprint_rounded,
+                size: 26,
+              ),
             ),
             label: Text(
               'Log in with ${isFace ? 'Face ID' : 'fingerprint'}',
-              style: GoogleFonts.exo(
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
+              style: GoogleFonts.exo(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),
         ),
